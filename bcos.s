@@ -13,6 +13,8 @@
 .INCLUDE "var_bcos.s"
 
 .SEGMENT "APP"
+; システムコール ジャンプテーブル $0600
+  BRA FUNC_RESET  ; これだけ、JMP ($0600)でコール
 
 ; BDOS 0
 ; BCOS 0
@@ -30,6 +32,7 @@ FUNC_RESET:
 .ENDPROC
 
 ; BDOS 1
+; BCOS 1
 FUNC_CON_IN_CHR:
   ; コンソール入力
   ; 一文字入力する。なければ入力を待つ。
@@ -41,6 +44,7 @@ FUNC_CON_IN_CHR:
   RTS
 
 ; BDOS 2
+; BCOS 2
 FUNC_CON_OUT_CHR:
   ; input:A=char
   ; コンソールから（CTRL+S）が押されると一時停止？
@@ -48,6 +52,7 @@ FUNC_CON_OUT_CHR:
   RTS
 
 ; BDOS 6
+; BCOS 3
 FUNC_CON_RAWIO:
   ; input:A=動作選択  output:A=獲得文字/$00（バッファなし）
   ; A=$FF:コンソール入力があれば獲得するがエコーしない
