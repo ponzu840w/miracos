@@ -14,7 +14,10 @@
 
 .SEGMENT "APP"
 ; システムコール ジャンプテーブル $0600
-  BRA FUNC_RESET  ; これだけ、JMP ($0600)でコール
+  BRA FUNC_RESET          ; 0 これだけ、JMP ($0600)でコール
+  .WORD FUNC_CON_IN_CHR   ; 1 コンソール入力
+  .WORD FUNC_CON_OUT_CHR  ; 2 コンソール出力
+  .WORD FUNC_CON_RAWIO    ; 3 コンソール生入力
 
 ; BDOS 0
 ; BCOS 0
