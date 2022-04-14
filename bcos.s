@@ -3,15 +3,62 @@
 ; ファンクションコール・インタフェース（特に意味はない）
 .INCLUDE "../sd-monitor/FXT65.inc"
 .INCLUDE "../sd-monitor/generic.mac"
-.INCLUDE "../sd-monitor/fscons.mac"
+.INCLUDE "../sd-monitor/fscons.inc"
 
-; ROMコード取り込み（変数領域アクセス用）
-.PROC ROM
-  .INCLUDE "../sd-monitor/rompac.s"
-.ENDPROC
+; 変数領域宣言（ZP）
+.ZEROPAGE
+  .PROC ROMZ
+    .INCLUDE "../sd-monitor/zpmon.s"  ; モニタ用領域は確保するが、それ以外は無視
+  .ENDPROC
+  .INCLUDE "fs/zpfs.s"
+  .INCLUDE "zpbcos.s"
 
-.INCLUDE "var_bcos.s"
+; 変数領域定義
+.SEGMENT "MONVAR"
+  .PROC ROM
+    .INCLUDE "../sd-monitor/varmon.s"
+  .ENDPROC
+  .INCLUDE "fs/varfs.s"
+  .INCLUDE "varbcos.s"
 
+; ROMとの共通バッファ
+.SEGMENT "ROMBF100"        ; $0200~
+  CONINBF_BASE:   .RES 256 ; UART受信用リングバッファ
+  SECBF512:       .RES 512 ; SDカード用セクタバッファ
+
+; ROMからのインポート
+ZR0 = ROMZ::ZR0
+ZR1 = ROMZ::ZR1
+ZR2 = ROMZ::ZR2
+ZR3 = ROMZ::ZR3
+ZP_CONINBF_WR_P = ROMZ::ZP_INPUT_BF_WR_P
+ZP_CONINBF_RD_P = ROMZ::ZP_INPUT_BF_RD_P
+ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
+
+; 不要セグメント
+.SEGMENT "IPLVAR"
+.SEGMENT "LIB"
+.SEGMENT "INITDATA"
+.SEGMENT "ROMCODE"
+.SEGMENT "VECTORS"
+.SEGMENT "APPVAR"
+
+; --- BCOS本体 ---
+.SEGMENT "LIB"
+  .PROC BCOS_UART ; 単にUARTとするとアドレス宣言とかぶる
+    .INCLUDE "uart.s"
+  .ENDPROC
+  .PROC SPI
+    .INCLUDE "fs/spi.s"
+  .ENDPROC
+  .PROC SD
+    .INCLUDE "fs/sd.s"
+  .ENDPROC
+  .PROC FS
+    .INCLUDE "fs/fs.s"
+  .ENDPROC
+
+.SEGMENT "PREAPP"
 .SEGMENT "APP"
 ; システムコール ジャンプテーブル $0600
   BRA FUNC_RESET          ; 0 これだけ、JMP ($0600)でコール
@@ -30,10 +77,6 @@ FUNC_RESET:
   ;JSR FUNC_CON_OUT_CHR
   BRA @LOOP
 
-.PROC BCOSUART
-  .INCLUDE "uart_bcos.s"
-.ENDPROC
-
 ; BDOS 1
 ; BCOS 1
 FUNC_CON_IN_CHR:
@@ -51,7 +94,7 @@ FUNC_CON_IN_CHR:
 FUNC_CON_OUT_CHR:
   ; input:A=char
   ; コンソールから（CTRL+S）が押されると一時停止？
-  JSR BCOSUART::OUT_CHR
+  JSR BCOS_UART::OUT_CHR
   RTS
 
 ; BDOS 6
@@ -87,7 +130,7 @@ C_RAWWAITIN:
   BBR0 ZP_CONIN_DEV,@END
   PHA
   LDA #UART::XON
-  JSR BCOSUART::OUT_CHR
+  JSR BCOS_UART::OUT_CHR
   PLA
 @END:
   RTS
