@@ -35,15 +35,15 @@ WRBYT:
 
 RDBYT:
   ; --- AにSPIで受信したデータを格納
-  ;rdbyt
+  spi_rdbyt
   RTS
 
 DUMMYCLK:
   ; --- X回のダミークロックを送信する
-  JSR SPI::SETOUT
+  JSR SETOUT
 @LOOP:
   LDA #$FF
-  JSR SPI::WRBYT
+  JSR WRBYT
   DEX
   BNE @LOOP
   RTS

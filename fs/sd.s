@@ -10,40 +10,6 @@ BTS_CMDPRM_ZERO:  ; 00 00 00 00
 BTS_CMD41PRM:  ; 40 00 00 00
   .BYTE $00,$00,$00,$40
 
-.macro cs0high
-  LDA VIA::PORTB
-  ORA #VIA::SPI_CS0
-  STA VIA::PORTB
-.endmac
-
-.macro cs0low
-  LDA VIA::PORTB
-  AND #<~(VIA::SPI_CS0)
-  STA VIA::PORTB
-.endmac
-
-.macro spi_rdbyt
-  .local @LOOP
-  ; --- AにSPIで受信したデータを格納
-  ; 高速化マクロ
-@LOOP:
-  LDA VIA::IFR
-  AND #%00000100      ; シフトレジスタ割り込みを確認
-  BEQ @LOOP
-  LDA VIA::SR
-.endmac
-
-.macro rdpage
-  ; 高速化マクロ
-.local @RDLOOP
-  LDY #0
-@RDLOOP:
-  ;spi_rdbyt
-  STA (ZP_SDSEEK_VEC16),Y
-  INY
-  BNE @RDLOOP
-.endmac
-
 RDSEC:
   ; --- SDCMD_BF+1+2+3+4を引数としてCMD17を実行し、1セクタを読み取る
   ; --- 結果はZP_SDSEEK_VEC16の示す場所に保存される
@@ -58,12 +24,15 @@ DUMPSEC:
   RTS
 
 INIT:
+  ; 成功:A=0
+  ; 失敗:A=エラーコード
+  ;  1:InIdleStateError
+  ;  2:
   ; カードを選択しないままダミークロック
   LDA #VIA::SPI_CS0
   STA VIA::PORTB
   LDX #10         ; 80回のダミークロック
   JSR SPI::DUMMYCLK
-
 @CMD0:
 ; GO_IDLE_STATE
 ; ソフトウェアリセットをかけ、アイドル状態にする。SPIモードに突入する。
@@ -74,8 +43,9 @@ INIT:
   LDA #0|SD_STBITS
   JSR SENDCMD
   CMP #$01        ; レスが1であると期待（In Idle Stateビット）
-  BNE @INITFAILED
-
+  BEQ @CMD8
+  LDA #$01        ; エラーコード1 CMD0Error
+  RTS
 @CMD8:
 ; SEND_IF_COND
 ; カードの動作電圧の確認
@@ -86,18 +56,19 @@ INIT:
   STA SDCMD_CRC
   LDA #8|SD_STBITS
   JSR SENDCMD
+  PHA
+  JSR RDR7        ; 読み捨て
+  PLA
   CMP #$05
   BNE @SKP_OLDSD
   ;print STR_OLDSD ; Ver.1.0カード
-  BRA @INITFAILED
+  LDA #$02        ; エラーコード2 OldCardError
+  RTS
 @SKP_OLDSD:
   CMP #$01
-  BNE @INITFAILED
-  ;print STR_NEWSD ; Ver.2.0カード
-  ; CMD8のR7レスを受け取る
-  JSR RDR7
-@SKP_R7:
-
+  BEQ @CMD58
+  LDA #$03        ; エラーコード3 CMD8Error
+  RTS
 @CMD58:
 ; READ_OCR
 ; OCRレジスタを読み取る
@@ -107,7 +78,6 @@ INIT:
   LDA #58|SD_STBITS
   JSR SENDCMD
   JSR RDR7
-
 @CMD55:
 ; APP_CMD
 ; アプリケーション特化コマンド
@@ -116,8 +86,9 @@ INIT:
   LDA #55|SD_STBITS
   JSR SENDCMD
   CMP #$01
-  BNE @INITFAILED
-
+  BEQ @CMD41
+  LDA #$04    ; エラーコード4 CMD55Error
+  RTS
 @CMD41:
 ; APP_SEND_OP_COND
 ; SDカードの初期化を実行する
@@ -128,19 +99,15 @@ INIT:
   CMP #$00
   BEQ @INITIALIZED
   CMP #$01          ; レスが0なら初期化完了、1秒ぐらいかかるかも
-  BNE @INITFAILED
-
+  BEQ @SKP_CMD41ERROR
+  LDA #$05          ; エラーコード5 CMD41Error
+  RTS
+@SKP_CMD41ERROR:
   JSR DELAY         ; 再挑戦
   JMP @CMD55
-
-@INITFAILED:  ; 初期化失敗
-  BRK
-
 @INITIALIZED:
-  ;print STR_SDINIT
 OK:
-  LDA #'!'
-  JSR FUNC_CON_OUT_CHR
+  LDA #0  ; 成功コード
   RTS
 
 RDPAGE:
@@ -148,15 +115,19 @@ RDPAGE:
   RTS
 
 RDINIT:
+  ; 成功:A=0
+  ; 失敗:A=エラーコード
   ; CMD17
   LDA #17|SD_STBITS
   JSR SENDCMD
   CMP #$00
   BEQ @RDSUCCESS
-  CMP #$04          ; この例が多い
-  JSR DELAY
-  BEQ RDINIT
-  BRK
+  ;CMP #$04          ; この例が多い
+  ;JSR DELAY
+  ;BEQ RDINIT
+  ;BRK
+  LDA #$01         ; EC1:CMD17Error
+  RTS
 @RDSUCCESS:
   ;print STR_S
   cs0low
@@ -171,9 +142,11 @@ RDINIT:
 @TOKEN:
   CMP #$FE
   BEQ @RDGOTDAT
-  BRK
+  LDA #$02        ; EC2:TokenError
+  RTS
   ;BRA @RDSUCCESS ; その後の推移を確認
 @RDGOTDAT:
+  LDA #0
   RTS
 
 WAITRES:

@@ -1,102 +1,16 @@
 ;DEBUGBUILD:
 ; https://github.com/gfoot/sdcard6502/blob/master/src/1_readwritebyte.s
 .INCLUDE "../../sd-monitor/FXT65.inc"
-;.SCOPE SD
-; .INCLUDE "sd.s"
-;.ENDSCOPE
 
 ; 命名規則
 ; BYT  8bit
 ; SHORT 16bit
 ; LONG  32bit
 
-IPL_RESET:
-  ; VIAのリセット
-  LDA #$FF  ; 全GPIOを出力に
-  STA VIA::DDRA
-  STA VIA::DDRB
-  LDA #%01111111
-  STA VIA::IER
-  STA VIA::IFR
-
-  ;print STR_START
+INIT:
   JSR SD::INIT
   JSR DRV_INIT
-
-BOOT:
-  ; ルートディレクトリを開く
-  loadreg16 DRV::BPB_ROOTCLUS
-  JSR FILE_OPEN
-  ; BOOT.INIを探す
-  ;print STR_SCFILE
-  ;print STR_BOOTFILE
-  loadreg16 STR_BOOTFILE
-  JSR M_SFN_DOT2RAW_AXS
-  JSR ETM_DIR_OPEN_BYNAME
-  ; BOOT.INIを読む
-  ;print STR_BTMOD
-  JSR FILE_RDWORD           ; HEX1バイト:起動挙動 00=SDブート,01=モニタ
-  JSR BLDPRTBYT             ; 文字列出力先の指定とかもできるかも？
-  BEQ @SKPCTRL
-  ; セクタを閉じる
-  JSR FILE_THROWSEC
-  ;JMP MON::CTRL
-@SKPCTRL:
-  JSR FILE_RDWORD           ; 改行と何か一つ読み飛ばす
-  ; ブートローダ開始位置を決定する
-  ;print STR_BTLOAD
-  JSR FILE_RDWORD
-  JSR BLDPRTBYT
-  STA BOOT_LOAD_POINT+1
-  JSR FILE_RDWORD
-  JSR BLDPRTBYT
-  STA BOOT_LOAD_POINT
-  JSR FILE_RDWORD
-  ; プログラムエントリポイントを決定する
-  ;print STR_BTJUMP
-  JSR FILE_RDWORD
-  JSR BLDPRTBYT
-  STA BOOT_ENTRY_POINT+1
-  JSR FILE_RDWORD
-  JSR BLDPRTBYT
-  STA BOOT_ENTRY_POINT
-  JSR FILE_RDWORD
-  ;JSR MON::PRT_LF
-  ; ブートローダバイナリのSFNを取得する
-  loadmem16 ZP_SDSEEK_VEC16,DOT_SFN
-  LDY #0
-@SFNLOOP:
-  PHY
-  JSR FILE_RDWORD
-  PLY
-  STA (ZP_SDSEEK_VEC16),Y
-  INY
-  CPY #13
-  BEQ @EXTL
-  TXA
-  STA (ZP_SDSEEK_VEC16),Y
-  INY
-  BRA @SFNLOOP
-@EXTL:
-  ; セクタを閉じる
-  JSR FILE_THROWSEC
-  ; ルートディレクトリを開く
-  loadreg16 DRV::BPB_ROOTCLUS
-  JSR FILE_OPEN
-  ; ブートローダバイナリを探す
-  ;print STR_SCFILE
-  JSR M_SFN_DOT2RAW_WS
-  JSR M_SFN_RAW2DOT_WS     ; ムダだが、きれいになる
-  ;JSR MON::PRT_STR
-  loadreg16 RAW_SFN
-  JSR ETM_DIR_OPEN_BYNAME
-  ; 配置
-  LDA BOOT_LOAD_POINT
-  LDX BOOT_LOAD_POINT+1
-  JSR FILE_DLFULL
-  ; 実行
-  ;print STR_JUMPING
-  JMP (BOOT_LOAD_POINT)
+  RTS
 
 ETM_DIR_OPEN_BYNAME:
   ; 例外処理でモニタに落ちるシリーズ
@@ -140,7 +54,7 @@ ETM_DIR_OPEN_BYNAME:
 
 DRV_INIT:
   ; MBRを読む
-  loadmem16 ZP_SDCMDPRM_VEC16,BTS_CMDPRM_ZERO
+  loadmem16 ZP_SDCMDPRM_VEC16,SD::BTS_CMDPRM_ZERO
   loadmem16 ZP_SDSEEK_VEC16,SECBF512
   JSR SD::RDSEC
   ;INC ZP_SDSEEK_VEC16+1    ; 後半にこそある。しかしこれも一般的サブルーチンによるべきか？
@@ -200,41 +114,6 @@ DRV_INIT:
   JSR AX_DST
   loadreg16 (SECBF512+OFS_BPB_ROOTCLUS)
   JSR L_LD_AXS
-  RTS
-
-MESSAGES:
-.IFDEF DEBUGBUILD
-  STR_CMD:     .BYTE $A,"CMD$",$0
-.ENDIF
-STR_IPLV:    .BYTE "IPL V.00",$0
-STR_START:   .BYTE $A,"IPL V.00",$A,$0
-STR_SDINIT:  .BYTE "SD:Init...",$0   ; この後に!?
-STR_OLDSD:   .BYTE "SD:Old",$A,$0
-STR_NEWSD:   .BYTE "SD:>HC",$A,$0
-STR_SCFILE:  .BYTE "SearchFile:",$0  ; この後に!?
-STR_BTMOD:   .BYTE "Mode:",$0
-STR_BTLOAD:  .BYTE $A,"Load:",$0
-STR_BTJUMP:  .BYTE $A,"Jump:",$0
-STR_JUMPING: .BYTE $A,"Jumping...",$A,$A,$0
-;STR_RS:
-;  .ASCIIZ $A,"Read sector addr : $"
-;STR_S:
-;  .ASCIIZ "."
-STR_BOOTFILE:
-  .BYT "BOOT.INI"
-
-; SDコマンド用固定引数
-; 共通部分を重ねて圧縮している
-BTS_CMD8PRM:   ; 00 00 01 AA
-  .BYTE $AA,$01
-BTS_CMDPRM_ZERO:  ; 00 00 00 00
-  .BYTE $00
-BTS_CMD41PRM:  ; 40 00 00 00
-  .BYTE $00,$00,$00,$40
-
-PRT_BYT_S:
-  ;JSR MON::PRT_BYT
-  ;JSR MON::PRT_S
   RTS
 
 EQBYTS:

@@ -45,6 +45,7 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
 
 ; --- BCOS本体 ---
 .SEGMENT "LIB"
+  .INCLUDE "fs/fsmac.mac"
   .PROC BCOS_UART ; 単にUARTとするとアドレス宣言とかぶる
     .INCLUDE "uart.s"
   .ENDPROC
