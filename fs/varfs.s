@@ -41,10 +41,10 @@
 
 DRV0:               .TAG DINFO  ; ROMからの引継ぎ
 
-RAW_SFN:            .RES 11 ; 11文字
-DOT_SFN:            .RES 13 ; .とEOTを含んで13文字
+RAW_SFN:            .RES 11     ; 11文字
+DOT_SFN:            .RES 13     ; .とEOTを含んで13文字
 SDCMD_CRC:          .RES 1
-SECVEC32:           .RES 4  ; 4バイト セクタアドレス指定汎用
+SECVEC32:           .RES 4      ; 4バイト セクタアドレス指定汎用
 
 ; ファイル記述子テーブル
 ; 0=標準入力、1=標準出力、2=エラー出力を除いた3から
