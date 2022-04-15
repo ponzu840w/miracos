@@ -40,7 +40,10 @@ TEST:
   JSR DIR_NEXTENT_ENT ; 次の有効なエントリのFINFOを取得
   ; ファイル記述子のオープン
   JSR GET_NEXTFD      ; ファイル記述子を取得
+  PHA
   JSR FCTRL_ALLOC     ; ファイル記述子に実際の構造体を割り当て
+  PLA
+  JSR PUT_FWK         ; ワークエリアの内容を書き込む
   BRK
 
 FCTRL_ALLOC:
@@ -61,10 +64,10 @@ FCTRL_ALLOC:
   DEX
   BRA @OFST_LOOP
 @OFST_DONE:               ; 下位が完成
-  STA (ZR0),Y               ; テーブルに保存
+  STA (ZR0),Y             ; テーブルに保存
   INY
   LDA #>FCTRL_RES
-  STA (ZR0),Y               ; 上位をテーブルに保存
+  STA (ZR0),Y             ; 上位をテーブルに保存
   RTS
 
 GET_NEXTFD:
@@ -109,17 +112,48 @@ FILE_REOPEN:
   JSR CLUS2SEC_IMP
   RTS
 
-PUT_FCTRL:
+FD2FCTRL:
+  ; ファイル記述子をFCTRL先頭AXに変換
+  SEC
+  SBC #NONSTD_FD          ; 非標準番号
+  ASL                     ; x2
+  TAY
+  loadmem16 ZR0,FD_TABLE  ; 非標準FDテーブルへのポインタを作成
+  INY
+  LDA (ZR0),Y
+  TAX
+  DEY
+  LDA (ZR0),Y
+  RTS
+
+PUT_FWK:
   ; ワークエリアからFCTRLに書き込む
   ; input:A=FD
+  JSR FD2FCTRL
+  STA ZR0
+  STX ZR0+1               ; ZR0:FCTRL先頭ポインタ（ディスティネーション）
+  loadmem16 ZR1,FWK       ; ZR1:ワークエリア先頭ポインタ（ソース）
+  LDY #.SIZEOF(FCTRL)     ; Y=最後尾インデックス
+@LOOP:
+  LDA (ZR1),Y
+  STA (ZR0),Y
+  DEY
+  BEQ @LOOP
+  BPL @LOOP
+@END:
+  RTS
 
+LOAD_FWK:
+  ; FCTRL内容をワークエリアにロード
+  ; input:A=FD
   RTS
 
 LOAD_DWK:
   ; ドライブ情報をワークエリアに展開する
   ; 複数ドライブが実装されるまでは徒労もいいところ
   ; input A=ドライブ番号
-  ASL                 ; ベクタテーブルなので二倍にする
+  STA FWK+FCTRL::DRV_NUM  ; ファイルワークエリアのドライブ番号をセット
+  ASL                     ; ベクタテーブルなので二倍にする
   TAY
   LDA DRV_TABLE,Y
   STA ZR0
