@@ -14,6 +14,9 @@ RDSEC:
   ; --- SDCMD_BF+1+2+3+4を引数としてCMD17を実行し、1セクタを読み取る
   ; --- 結果はZP_SDSEEK_VEC16の示す場所に保存される
   JSR RDINIT
+  BEQ DUMPSEC
+  LDA #1  ; EC1:RDINITError
+  RTS
 DUMPSEC:
   ; 512バイト読み取り
   rdpage
@@ -21,6 +24,7 @@ DUMPSEC:
   rdpage
   ; コマンド終了
   cs0high
+  LDA #0
   RTS
 
 INIT:
@@ -130,8 +134,8 @@ RDINIT:
   RTS
 @RDSUCCESS:
   ;print STR_S
-  cs0low
   ;JSR SD_WAITRES  ; データを待つ
+  cs0low
   LDY #0
 @WAIT_DAT:         ;  有効トークン$FEは、負数だ
   JSR SPI::RDBYT
@@ -139,6 +143,9 @@ RDINIT:
   BNE @TOKEN
   DEY
   BNE @WAIT_DAT
+  LDA #$03        ; EC3:TokenError2
+  RTS
+  ;BRA @WAIT_DAT
 @TOKEN:
   CMP #$FE
   BEQ @RDGOTDAT

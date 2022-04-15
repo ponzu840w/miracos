@@ -28,7 +28,7 @@
 .local @RDLOOP
   LDY #0
 @RDLOOP:
-  ;spi_rdbyt
+  spi_rdbyt
   STA (ZP_SDSEEK_VEC16),Y
   INY
   BNE @RDLOOP

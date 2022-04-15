@@ -11,6 +11,7 @@
 FCTRL_ALLOC_SIZE = 4
 
 INIT:
+  JSR SD::INIT
   ; ドライブテーブルの初期化
   loadmem16 DRV_TABLE,DRV0
   ; ファイル記述子テーブルの初期化 上位バイトを0にしてテーブルを開放する
@@ -21,7 +22,6 @@ INIT:
   INX
   CPX #(FCTRL_ALLOC_SIZE*2)-1
   BNE @FDT_LOOP
-  ;JSR SD::INIT
   ;JSR DRV_INIT
   ;RTS
 
@@ -30,8 +30,10 @@ TEST:
   ; カレントドライブを設定する
   LDA #0              ; ドライブ番号
   JSR LOAD_DWK
+  loadreg16 DWK+DINFO::BPB_ROOTCLUS
   JSR CLUS2FWK
-  RTS
+  JSR RDSEC
+  BRK
 
 CLUS2FWK:
   ; AXで与えられたクラスタ番号から、ファイル構造体を展開
@@ -52,7 +54,9 @@ FILE_REOPEN:
   ; 現在クラスタ内セクタ番号をゼロに
   STZ FWK+FCTRL::CUR_SEC
   ; リアルセクタ番号を展開
-  loadmem8l ZP_LDST0_VEC16,FWK_REAL_SEC
+  ;loadmem8l ZP_LDST0_VEC16,FWK_REAL_SEC
+  loadreg16 (FWK_REAL_SEC)
+  JSR AX_DST
   JSR CLUS2SEC_IMP
   RTS
 
@@ -75,9 +79,20 @@ LOAD_DWK:
   CPY #.SIZEOF(DINFO)      ; DINFOのサイズ分コピーしたら終了
   CPY #$11
   BNE @LOOP
-  BRK
-  NOP
   RTS
+
+RDSEC:
+  loadmem16 ZP_SDSEEK_VEC16,SECBF512
+  loadmem16 ZP_SDCMDPRM_VEC16,(FWK_REAL_SEC)
+  JSR SD::RDSEC
+  BEQ @SKP_E
+  LDA #1
+  RTS
+@SKP_E:
+  ;DEC ZP_SDSEEK_VEC16+1
+  LDA #0
+  RTS
+
 
 ;  BRA .A
 ;
@@ -318,14 +333,6 @@ EQBYTS:
 ;  LDA (ZP_SDSEEK_VEC16),Y      ; 高位
 ;  STA DIR::ENT_HEAD+3
 ;@EXT:
-;  RTS
-;
-;DIR_RDSEC:
-;  ; ディレクトリ操作用のバッファ位置は固定
-;  loadmem16 ZP_SDSEEK_VEC16,SECBF512
-;  loadmem16 ZP_SDCMDPRM_VEC16,(FILE::REAL_SEC)
-;  JSR SD::RDSEC
-;  DEC ZP_SDSEEK_VEC16+1
 ;  RTS
 ;
 
