@@ -7,19 +7,76 @@
 ; SHORT 16bit
 ; LONG  32bit
 
+; --- 定数定義 ---
+FCTRL_ALLOC_SIZE = 4
+
 INIT:
-  JSR SD::INIT
-  JSR DRV_INIT
+  ; ドライブテーブルの初期化
+  loadmem16 DRV_TABLE,DRV0
+  ; ファイル記述子テーブルの初期化 上位バイトを0にしてテーブルを開放する
+  LDA #0
+  TAX
+@FDT_LOOP:
+  STA FD_TABLE+1,X
+  INX
+  CPX #(FCTRL_ALLOC_SIZE*2)-1
+  BNE @FDT_LOOP
+  ;JSR SD::INIT
+  ;JSR DRV_INIT
+  ;RTS
+
+TEST:
+  ; にっちもさっちも
+  ; カレントドライブを設定する
+  LDA #0              ; ドライブ番号
+  JSR LOAD_DWK
+  JSR CLUS2FWK
   RTS
 
-ETM_DIR_OPEN_BYNAME:
-  ; 例外処理でモニタに落ちるシリーズ
-  JSR DIR_OPEN_BYNAME
-  CMP #$FF                  ; 見つからなかったらモニタへ
-  BNE @SKP_HATENA
-  ;JMP MON::HATENA
-@SKP_HATENA:
-  JSR SD::OK
+CLUS2FWK:
+  ; AXで与えられたクラスタ番号から、ファイル構造体を展開
+  ; サイズに触れないため、ディレクトリにも使える
+  ; --- ファイル構造体の展開
+  ; 先頭クラスタ番号
+  JSR AX_SRC
+  loadreg16 FWK+FCTRL::HEAD
+  JSR AX_DST
+  JSR L_LD
+FILE_REOPEN:
+  ; ここから呼ぶと現在のファイルを開きなおす
+  ; 現在クラスタ番号に先頭クラスタ番号をコピー
+  loadreg16 (FWK+FCTRL::CUR_CLUS)
+  JSR AX_DST
+  loadreg16 (FWK+FCTRL::HEAD)
+  JSR L_LD_AXS
+  ; 現在クラスタ内セクタ番号をゼロに
+  STZ FWK+FCTRL::CUR_SEC
+  ; リアルセクタ番号を展開
+  loadmem8l ZP_LDST0_VEC16,FWK_REAL_SEC
+  JSR CLUS2SEC_IMP
+  RTS
+
+LOAD_DWK:
+  ; ドライブ情報をワークエリアに展開する
+  ; 複数ドライブが実装されるまでは徒労もいいところ
+  ; input A=ドライブ番号
+  ASL                 ; ベクタテーブルなので二倍にする
+  TAY
+  LDA DRV_TABLE,Y
+  STA ZR0
+  LDA DRV_TABLE+1,Y
+  STA ZR0+1
+  ; コピーループ
+  LDY #0
+@LOOP:
+  LDA (ZR0),Y
+  STA DWK,Y
+  INY
+  CPY #.SIZEOF(DINFO)      ; DINFOのサイズ分コピーしたら終了
+  CPY #$11
+  BNE @LOOP
+  BRK
+  NOP
   RTS
 
 ;  BRA .A
@@ -52,69 +109,69 @@ ETM_DIR_OPEN_BYNAME:
 ;  JSR DUMPPAGE
 ;  RTS
 
-DRV_INIT:
-  ; MBRを読む
-  loadmem16 ZP_SDCMDPRM_VEC16,SD::BTS_CMDPRM_ZERO
-  loadmem16 ZP_SDSEEK_VEC16,SECBF512
-  JSR SD::RDSEC
-  ;INC ZP_SDSEEK_VEC16+1    ; 後半にこそある。しかしこれも一般的サブルーチンによるべきか？
-  LDY #(OFS_MBR_PARTBL-256+OFS_PT_SYSTEMID)
-  LDA (ZP_SDSEEK_VEC16),Y ; システム標識
-  CMP #SYSTEMID_FAT32
-  BEQ @FAT32
-  CMP #SYSTEMID_FAT32NOCHS
-  BEQ @FAT32
-  BRK
-@FAT32:
-  ; ソースを上位のみ設定
-  LDA #(>SECBF512)+1
-  STA ZP_LSRC0_VEC16+1
-  ; DRV::PT_LBAOFS取得
-  loadreg16 (DRV::PT_LBAOFS)
-  JSR AX_DST
-  LDA #(OFS_MBR_PARTBL-256+OFS_PT_LBAOFS)
-  JSR L_LD_AS
-  ; BPBを読む
-  loadmem16 ZP_SDCMDPRM_VEC16,(DRV::PT_LBAOFS)
-  DEC ZP_SDSEEK_VEC16+1
-  JSR SD::RDSEC
-  DEC ZP_SDSEEK_VEC16+1
-  ; DRV::SEVPERCLUS取得
-  LDY #(OFS_BPB_SECPERCLUS)
-  LDA (ZP_SDSEEK_VEC16),Y       ; 1クラスタのセクタ数
-  STA DRV::BPB_SECPERCLUS
-  ; --- DRV::FATSTART作成
-  ; PT_LBAOFSを下地としてロード
-  loadreg16 (DRV::FATSTART)
-  JSR AX_DST
-  loadreg16 (DRV::PT_LBAOFS)
-  JSR L_LD_AXS
-  ; 予約領域の大きさのあと（NumFATsとルートディレクトリの大きさで、不要）をゼロにして、
-  ; 予約領域の大きさを32bitの値にする
-  LDA #0
-  LDY #(OFS_BPB_RSVDSECCNT+2)
-  STA (ZP_SDSEEK_VEC16),Y
-  INY
-  STA (ZP_SDSEEK_VEC16),Y
-  ; 予約領域を加算
-  loadreg16 (SECBF512+OFS_BPB_RSVDSECCNT)
-  JSR L_ADD_AXS
-  ; --- DRV::DATSTART作成
-  ; FATの大きさをロード
-  loadreg16 (DRV::DATSTART)
-  JSR AX_DST
-  loadreg16 (SECBF512+OFS_BPB_FATSZ32)
-  JSR L_LD_AXS
-  JSR L_X2                    ; 二倍にする
-  ; FATSTARTを加算
-  loadreg16 (DRV::FATSTART)
-  JSR L_ADD_AXS
-  ; --- ルートディレクトリクラスタ番号取得（どうせDAT先頭だけど…
-  loadreg16 (DRV::BPB_ROOTCLUS)
-  JSR AX_DST
-  loadreg16 (SECBF512+OFS_BPB_ROOTCLUS)
-  JSR L_LD_AXS
-  RTS
+;DRV_INIT:
+;  ; MBRを読む
+;  loadmem16 ZP_SDCMDPRM_VEC16,SD::BTS_CMDPRM_ZERO
+;  loadmem16 ZP_SDSEEK_VEC16,SECBF512
+;  JSR SD::RDSEC
+;  ;INC ZP_SDSEEK_VEC16+1    ; 後半にこそある。しかしこれも一般的サブルーチンによるべきか？
+;  LDY #(OFS_MBR_PARTBL-256+OFS_PT_SYSTEMID)
+;  LDA (ZP_SDSEEK_VEC16),Y ; システム標識
+;  CMP #SYSTEMID_FAT32
+;  BEQ @FAT32
+;  CMP #SYSTEMID_FAT32NOCHS
+;  BEQ @FAT32
+;  BRK
+;@FAT32:
+;  ; ソースを上位のみ設定
+;  LDA #(>SECBF512)+1
+;  STA ZP_LSRC0_VEC16+1
+;  ; DRV::PT_LBAOFS取得
+;  loadreg16 (DRV::PT_LBAOFS)
+;  JSR AX_DST
+;  LDA #(OFS_MBR_PARTBL-256+OFS_PT_LBAOFS)
+;  JSR L_LD_AS
+;  ; BPBを読む
+;  loadmem16 ZP_SDCMDPRM_VEC16,(DRV::PT_LBAOFS)
+;  DEC ZP_SDSEEK_VEC16+1
+;  JSR SD::RDSEC
+;  DEC ZP_SDSEEK_VEC16+1
+;  ; DRV::SEVPERCLUS取得
+;  LDY #(OFS_BPB_SECPERCLUS)
+;  LDA (ZP_SDSEEK_VEC16),Y       ; 1クラスタのセクタ数
+;  STA DRV::BPB_SECPERCLUS
+;  ; --- DRV::FATSTART作成
+;  ; PT_LBAOFSを下地としてロード
+;  loadreg16 (DRV::FATSTART)
+;  JSR AX_DST
+;  loadreg16 (DRV::PT_LBAOFS)
+;  JSR L_LD_AXS
+;  ; 予約領域の大きさのあと（NumFATsとルートディレクトリの大きさで、不要）をゼロにして、
+;  ; 予約領域の大きさを32bitの値にする
+;  LDA #0
+;  LDY #(OFS_BPB_RSVDSECCNT+2)
+;  STA (ZP_SDSEEK_VEC16),Y
+;  INY
+;  STA (ZP_SDSEEK_VEC16),Y
+;  ; 予約領域を加算
+;  loadreg16 (SECBF512+OFS_BPB_RSVDSECCNT)
+;  JSR L_ADD_AXS
+;  ; --- DRV::DATSTART作成
+;  ; FATの大きさをロード
+;  loadreg16 (DRV::DATSTART)
+;  JSR AX_DST
+;  loadreg16 (SECBF512+OFS_BPB_FATSZ32)
+;  JSR L_LD_AXS
+;  JSR L_X2                    ; 二倍にする
+;  ; FATSTARTを加算
+;  loadreg16 (DRV::FATSTART)
+;  JSR L_ADD_AXS
+;  ; --- ルートディレクトリクラスタ番号取得（どうせDAT先頭だけど…
+;  loadreg16 (DRV::BPB_ROOTCLUS)
+;  JSR AX_DST
+;  loadreg16 (SECBF512+OFS_BPB_ROOTCLUS)
+;  JSR L_LD_AXS
+;  RTS
 
 EQBYTS:
   ; Yで与えられた長さのバイト列が等しいかを返す
@@ -135,317 +192,295 @@ EQBYTS:
   LDA #0
   RTS
 
-DIR_OPEN_BYNAME:
-  ; カレントディレクトリ内の名前に一致したファイルを開く
-  ; AXで与えられた名前に合致するのを探す
-  ; アトリビュートを返すので、ファイルかどうかはそっちで確認してね
-  JSR DIR_GET_BYNAME
-  CMP #$FF                ; 見つからなかったら$FFを返して終わり
-  BEQ @EXT
-@DIR_OPEN:
-  loadreg16 DIR::ENT_HEAD
-  JSR FILE_OPEN
-  LDA DIR::ENT_ATTR
-@EXT:
-  RTS
+;DIR_OPEN_BYNAME:
+;  ; カレントディレクトリ内の名前に一致したファイルを開く
+;  ; AXで与えられた名前に合致するのを探す
+;  ; アトリビュートを返すので、ファイルかどうかはそっちで確認してね
+;  JSR DIR_GET_BYNAME
+;  CMP #$FF                ; 見つからなかったら$FFを返して終わり
+;  BEQ @EXT
+;@DIR_OPEN:
+;  loadreg16 DIR::ENT_HEAD
+;  JSR FILE_OPEN
+;  LDA DIR::ENT_ATTR
+;@EXT:
+;  RTS
+;
+;DIR_GET_BYNAME:
+;  ; 名前に一致するエントリをゲットする
+;  ; Aには属性が入って帰る
+;  ; もう何もなければ$FFを返す
+;  ; 要求された文字列
+;  STA ZR0
+;  STX ZR0+1
+;  ; カレントディレクトリを開きなおす
+;  JSR FILE_REOPEN
+;  JSR DIR_RDSEC
+;  ; エントリ番号の初期化
+;  ;LDA #$FF
+;  ;STA DIR::ENT_NUM
+;  ;loadmem16 ZP_SDSEEK_VEC16,(SECBF512-32) ; シークポインタの初期化
+;  JSR DIR_NEXTENT_ENT
+;  BRA @LOOPENT
+;@LOOP:
+;  JSR DIR_NEXTENT
+;  CMP #$FF
+;  BNE @LOOPENT
+;  RTS
+;@LOOPENT:
+;  ;LDA ZP_SDSEEK_VEC16
+;  ;LDX ZP_SDSEEK_VEC16+1
+;  ;JSR PRT_DOTSFN
+;  LDA ZP_SDSEEK_VEC16
+;  LDX ZP_SDSEEK_VEC16+1
+;  LDY #11
+;  JSR EQBYTS
+;  BNE @LOOP
+;  LDA DIR::ENT_ATTR
+;  RTS
+;
+;DIR_NEXTENT:
+;  ; 次の有効な（LFNでない）エントリを拾ってくる
+;  ; ZP_SDSEEK_VEC16が32bitにアライメントされ、DIR::ENT_NUMと一致するとする
+;  ; Aには属性が入って帰る
+;  ; もう何もなければ$FFを返す
+;  ; エントリ番号更新
+;@LOOP:
+;  LDA DIR::ENT_NUM
+;  INC
+;  STA DIR::ENT_NUM
+;  AND #%00001111
+;  BNE @SKP_NEXTSEC            ; セクタを読み切った
+;  JSR FILE_NEXTSEC            ; 次のセクタに進む
+;  JSR DIR_RDSEC               ; セクタを読み出す
+;  BRA @ENT
+;@SKP_NEXTSEC:
+;  ; シーク
+;  LDA ZP_SDSEEK_VEC16
+;  LDX ZP_SDSEEK_VEC16+1
+;  LDY #32
+;  JSR S_ADD_BYT
+;  STA ZP_SDSEEK_VEC16
+;  STX ZP_SDSEEK_VEC16+1
+;@ENT:
+;DIR_NEXTENT_ENT:
+;  JSR DIR_GETENT
+;  ;LDA (DIR::ENT_NAME)     ; 名前先頭
+;  LDA (ZP_SDSEEK_VEC16)
+;  BNE @SKP_NULL               ; 0ならもうない
+;  LDA #$FF
+;  RTS
+;@SKP_NULL:
+;  CMP #$E5                    ; 消去されたエントリ
+;  BEQ DIR_NEXTENT
+;  LDA DIR::ENT_ATTR
+;  CMP #DIRATTR_LONGNAME
+;  BNE @EXT
+;  BRA DIR_NEXTENT
+;@EXT:
+;  LDA DIR::ENT_ATTR
+;  RTS
+;
+;DIR_GETENT:
+;  ; エントリを拾ってくる
+;  ; LFNだったらサボる
+;  ; 属性
+;  LDY #OFS_DIR_ATTR
+;  LDA (ZP_SDSEEK_VEC16),Y
+;  STA DIR::ENT_ATTR
+;  CMP #DIRATTR_LONGNAME
+;  BEQ @EXT
+;  ; 名前
+;  LDA ZP_SDSEEK_VEC16
+;  STA DIR::ENT_NAME
+;  LDA ZP_SDSEEK_VEC16+1
+;  STA DIR::ENT_NAME+1
+;  ; サイズ
+;  loadreg16 (DIR::ENT_SIZ)
+;  JSR AX_DST
+;  LDA ZP_SDSEEK_VEC16
+;  LDX ZP_SDSEEK_VEC16+1
+;  LDY #OFS_DIR_FILESIZE
+;  JSR S_ADD_BYT
+;  JSR L_LD_AXS
+;  ; クラスタ番号
+;  ; TODO 16bitコピーのサブルーチン化
+;  LDY #OFS_DIR_FSTCLUSLO
+;  LDA (ZP_SDSEEK_VEC16),Y      ; 低位
+;  STA DIR::ENT_HEAD
+;  INY
+;  LDA (ZP_SDSEEK_VEC16),Y      ; 低位
+;  STA DIR::ENT_HEAD+1
+;  LDY #OFS_DIR_FSTCLUSHI
+;  LDA (ZP_SDSEEK_VEC16),Y      ; 高位
+;  STA DIR::ENT_HEAD+2
+;  INY
+;  LDA (ZP_SDSEEK_VEC16),Y      ; 高位
+;  STA DIR::ENT_HEAD+3
+;@EXT:
+;  RTS
+;
+;DIR_RDSEC:
+;  ; ディレクトリ操作用のバッファ位置は固定
+;  loadmem16 ZP_SDSEEK_VEC16,SECBF512
+;  loadmem16 ZP_SDCMDPRM_VEC16,(FILE::REAL_SEC)
+;  JSR SD::RDSEC
+;  DEC ZP_SDSEEK_VEC16+1
+;  RTS
+;
 
-DIR_GET_BYNAME:
-  ; 名前に一致するエントリをゲットする
-  ; Aには属性が入って帰る
-  ; もう何もなければ$FFを返す
-  ; 要求された文字列
-  STA ZR0
-  STX ZR0+1
-  ; カレントディレクトリを開きなおす
-  JSR FILE_REOPEN
-  JSR DIR_RDSEC
-  ; エントリ番号の初期化
-  ;LDA #$FF
-  ;STA DIR::ENT_NUM
-  ;loadmem16 ZP_SDSEEK_VEC16,(SECBF512-32) ; シークポインタの初期化
-  JSR DIR_NEXTENT_ENT
-  BRA @LOOPENT
-@LOOP:
-  JSR DIR_NEXTENT
-  CMP #$FF
-  BNE @LOOPENT
-  RTS
-@LOOPENT:
-  ;LDA ZP_SDSEEK_VEC16
-  ;LDX ZP_SDSEEK_VEC16+1
-  ;JSR PRT_DOTSFN
-  LDA ZP_SDSEEK_VEC16
-  LDX ZP_SDSEEK_VEC16+1
-  LDY #11
-  JSR EQBYTS
-  BNE @LOOP
-  LDA DIR::ENT_ATTR
-  RTS
-
-DIR_NEXTENT:
-  ; 次の有効な（LFNでない）エントリを拾ってくる
-  ; ZP_SDSEEK_VEC16が32bitにアライメントされ、DIR::ENT_NUMと一致するとする
-  ; Aには属性が入って帰る
-  ; もう何もなければ$FFを返す
-  ; エントリ番号更新
-@LOOP:
-  LDA DIR::ENT_NUM
-  INC
-  STA DIR::ENT_NUM
-  AND #%00001111
-  BNE @SKP_NEXTSEC            ; セクタを読み切った
-  JSR FILE_NEXTSEC            ; 次のセクタに進む
-  JSR DIR_RDSEC               ; セクタを読み出す
-  BRA @ENT
-@SKP_NEXTSEC:
-  ; シーク
-  LDA ZP_SDSEEK_VEC16
-  LDX ZP_SDSEEK_VEC16+1
-  LDY #32
-  JSR S_ADD_BYT
-  STA ZP_SDSEEK_VEC16
-  STX ZP_SDSEEK_VEC16+1
-@ENT:
-DIR_NEXTENT_ENT:
-  JSR DIR_GETENT
-  ;LDA (DIR::ENT_NAME)     ; 名前先頭
-  LDA (ZP_SDSEEK_VEC16)
-  BNE @SKP_NULL               ; 0ならもうない
-  LDA #$FF
-  RTS
-@SKP_NULL:
-  CMP #$E5                    ; 消去されたエントリ
-  BEQ DIR_NEXTENT
-  LDA DIR::ENT_ATTR
-  CMP #DIRATTR_LONGNAME
-  BNE @EXT
-  BRA DIR_NEXTENT
-@EXT:
-  LDA DIR::ENT_ATTR
-  RTS
-
-DIR_GETENT:
-  ; エントリを拾ってくる
-  ; LFNだったらサボる
-  ; 属性
-  LDY #OFS_DIR_ATTR
-  LDA (ZP_SDSEEK_VEC16),Y
-  STA DIR::ENT_ATTR
-  CMP #DIRATTR_LONGNAME
-  BEQ @EXT
-  ; 名前
-  LDA ZP_SDSEEK_VEC16
-  STA DIR::ENT_NAME
-  LDA ZP_SDSEEK_VEC16+1
-  STA DIR::ENT_NAME+1
-  ; サイズ
-  loadreg16 (DIR::ENT_SIZ)
-  JSR AX_DST
-  LDA ZP_SDSEEK_VEC16
-  LDX ZP_SDSEEK_VEC16+1
-  LDY #OFS_DIR_FILESIZE
-  JSR S_ADD_BYT
-  JSR L_LD_AXS
-  ; クラスタ番号
-  ; TODO 16bitコピーのサブルーチン化
-  LDY #OFS_DIR_FSTCLUSLO
-  LDA (ZP_SDSEEK_VEC16),Y      ; 低位
-  STA DIR::ENT_HEAD
-  INY
-  LDA (ZP_SDSEEK_VEC16),Y      ; 低位
-  STA DIR::ENT_HEAD+1
-  LDY #OFS_DIR_FSTCLUSHI
-  LDA (ZP_SDSEEK_VEC16),Y      ; 高位
-  STA DIR::ENT_HEAD+2
-  INY
-  LDA (ZP_SDSEEK_VEC16),Y      ; 高位
-  STA DIR::ENT_HEAD+3
-@EXT:
-  RTS
-
-DIR_RDSEC:
-  ; ディレクトリ操作用のバッファ位置は固定
-  loadmem16 ZP_SDSEEK_VEC16,SECBF512
-  loadmem16 ZP_SDCMDPRM_VEC16,(FILE::REAL_SEC)
-  JSR SD::RDSEC
-  DEC ZP_SDSEEK_VEC16+1
-  RTS
-
-FILE_OPEN:
-  ; AXで与えられたクラスタ番号から、ファイル構造体を展開
-  ; サイズに触れないため、ディレクトリにも使える
-  ; --- ファイル構造体の展開
-  ; 先頭クラスタ番号
-  JSR AX_SRC
-  loadreg16 FILE::HEAD_CLUS
-  JSR AX_DST
-  JSR L_LD
-FILE_REOPEN:
-  ; ここから呼ぶと現在のファイルを開きなおす
-  STZ DRV::SEC_RESWORD
-  ; 現在クラスタ番号に先頭クラスタ番号をコピー
-  loadreg16 (FILE::CUR_CLUS)
-  JSR AX_DST
-  loadreg16 (FILE::HEAD_CLUS)
-  JSR L_LD_AXS
-  ; 現在クラスタ内セクタ番号をゼロに
-  STZ FILE::CUR_SEC
-  ; リアルセクタ番号を展開
-  loadmem8l ZP_LDST0_VEC16,FILE::REAL_SEC
-  JSR CLUS2SEC_IMP
-  RTS
-
-FILE_NEXTSEC:
-  ; ファイル構造体を更新し、次のセクタを開く
-  ; クラスタ内セクタ番号の更新
-  LDA FILE::CUR_SEC
-  CMP DRV::BPB_SECPERCLUS
-  BNE @SKP_NEXTCLUS
-  BRK                       ; TODO:FATを読む
-@SKP_NEXTCLUS:
-  INC FILE::CUR_SEC
-  ; リアルセクタ番号を更新
-  loadreg16 (FILE::REAL_SEC)
-  JSR AX_DST
-  LDA #1
-  JSR L_ADD_BYT
-  ; 残りバイト数を減算
-  loadmem8l ZP_LDST0_VEC16,FILE::RES_SIZ+1
-  LDA #1
-  PHA
-  JSR L_SB_BYT
-  PLA
-  JSR L_SB_BYT
-CK_ENDSEC_FLG:
-  ; 残るバイト数を評価
-  ; ゼロ    0  （次のデータを要求してはいけない）
-  ; 512以下 1
-  ; 512以上 2
-  LDA FILE::RES_SIZ+1
-  AND #%11111110
-  ORA FILE::RES_SIZ+2
-  ORA FILE::RES_SIZ+3
-  BNE @SKP_SETF
-  ; 512以下である
-  ORA FILE::RES_SIZ+1
-  ORA FILE::RES_SIZ
-  BEQ @ZERO   ; 完全なるゼロ
-  LDA #$1
-  BRA @SKP_RSTF
-@SKP_SETF:
-  ; 512以上である
-  LDA #$2
-@SKP_RSTF:
-@ZERO:
-  STA FILE::ENDSEC_FLG
-  RTS
-
-FILE_RDWORD:
-  ; ファイルからデータを2バイト読み出してAXに
-  ; TODO ファイル終端の検出
-  LDA DRV::SEC_RESWORD
-  BNE @SKP_RDCMD          ; CMD17が終わっているので新たにコマンドを送る
-  loadmem16 ZP_SDCMDPRM_VEC16,FILE::REAL_SEC
-  JSR SD::RDINIT
-@SKP_RDCMD:
-  JSR SPI::RDBYT
-  PHA
-  JSR SPI::RDBYT
-  TAX
-  PLA
-  DEC DRV::SEC_RESWORD
-  BNE @SKP_ENDSEC
-  ; セクタが終わったので次のセクタを開く
-  PHA
-  PHX
-  JSR FILE_NEXTSEC
-  PLX
-  PLA
-@SKP_ENDSEC:
-  RTS
-
-FILE_THROWSEC:
-  ; RDBYTを抜ける
-  JSR SPI::RDBYT
-  JSR SPI::RDBYT
-  DEC DRV::SEC_RESWORD
-  BNE FILE_THROWSEC
-  ; コマンド終了
-  cs0high
-  RTS
-
-FILE_SETSIZ:
-  ; DIR構造体に展開されたサイズをFILE構造体にコピー
-  loadreg16 FILE::SIZ
-  JSR AX_DST
-  loadreg16 DIR::ENT_SIZ
-  JSR L_LD_AXS
-  loadreg16 FILE::RES_SIZ
-  JSR AX_DST
-  loadreg16 DIR::ENT_SIZ
-  JSR L_LD_AXS
-  JSR L_LD
-  RTS
-
-FILE_DLFULL:
-  ; バイナリファイルをAXからだだっと展開する
-  ; 速さが命
-  STA ZP_SDSEEK_VEC16
-  STX ZP_SDSEEK_VEC16+1
-  ; サイズをロード
-  JSR FILE_SETSIZ
-@CK:
-  JSR CK_ENDSEC_FLG
-  CMP #1
-  BEQ @ENDSEC           ; $1であれば最終セクタ
-@LOOP:
-  loadmem16 ZP_SDCMDPRM_VEC16,FILE::REAL_SEC
-  JSR SD::RDSEC
-  INC ZP_SDSEEK_VEC16+1
-  JSR FILE_NEXTSEC
-  CMP #2
-  BEQ @LOOP              ; $2ならループ
-@ENDSEC:
-  CMP #0
-  BEQ @END               ; $0なら終わり
-  ; 最終セクタ
-  LDA #$80
-  STA DRV::SEC_RESWORD
-  loadmem16 ZP_SDCMDPRM_VEC16,FILE::REAL_SEC
-  JSR SD::RDINIT
-  LDA FILE::RES_SIZ+1
-  BIT #%00000001
-  BEQ @SKP_PG
-  ; ページ丸ごと
-  STZ DRV::SEC_RESWORD
-  JSR SD::RDPAGE
-  INC ZP_SDSEEK_VEC16+1
-  ; 1ページ分減算
-  loadmem8l ZP_LDST0_VEC16,FILE::RES_SIZ+1
-  LDA #$1
-  JSR L_SB_BYT
-  ;BRA @CK
-@SKP_PG:
-  LDY #0
-@RDLOOP:
-  CPY FILE::RES_SIZ
-  BEQ @SKP_PBYT
-  spi_rdbyt
-  STA (ZP_SDSEEK_VEC16),Y
-  INY
-  BRA @RDLOOP
-@SKP_PBYT:
-  ; 残るセクタ分を処分
-  STY ZR0
-  LDA #0
-  SEC
-  SBC ZR0
-  LSR
-  ADC DRV::SEC_RESWORD
-  STA DRV::SEC_RESWORD
-  JSR FILE_THROWSEC
-@END:
-  RTS
+;
+;FILE_NEXTSEC:
+;  ; ファイル構造体を更新し、次のセクタを開く
+;  ; クラスタ内セクタ番号の更新
+;  LDA FILE::CUR_SEC
+;  CMP DRV::BPB_SECPERCLUS
+;  BNE @SKP_NEXTCLUS
+;  BRK                       ; TODO:FATを読む
+;@SKP_NEXTCLUS:
+;  INC FILE::CUR_SEC
+;  ; リアルセクタ番号を更新
+;  loadreg16 (FILE::REAL_SEC)
+;  JSR AX_DST
+;  LDA #1
+;  JSR L_ADD_BYT
+;  ; 残りバイト数を減算
+;  loadmem8l ZP_LDST0_VEC16,FILE::RES_SIZ+1
+;  LDA #1
+;  PHA
+;  JSR L_SB_BYT
+;  PLA
+;  JSR L_SB_BYT
+;CK_ENDSEC_FLG:
+;  ; 残るバイト数を評価
+;  ; ゼロ    0  （次のデータを要求してはいけない）
+;  ; 512以下 1
+;  ; 512以上 2
+;  LDA FILE::RES_SIZ+1
+;  AND #%11111110
+;  ORA FILE::RES_SIZ+2
+;  ORA FILE::RES_SIZ+3
+;  BNE @SKP_SETF
+;  ; 512以下である
+;  ORA FILE::RES_SIZ+1
+;  ORA FILE::RES_SIZ
+;  BEQ @ZERO   ; 完全なるゼロ
+;  LDA #$1
+;  BRA @SKP_RSTF
+;@SKP_SETF:
+;  ; 512以上である
+;  LDA #$2
+;@SKP_RSTF:
+;@ZERO:
+;  STA FILE::ENDSEC_FLG
+;  RTS
+;
+;FILE_RDWORD:
+;  ; ファイルからデータを2バイト読み出してAXに
+;  ; TODO ファイル終端の検出
+;  LDA DRV::SEC_RESWORD
+;  BNE @SKP_RDCMD          ; CMD17が終わっているので新たにコマンドを送る
+;  loadmem16 ZP_SDCMDPRM_VEC16,FILE::REAL_SEC
+;  JSR SD::RDINIT
+;@SKP_RDCMD:
+;  JSR SPI::RDBYT
+;  PHA
+;  JSR SPI::RDBYT
+;  TAX
+;  PLA
+;  DEC DRV::SEC_RESWORD
+;  BNE @SKP_ENDSEC
+;  ; セクタが終わったので次のセクタを開く
+;  PHA
+;  PHX
+;  JSR FILE_NEXTSEC
+;  PLX
+;  PLA
+;@SKP_ENDSEC:
+;  RTS
+;
+;FILE_THROWSEC:
+;  ; RDBYTを抜ける
+;  JSR SPI::RDBYT
+;  JSR SPI::RDBYT
+;  DEC DRV::SEC_RESWORD
+;  BNE FILE_THROWSEC
+;  ; コマンド終了
+;  cs0high
+;  RTS
+;
+;FILE_SETSIZ:
+;  ; DIR構造体に展開されたサイズをFILE構造体にコピー
+;  loadreg16 FILE::SIZ
+;  JSR AX_DST
+;  loadreg16 DIR::ENT_SIZ
+;  JSR L_LD_AXS
+;  loadreg16 FILE::RES_SIZ
+;  JSR AX_DST
+;  loadreg16 DIR::ENT_SIZ
+;  JSR L_LD_AXS
+;  JSR L_LD
+;  RTS
+;
+;FILE_DLFULL:
+;  ; バイナリファイルをAXからだだっと展開する
+;  ; 速さが命
+;  STA ZP_SDSEEK_VEC16
+;  STX ZP_SDSEEK_VEC16+1
+;  ; サイズをロード
+;  JSR FILE_SETSIZ
+;@CK:
+;  JSR CK_ENDSEC_FLG
+;  CMP #1
+;  BEQ @ENDSEC           ; $1であれば最終セクタ
+;@LOOP:
+;  loadmem16 ZP_SDCMDPRM_VEC16,FILE::REAL_SEC
+;  JSR SD::RDSEC
+;  INC ZP_SDSEEK_VEC16+1
+;  JSR FILE_NEXTSEC
+;  CMP #2
+;  BEQ @LOOP              ; $2ならループ
+;@ENDSEC:
+;  CMP #0
+;  BEQ @END               ; $0なら終わり
+;  ; 最終セクタ
+;  LDA #$80
+;  STA DRV::SEC_RESWORD
+;  loadmem16 ZP_SDCMDPRM_VEC16,FILE::REAL_SEC
+;  JSR SD::RDINIT
+;  LDA FILE::RES_SIZ+1
+;  BIT #%00000001
+;  BEQ @SKP_PG
+;  ; ページ丸ごと
+;  STZ DRV::SEC_RESWORD
+;  JSR SD::RDPAGE
+;  INC ZP_SDSEEK_VEC16+1
+;  ; 1ページ分減算
+;  loadmem8l ZP_LDST0_VEC16,FILE::RES_SIZ+1
+;  LDA #$1
+;  JSR L_SB_BYT
+;  ;BRA @CK
+;@SKP_PG:
+;  LDY #0
+;@RDLOOP:
+;  CPY FILE::RES_SIZ
+;  BEQ @SKP_PBYT
+;  spi_rdbyt
+;  STA (ZP_SDSEEK_VEC16),Y
+;  INY
+;  BRA @RDLOOP
+;@SKP_PBYT:
+;  ; 残るセクタ分を処分
+;  STY ZR0
+;  LDA #0
+;  SEC
+;  SBC ZR0
+;  LSR
+;  ADC DRV::SEC_RESWORD
+;  STA DRV::SEC_RESWORD
+;  JSR FILE_THROWSEC
+;@END:
+;  RTS
 
 ;CLUS2SEC_AXD:
   ; 作業するDSTをAX指定
@@ -461,7 +496,7 @@ CLUS2SEC:
   LDA #$2
   JSR L_SB_BYT
   ; *SECPERCLUS
-  LDA DRV::BPB_SECPERCLUS
+  LDA DWK+DINFO::BPB_SECPERCLUS
 @LOOP:
   TAX
   JSR L_X2
@@ -470,7 +505,7 @@ CLUS2SEC:
   CMP #1
   BNE @LOOP
   ; DATSTARTを加算
-  loadreg16 (DRV::DATSTART)
+  loadreg16 (DWK+DINFO::DATSTART)
   JSR L_ADD_AXS
   RTS
 
