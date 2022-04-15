@@ -8,7 +8,8 @@
 ; LONG  32bit
 
 ; --- 定数定義 ---
-FCTRL_ALLOC_SIZE = 4
+FCTRL_ALLOC_SIZE = 4  ; 静的に確保するFCTRLの数
+NONSTD_FD        = 8  ; 0～7を一応標準ファイルに予約
 
 INIT:
   LDA #$FF
@@ -37,8 +38,51 @@ TEST:
   JSR CLUS2FWK
   JSR RDSEC
   JSR DIR_NEXTENT_ENT ; 次の有効なエントリのFINFOを取得
-  loadreg16 FINFO_WK  ; どこみりゃいいのかわかりやすい！
+  ; ファイル記述子のオープン
+  JSR GET_NEXTFD      ; ファイル記述子を取得
+  JSR FCTRL_ALLOC     ; ファイル記述子に実際の構造体を割り当て
   BRK
+
+FCTRL_ALLOC:
+  ; FDにFCTRL領域を割り当てる…インチキで
+  ; input:A=FD
+  SEC
+  SBC #NONSTD_FD          ; 非標準番号
+  TAX                     ; 下位作成のためXに移動
+  ASL                     ; 非標準番号*2でテーブルの頭
+  TAY                     ; Yに保存
+  loadmem16 ZR0,FD_TABLE  ; 非標準FDテーブルへのポインタを作成
+  LDA #<FCTRL_RES         ; オフセット下位をロード
+@OFST_LOOP:
+  CPX #0
+  BEQ @OFST_DONE          ; オフセット完成
+  CLC
+  ADC #.SIZEOF(FCTRL)     ; 構造体サイズを加算
+  DEX
+  BRA @OFST_LOOP
+@OFST_DONE:               ; 下位が完成
+  STA (ZR0),Y               ; テーブルに保存
+  INY
+  LDA #>FCTRL_RES
+  STA (ZR0),Y               ; 上位をテーブルに保存
+  RTS
+
+GET_NEXTFD:
+  ; 次に空いたFDを取得
+  loadmem16 ZR0,FD_TABLE  ; テーブル読み取り
+  LDY #1
+@TLOOP:
+  LDA (ZR0),Y
+  BEQ @ZERO
+  INY
+  INY
+  BRA @TLOOP
+@ZERO:
+  DEY                     ; 下位桁に合わせる
+  TYA
+  CLC
+  ADC #NONSTD_FD          ; 非標準ファイル
+  RTS
 
 CLUS2FWK:
   ; AXで与えられたクラスタ番号から、ファイル構造体を展開
@@ -63,6 +107,12 @@ FILE_REOPEN:
   loadreg16 (FWK_REAL_SEC)
   JSR AX_DST
   JSR CLUS2SEC_IMP
+  RTS
+
+PUT_FCTRL:
+  ; ワークエリアからFCTRLに書き込む
+  ; input:A=FD
+
   RTS
 
 LOAD_DWK:
