@@ -14,6 +14,7 @@ NONSTD_FD        = 8  ; 0～7を一応標準ファイルに予約
 INIT:
   LDA #$FF
   STA FINFO_WK+FINFO::SIG ; FINFO_WKのシグネチャ設定
+  STA DWK_CUR_DRV         ; カレントドライブをめちゃくちゃにする
   JSR SD::INIT            ; カードの初期化
   ;JSR DRV_INIT           ; ドライブの初期化はIPLがやったのでひとまずパス
   ; ドライブテーブルの初期化
@@ -32,13 +33,10 @@ TEST:
   ; にっちもさっちも
   ; カレントドライブを設定する
   LDA #0              ; ドライブ番号
-  JSR LOAD_DWK
-  ; ルートディレクトリを開く
-  loadreg16 DWK+DINFO::BPB_ROOTCLUS
-  JSR CLUS2FWK
-  JSR RDSEC
-  loadAY16 STR_YRYR   ; 検索文字列を指定
-  JSR DIR_NEXTMATCH   ; 現在ディレクトリ内のマッチするファイルを取得
+  JSR INTOPEN_DRV
+  JSR INTOPEN_ROOT
+  loadAY16 PATH_CCP   ; 検索文字列を指定
+  JSR PATH2INFO
   ; ファイル記述子のオープン
 ;  JSR GET_NEXTFD      ; ファイル記述子を取得
 ;  PHA
@@ -49,17 +47,16 @@ TEST:
 
 PATH_CCP:       .ASCIIZ "A:/MIRACOS/CCP.COM"
 
-FUNC_FS_PARSE:
-  ; 与えられたパスを解析するだけ
-  ; input:AY=PATH
-  ; output:A=EC, ZR0=
-  RTS
-
 FUNC_FS_FIND_FST:
   ; FINFO構造体+ファイル名あるいはパス文字列から新たなFINFO構造体を得る
   ; input:AY=FINFOorPATH、ZR0=ファイル名（FINFO指定時）
   ; output:AY=FINFO
-  ; フルパスが与えられたと仮定
+  RTS
+
+PATH2INFO:
+  ; フルパスからFINFOをゲットする
+  ; input:AY=PATH
+  ; output:AY=FINFO
   STA ZR2
   STY ZR2+1             ; パス先頭を格納
   LDY #1
@@ -68,50 +65,83 @@ FUNC_FS_FIND_FST:
   BEQ @SKP_E1
   LDX #1                ; EC1:NoDrive
   RTS
-@SKP_E1
+@SKP_E1:
   LDA (ZR2)             ; ドライブレターを取得
   SEC
-  DEC #'A'              ; ドライブ番号に変換
+  SBC #'A'              ; ドライブ番号に変換
+  JSR INTOPEN_DRV       ; ルートディレクトリを開く
+  ; ディレクトリをたどる旅
+@LOOP:
+  LDA ZR2
+  LDY ZR2+1
+  JSR PATH_SLASHNEXT    ; 次の（初回ならルート直下の）要素先頭
+  STA ZR2
+  STY ZR2+1
+  CPX #0
+  BEQ @NEXT             ; パス要素がまだあるなら続行
+  loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
+  RTS
+@NEXT:
+  JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得
+  CMP #$FF              ; 見つからないエラー
+  BNE @SKP_E2
+  LDX #2
+  RTS
+@SKP_E2:
+  JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く
+  BRA @LOOP
+
+INTOPEN_DRV:
+  ; input:A=DRV
+  CMP DWK_CUR_DRV       ; カレントドライブと比較
+  BEQ @SKP_LOAD         ; 変わらないならスキップ
   JSR LOAD_DWK
+@SKP_LOAD:
+  RTS
+
+INTOPEN_ROOT:
   ; ルートディレクトリを開く
   loadreg16 DWK+DINFO::BPB_ROOTCLUS
   JSR CLUS2FWK
   JSR RDSEC
-  ; ディレクトリをたどる旅
-  JSR PATH_SLASHNEXT
-  loadAY16 STR_YRYR     ; 検索文字列を指定
-  JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得
+  RTS
+
+INTOPEN_FILE:
+  ; 内部的ファイルオープン
+  LDA FINFO_WK+FINFO::DRV_NUM
+  JSR INTOPEN_DRV                   ; ドライブ番号が違ったら更新
+  loadreg16 FINFO_WK+FINFO::HEAD
+  JSR CLUS2FWK
+  JSR RDSEC
   RTS
 
 PATH_SLASHNEXT:
   ; AYの次のスラッシュの次を得る
+  ; 終端にあったらX=1
   STA ZR0
   STY ZR0+1
-  LDY #0
+  LDY #$FF
 @LOOP:
+  INY
   LDA (ZR0),Y
+  BNE @SKP_ERR
+  LDX #1
+  RTS
+@SKP_ERR:
   CMP #'/'
   BNE @LOOP
   INY                   ; スラッシュの次を示す
+  LDA (ZR0),Y
+  BNE @SKP_ERR2
+  LDX #1
+  RTS
+@SKP_ERR2:
   LDA ZR0
   LDX ZR0+1
   JSR S_ADD_BYT
   PHX
   PLY
-  RTS
-
-INTOPEN_DIR:
-  ; 内部的ディレクトリオープン
-  LDA DIRATTR_DIRECTORY
-  BIT FINFO_WK+FINFO::ATTR        ; ディレクトリなら0でない
-  BNE INTOPEN_DIR
-  RTS
-INTOPEN_FILE:
-  ; 内部的ファイルオープン
-  loadreg16 FINFO_WK+FINFO::HEAD
-  JSR CLUS2FWK
-  JSR RDSEC
-  LDA #0
+  LDX #0
   RTS
 
 FCTRL_ALLOC:
@@ -374,7 +404,7 @@ RDSEC:
 ;  RTS
 
 DIR_NEXTMATCH:
-  ; 次のマッチするエントリを拾ってくる
+  ; 次のマッチするエントリを拾ってくる（FINFO_WKを構築する）
   ; ZP_SDSEEK_VEC16が32bitにアライメントされる
   ; Aには属性が入って帰る
   ; もう何もなければ$FFを返す
@@ -396,7 +426,7 @@ DIR_NEXTMATCH:
   LDA ZR2+1
   STA ZR0+1
   loadAY16 FINFO_WK+FINFO::NAME ; 拾ってきた名前
-  JSR EQSTR                     ; 名前を比較
+  JSR EQPATHELM                 ; 名前を比較
   PLA                           ; 属性値をプル
   BCS @NEXT                     ; 一致しないなら次
   RTS
@@ -849,23 +879,29 @@ M_SFN_RAW2DOT:
   LDX ZP_LDST0_VEC16+1
   RTS
 
-EQSTR:
+EQPATHELM:
   ; AYとZR0が等しいかを返す
+  ; 終端文字としてヌル、スラッシュを使用可能
   STA ZR1
   STY ZR1+1
   LDY #$FF                ; インデックスはゼロから
 @LOOP:
   INY
   LDA (ZR0),Y
-  BEQ @END
+  BEQ @END                ; ヌル終端なら終端検査に入る
+  CMP #'/'
+  BEQ @END                ; スラッシュ終端なら終端検査に入る
   CMP (ZR1),Y
-  BEQ @LOOP
+  BEQ @LOOP               ; 一致すればもう一文字
 @NOT:
   SEC
   RTS
 @END:
-  CMP (ZR1),Y
-  BNE @NOT                ; 惜しくも終端が一致しない
+  LDA (ZR1),Y
+  BEQ @EQ                 ; ヌル終端なら終端検査に入る
+  CMP #'/'
+  BEQ @EQ                 ; スラッシュ終端なら終端検査に入る
+  BRA @NOT
 @EQ:
   CLC
   RTS
