@@ -47,12 +47,71 @@ TEST:
 ;  JSR PUT_FWK         ; ワークエリアの内容を書き込む
   BRK
 
-STR_YRYR:       .ASCIIZ "BOOT.INI"
+PATH_CCP:       .ASCIIZ "A:/MIRACOS/CCP.COM"
+
+FUNC_FS_PARSE:
+  ; 与えられたパスを解析するだけ
+  ; input:AY=PATH
+  ; output:A=EC, ZR0=
+  RTS
 
 FUNC_FS_FIND_FST:
   ; FINFO構造体+ファイル名あるいはパス文字列から新たなFINFO構造体を得る
-  ; input:AY=FINFOorPATH、ZR0=ファイル名（FINFO指定時）、ZR1=FINFO格納先、0でデフォルト
+  ; input:AY=FINFOorPATH、ZR0=ファイル名（FINFO指定時）
   ; output:AY=FINFO
+  ; フルパスが与えられたと仮定
+  STA ZR2
+  STY ZR2+1             ; パス先頭を格納
+  LDY #1
+  LDA (ZR2),Y           ; 二文字目
+  CMP #':'              ; ドライブ文字があること判別
+  BEQ @SKP_E1
+  LDX #1                ; EC1:NoDrive
+  RTS
+@SKP_E1
+  LDA (ZR2)             ; ドライブレターを取得
+  SEC
+  DEC #'A'              ; ドライブ番号に変換
+  JSR LOAD_DWK
+  ; ルートディレクトリを開く
+  loadreg16 DWK+DINFO::BPB_ROOTCLUS
+  JSR CLUS2FWK
+  JSR RDSEC
+  ; ディレクトリをたどる旅
+  JSR PATH_SLASHNEXT
+  loadAY16 STR_YRYR     ; 検索文字列を指定
+  JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得
+  RTS
+
+PATH_SLASHNEXT:
+  ; AYの次のスラッシュの次を得る
+  STA ZR0
+  STY ZR0+1
+  LDY #0
+@LOOP:
+  LDA (ZR0),Y
+  CMP #'/'
+  BNE @LOOP
+  INY                   ; スラッシュの次を示す
+  LDA ZR0
+  LDX ZR0+1
+  JSR S_ADD_BYT
+  PHX
+  PLY
+  RTS
+
+INTOPEN_DIR:
+  ; 内部的ディレクトリオープン
+  LDA DIRATTR_DIRECTORY
+  BIT FINFO_WK+FINFO::ATTR        ; ディレクトリなら0でない
+  BNE INTOPEN_DIR
+  RTS
+INTOPEN_FILE:
+  ; 内部的ファイルオープン
+  loadreg16 FINFO_WK+FINFO::HEAD
+  JSR CLUS2FWK
+  JSR RDSEC
+  LDA #0
   RTS
 
 FCTRL_ALLOC:
@@ -331,8 +390,6 @@ DIR_NEXTMATCH:
   BNE @SKP_END
   RTS
 @SKP_END:
-  ;TAX                           ; 属性値をXに退避
-  ;PHX                           ; 属性値をプッシュ
   PHA                           ; 属性値をプッシュ
   LDA ZR2
   STA ZR0
