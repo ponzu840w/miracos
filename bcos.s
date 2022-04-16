@@ -63,6 +63,9 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
 .SEGMENT "APP"
 ; システムコール ジャンプテーブル $0600
   BRA FUNC_RESET          ; 0 これだけ、JMP ($0600)でコール
+SYSCALL:
+  JMP (SYSCALL_TABLE-2,X) ; 呼び出し規約：Xにコール番号*2を格納してJSR $0602
+SYSCALL_TABLE:
   .WORD FUNC_CON_IN_CHR   ; 1 コンソール入力
   .WORD FUNC_CON_OUT_CHR  ; 2 コンソール出力
   .WORD FUNC_CON_RAWIO    ; 3 コンソール生入力
