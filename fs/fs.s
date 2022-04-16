@@ -37,14 +37,23 @@ TEST:
   loadreg16 DWK+DINFO::BPB_ROOTCLUS
   JSR CLUS2FWK
   JSR RDSEC
-  JSR DIR_NEXTENT_ENT ; 次の有効なエントリのFINFOを取得
+  loadAY16 STR_YRYR   ; 検索文字列を指定
+  JSR DIR_NEXTMATCH   ; 現在ディレクトリ内のマッチするファイルを取得
   ; ファイル記述子のオープン
-  JSR GET_NEXTFD      ; ファイル記述子を取得
-  PHA
-  JSR FCTRL_ALLOC     ; ファイル記述子に実際の構造体を割り当て
-  PLA
-  JSR PUT_FWK         ; ワークエリアの内容を書き込む
+;  JSR GET_NEXTFD      ; ファイル記述子を取得
+;  PHA
+;  JSR FCTRL_ALLOC     ; ファイル記述子に実際の構造体を割り当て
+;  PLA
+;  JSR PUT_FWK         ; ワークエリアの内容を書き込む
   BRK
+
+STR_YRYR:       .ASCIIZ "BOOT.INI"
+
+FUNC_FS_FIND_FST:
+  ; FINFO構造体+ファイル名あるいはパス文字列から新たなFINFO構造体を得る
+  ; input:AY=FINFOorPATH、ZR0=ファイル名（FINFO指定時）、ZR1=FINFO格納先、0でデフォルト
+  ; output:AY=FINFO
+  RTS
 
 FCTRL_ALLOC:
   ; FDにFCTRL領域を割り当てる…インチキで
@@ -146,6 +155,18 @@ PUT_FWK:
 LOAD_FWK:
   ; FCTRL内容をワークエリアにロード
   ; input:A=FD
+  JSR FD2FCTRL
+  STA ZR0
+  STX ZR0+1               ; ZR0:FCTRL先頭ポインタ（ソース）
+  loadmem16 ZR1,FWK       ; ZR1:ワークエリア先頭ポインタ（ディスティネーション）
+  LDY #.SIZEOF(FCTRL)     ; Y=最後尾インデックス
+@LOOP:
+  LDA (ZR0),Y
+  STA (ZR1),Y
+  DEY
+  BEQ @LOOP
+  BPL @LOOP
+@END:
   RTS
 
 LOAD_DWK:
@@ -181,36 +202,6 @@ RDSEC:
   DEC ZP_SDSEEK_VEC16+1
   LDA #0
   RTS
-
-;  BRA .A
-;
-;  ; 任意クラスタ読み取り
-;.LOOP
-;  print STR_RS
-;
-;  JSR MON::INPUT_BYT
-;  STA SECVEC32+3
-;  JSR MON::INPUT_BYT
-;  STA SECVEC32+2
-;  JSR MON::INPUT_BYT
-;  STA SECVEC32+1
-;  JSR MON::INPUT_BYT
-;  STA SECVEC32
-;.B
-;  JSR CLUS2SEC
-;  loadmem16 ZP_SDCMDPRM_VEC16,SECVEC32
-;  loadmem16 ZP_SDSEEK_VEC16,SECBF512
-;  JSR SD_RDSEC
-;.A
-;  JSR .SHOWSEC
-;  BRA .LOOP
-;
-;.SHOWSEC
-;  loadmem16 ZP_GP0_VEC16,SECBF512
-;  JSR DUMPPAGE
-;  INC ZP_GP0_VEC16+1
-;  JSR DUMPPAGE
-;  RTS
 
 ;DRV_INIT:
 ;  ; MBRを読む
@@ -276,25 +267,6 @@ RDSEC:
 ;  JSR L_LD_AXS
 ;  RTS
 
-EQBYTS:
-  ; Yで与えられた長さのバイト列が等しいかを返す
-  ; ZR0とAX
-  ; 文字列比較ではないのでNULLがあってもOK
-  STA ZR1
-  STX ZR1+1
-@LOOP:
-  DEY
-  BMI @EQ               ; 初回で引っかかっても、長さ0の比較は問答無用で正しい
-  LDA (ZR0),Y
-  CMP (ZR1),Y
-  BEQ @LOOP
-@NOT:
-  LDA #1
-  RTS
-@EQ:
-  LDA #0
-  RTS
-
 ;DIR_OPEN_BYNAME:
 ;  ; カレントディレクトリ内の名前に一致したファイルを開く
 ;  ; AXで与えられた名前に合致するのを探す
@@ -342,9 +314,39 @@ EQBYTS:
 ;  LDA DIR::ENT_ATTR
 ;  RTS
 
+DIR_NEXTMATCH:
+  ; 次のマッチするエントリを拾ってくる
+  ; ZP_SDSEEK_VEC16が32bitにアライメントされる
+  ; Aには属性が入って帰る
+  ; もう何もなければ$FFを返す
+  ; input:AY=ファイル名
+  STA ZR2
+  STY ZR2+1
+  JSR DIR_NEXTENT_ENT           ; 初回用エントリ
+  BRA @FIRST
+@NEXT:
+  JSR DIR_NEXTENT               ; 次のエントリを拾う
+@FIRST:
+  CMP #$FF                      ; もうエントリがない時のエラーハンドル
+  BNE @SKP_END
+  RTS
+@SKP_END:
+  ;TAX                           ; 属性値をXに退避
+  ;PHX                           ; 属性値をプッシュ
+  PHA                           ; 属性値をプッシュ
+  LDA ZR2
+  STA ZR0
+  LDA ZR2+1
+  STA ZR0+1
+  loadAY16 FINFO_WK+FINFO::NAME ; 拾ってきた名前
+  JSR EQSTR                     ; 名前を比較
+  PLA                           ; 属性値をプル
+  BCS @NEXT                     ; 一致しないなら次
+  RTS
+
 DIR_NEXTENT:
   ; 次の有効な（LFNでない）エントリを拾ってくる
-  ; ZP_SDSEEK_VEC16が32bitにアライメントされ、DIR::ENT_NUMと一致するとする
+  ; ZP_SDSEEK_VEC16が32bitにアライメントされる
   ; Aには属性が入って帰る
   ; もう何もなければ$FFを返す
   ; 次のエントリ
@@ -789,4 +791,60 @@ M_SFN_RAW2DOT:
   LDA ZP_LDST0_VEC16
   LDX ZP_LDST0_VEC16+1
   RTS
+
+EQSTR:
+  ; AYとZR0が等しいかを返す
+  STA ZR1
+  STY ZR1+1
+  LDY #$FF                ; インデックスはゼロから
+@LOOP:
+  INY
+  LDA (ZR0),Y
+  BEQ @END
+  CMP (ZR1),Y
+  BEQ @LOOP
+@NOT:
+  SEC
+  RTS
+@END:
+  CMP (ZR1),Y
+  BNE @NOT                ; 惜しくも終端が一致しない
+@EQ:
+  CLC
+  RTS
+
+;STR_LEN:
+;  ; 文字列の長さを取得する
+;  ; input:AY
+;  ; output:X
+;  STA ZR0
+;  STY ZR0+1
+;STR_LEN_ZR0:  ; ZR0入力
+;  LDY #$FF
+;@LOOP:
+;  INY
+;  LDA (ZR0),Y
+;  BNE @LOOP
+;  RTS
+;
+;EQBYTS:
+;  ; Xで与えられた長さのバイト列が等しいかを返す
+;  ; ZR0とAY
+;  ; 文字列比較ではないのでNULLがあってもOK
+;  STA ZR1
+;  STY ZR1+1
+;  TXA
+;  TAY
+;@LOOP:
+;  DEY
+;  BMI @EQ               ; 初回で引っかかっても、長さ0の比較は問答無用で正しい
+;  LDA (ZR0),Y
+;  CMP (ZR1),Y
+;  BEQ @LOOP
+;@NOT:
+;  SEC
+;  RTS
+;@EQ:
+;  CLC
+;  RTS
 
