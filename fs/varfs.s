@@ -30,6 +30,7 @@
   HEAD              .RES 4  ; 先頭クラスタ番号
   SIZ               .RES 4  ; ファイルサイズ
   ; 次を検索するためのデータ
+  DRV_NUM           .RES 1  ; ドライブ番号
   DIR_CLUS          .RES 4  ; 親ディレクトリ現在クラスタ
   DIR_SEC           .RES 4  ; 親ディレクトリ現在セクタ
   DIR_ENT           .RES 1  ; セクタ内エントリ番号（0~15）
@@ -68,6 +69,7 @@ FCTRL_RES:          .REPEAT 4
 FINFO_WK:           .TAG FINFO
 
 DWK:                .TAG DINFO  ; ドライブワークエリア
+DWK_CUR_DRV:        .RES 1      ; カレントドライブ（無駄リロード阻止用）
 
 FWK:                .TAG FCTRL  ; ファイルワークエリア
 FWK_REAL_SEC:       .RES 4      ; 実際のセクタ
