@@ -17,7 +17,8 @@
   CUR_CLUS          .RES 4  ; 現在クラスタ
   CUR_SEC           .RES 1  ; クラスタ内セクタ
   SIZ               .RES 4  ; サイズ
-  RES_SIZ           .RES 4  ; 残るサイズ
+  ;RES_SIZ           .RES 4  ; 残るサイズ
+  SEEK_PTR          .RES 4  ; シーケンシャルアクセス用ポインタ
 .ENDSTRUCT
 
 .STRUCT FINFO
@@ -73,16 +74,4 @@ DWK_CUR_DRV:        .RES 1      ; カレントドライブ（無駄リロード�
 
 FWK:                .TAG FCTRL  ; ファイルワークエリア
 FWK_REAL_SEC:       .RES 4      ; 実際のセクタ
-
-; 以下はプロセスが持っておればよい
-;.PROC DIR
-;  ; カレントディレクトリとその中のエントリ弄り用
-;  ; ファイルとしての実態こそがだいじ
-;  CUR_DIR:          .RES 4  ; クラスタ番号
-;  ENT_NUM:          .RES 1  ; 検索など何らかで選択されたエントリ番号（返り値用
-;  ENT_ATTR:         .RES 1  ; エントリの属性
-;  ENT_HEAD:         .RES 4  ; エントリの最初のクラスタ番号
-;  ENT_NAME:         .RES 2  ; ポインタ
-;  ENT_SIZ:          .RES 4  ; ファイルサイズバイト
-;.ENDPROC
 
