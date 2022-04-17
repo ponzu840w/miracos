@@ -31,18 +31,8 @@ INIT:
 
 TEST:
   ; にっちもさっちも
-  ; カレントドライブを設定する
-  LDA #0              ; ドライブ番号
-  JSR INTOPEN_DRV
-  JSR INTOPEN_ROOT
-  loadAY16 PATH_CCP   ; 検索文字列を指定
-  JSR PATH2INFO
-  ; ファイル記述子のオープン
-;  JSR GET_NEXTFD      ; ファイル記述子を取得
-;  PHA
-;  JSR FCTRL_ALLOC     ; ファイル記述子に実際の構造体を割り当て
-;  PLA
-;  JSR PUT_FWK         ; ワークエリアの内容を書き込む
+  loadAY16 PATH_CCP   ; ファイルパスを指定
+  JSR FUNC_FS_OPEN    ; ファイルをオープンする
   BRK
 
 PATH_CCP:       .ASCIIZ "A:/MIRACOS/CCP.COM"
@@ -53,12 +43,56 @@ FUNC_FS_FIND_FST:
   ; output:AY=FINFO
   RTS
 
-PATH2INFO:
+FUNC_FS_OPEN:
+  ; ドライブパスまたはFINFOポインタからファイル記述子をオープンして返す
+  ; input:AY=ptr, X=mode
+  ; output:A=FD, X=ERR
+  STA ZR2
+  STY ZR2+1
+  LDA (ZR2)                 ; 先頭バイトを取得
+  CMP #$FF                  ; FINFOシグネチャ
+  BEQ @FINFO
+@PATH:
+  JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
+  BEQ @SKP_PATHERR          ; エラーハンドル
+  LDX #1                    ; EC1:PATHERR
+  RTS
+@SKP_PATHERR:
+@FINFO:
+  JSR FD_OPEN
+  BEQ X0RTS                 ; エラーハンドル
+  LDX #2                    ; EC2:OPENERR
+  RTS
+
+FD_OPEN:
+  ; FINFOからファイル記述子をオープン
+  ; output A=FD, X=EC
+  LDA DIRATTR_DIRECTORY
+  BIT FINFO_WK+FINFO::ATTR  ; ディレクトリなら非ゼロ
+  BEQ @SKP_DIRERR
+  LDX #1                    ; EC1:DIR
+  RTS
+@SKP_DIRERR:                ; 以下、ディレクトリではない
+  JSR INTOPEN_FILE          ; FINFOからファイルを開く
+  JSR FINFO2SIZ             ; サイズ情報も展開
+  JSR GET_NEXTFD            ; ファイル記述子を取得
+  PHA
+  JSR FCTRL_ALLOC           ; ファイル記述子に実際の構造体を割り当て
+  PLA
+  PHA
+  JSR PUT_FWK               ; ワークエリアの内容を書き込む
+  PLA
+X0RTS:
+  LDX #0
+  RTS
+
+PATH2FINFO:
   ; フルパスからFINFOをゲットする
   ; input:AY=PATH
   ; output:AY=FINFO
   STA ZR2
   STY ZR2+1             ; パス先頭を格納
+PATH2FINFO_ZR2:
   LDY #1
   LDA (ZR2),Y           ; 二文字目
   CMP #':'              ; ドライブ文字があること判別
@@ -69,7 +103,8 @@ PATH2INFO:
   LDA (ZR2)             ; ドライブレターを取得
   SEC
   SBC #'A'              ; ドライブ番号に変換
-  JSR INTOPEN_DRV       ; ルートディレクトリを開く
+  JSR INTOPEN_DRV       ; ドライブを開く
+  JSR INTOPEN_ROOT      ; ルートディレクトリを開く
   ; ディレクトリをたどる旅
 @LOOP:
   LDA ZR2
@@ -80,6 +115,7 @@ PATH2INFO:
   CPX #0
   BEQ @NEXT             ; パス要素がまだあるなら続行
   loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
+  LDX #0                ; 成功コード
   RTS
 @NEXT:
   JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得
@@ -542,19 +578,18 @@ NEXTSEC:
   JSR L_ADD_BYT
   RTS
 
-;FILE_SETSIZ:
-;  ; DIR構造体に展開されたサイズをFILE構造体にコピー
-;  loadreg16 FWK+FCTRL::SIZ
-;  JSR AX_DST
-;  loadreg16 DIR::ENT_SIZ
-;  JSR L_LD_AXS
-;  loadreg16 FWK+FCTRL::RES_SIZ
-;  JSR AX_DST
-;  loadreg16 DIR::ENT_SIZ
-;  JSR L_LD_AXS
-;  JSR L_LD
-;  RTS
-;
+FINFO2SIZ:
+  ; FINFO構造体に展開されたサイズをFCTRL構造体にコピー
+  loadreg16 FWK+FCTRL::SIZ        ; デスティネーションをサイズに
+  JSR AX_DST
+  loadreg16 FINFO_WK+FINFO::SIZ   ; ソースをFINFOのサイズにしてロード
+  JSR L_LD_AXS
+  loadreg16 FWK+FCTRL::RES_SIZ    ; デスティネーションを残りサイズに
+  JSR AX_DST
+  loadreg16 FINFO_WK+FINFO::SIZ   ; ソースをFINFOのサイズにしてロード
+  JSR L_LD_AXS
+  RTS
+
 ;FILE_DLFULL:
 ;  ; バイナリファイルをAXからだだっと展開する
 ;  ; 速さが命
