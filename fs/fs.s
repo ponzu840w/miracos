@@ -31,11 +31,91 @@ INIT:
 
 TEST:
   ; にっちもさっちも
-  loadAY16 PATH_CCP   ; ファイルパスを指定
+  loadAY16 PATH_YRYR   ; ファイルパスを指定
   JSR FUNC_FS_OPEN    ; ファイルをオープンする
+  PHA
+  loadmem16 ZR0,$2000 ; 書き込み先
+  LDA #2
+  LDY #3              ; $03文字
+  PLX
+  JSR FUNC_FS_READ_BYTS
   BRK
 
-PATH_CCP:       .ASCIIZ "A:/MIRACOS/CCP.COM"
+;PATH_CCP:       .ASCIIZ "A:/MIRACOS/CCP.COM"
+PATH_YRYR:       .ASCIIZ "A:/YRYR.TXT"
+
+FUNC_FS_READ_BYTS:
+  ; シーケンシャルアクセス
+  ; input :X=fd, AY=len, ZR0=bfptr
+  ; output:AY=actual_len
+  STA ZR2
+  STY ZR2+1                       ; ZR2=len
+  LDA ZR0
+  LDY ZR0+1
+  PHA
+  PHY                             ; 書き込み先を退避
+  STZ ZR3
+  STZ ZR3+1                       ; ZR3を実際に読み取ったバイト数のカウンタとして初期化
+  TXA                             ; FDをAに
+  JSR LOAD_FWK                    ; FDからFCTRL構造体をロード
+  loadreg16 FWK_REAL_SEC          ; リアルセクタ
+  JSR AX_DST                      ; 書き込み先に
+  loadreg16 FWK+FCTRL::CUR_CLUS   ; 現在クラスタのポインタ
+  JSR CLUS2SEC_AXS                ; ソースにしてクラスタセクタ変換
+  LDY FWK+FCTRL::CUR_SEC          ; 現在セクタ
+  JSR L_ADD_BYT                   ; リアルセクタに現在セクタを加算
+  JSR RDSEC                       ; セクタ読み取り、SDSEEKは起点
+  ; シークポインタの初期位置を計算
+  LDA FWK+FCTRL::SEEK_PTR+1       ; 第1バイト
+  LSR                             ; bit 0 をキャリーに
+  BCC @SKP_INCPAGE                ; C=0 上部
+  INC ZP_SDSEEK_VEC16+1           ; C=1 下部
+@SKP_INCPAGE:
+  LDA FWK+FCTRL::SEEK_PTR+1       ; 第0バイト
+  CLC
+  ADC ZP_SDSEEK_VEC16
+  STA ZP_SDSEEK_VEC16             ; 下位バイトを加算
+  PLA
+  STA ZR0+1
+  PLA
+  STA ZR0                         ; 書き込み先を復帰
+  ; 一文字づつ読み取り
+@LOOP:
+  LDA #$FF                        ; 全ビットを見る
+  BIT ZR2+1                       ; 上位桁がゼロか
+  BNE @NZ
+  BIT ZR2                         ; 下位桁がゼロか
+  BNE @NZ
+  LDA ZR3                         ; 終了処理、実際に読み込んだバイト数をロード
+  LDY ZR3+1
+  RTS
+@NZ:                              ; どちらかがゼロではない
+  LDA (ZP_SDSEEK_VEC16)           ; データを1バイト取得
+  STA (ZR0)                       ; データを書き込み
+  INC ZP_SDSEEK_VEC16             ; 下位をインクリメント
+  BNE @SKP_INCH
+  INC ZP_SDSEEK_VEC16+1           ; 上位をインクリメント
+  LDA ZP_SDSEEK_VEC16+1
+  CMP #(>SECBF512)+2              ; 読み切ったらEQ
+  BNE @SKP_INCH
+  JSR NEXTSEC                     ; 次のセクタに移行
+  JSR RDSEC                       ; ロード
+@SKP_INCH:
+  INC ZR0                         ; ZR0下位をインクリメント
+  BNE @SKP_INCH0
+  INC ZR0+1                       ; ZR0上位をインクリメント
+@SKP_INCH0:
+  INC ZR3                         ; ZR3下位をインクリメント
+  BNE @SKP_INCH3
+  INC ZR3+1                       ; ZR3上位をインクリメント
+@SKP_INCH3:
+  DEC ZR2                         ; ZR2下位をデクリメント
+  LDA ZR2
+  CMP #$FF
+  BNE @SKP_DECH2
+  DEC ZR2+1                       ; ZR2上位をデクリメント
+@SKP_DECH2:
+  BRA @LOOP
 
 FUNC_FS_FIND_FST:
   ; FINFO構造体+ファイル名あるいはパス文字列から新たなFINFO構造体を得る
@@ -584,9 +664,9 @@ FINFO2SIZ:
   JSR AX_DST
   loadreg16 FINFO_WK+FINFO::SIZ   ; ソースをFINFOのサイズにしてロード
   JSR L_LD_AXS
-  loadreg16 FWK+FCTRL::RES_SIZ    ; デスティネーションを残りサイズに
+  loadreg16 FWK+FCTRL::SEEK_PTR   ; デスティネーションをシークポインタに
   JSR AX_DST
-  loadreg16 FINFO_WK+FINFO::SIZ   ; ソースをFINFOのサイズにしてロード
+  loadreg16 SD::BTS_CMDPRM_ZERO   ; ソースを$00000000にしてロード
   JSR L_LD_AXS
   RTS
 
@@ -650,13 +730,10 @@ FINFO2SIZ:
 ;@END:
 ;  RTS
 
-;CLUS2SEC_AXD:
-  ; 作業するDSTをAX指定
-  ;JSR AX_DST
-CLUS2SEC_AXS:
+CLUS2SEC_AXS: ; ソースを指定
   JSR AX_SRC
-CLUS2SEC_IMP:
-  JSR L_LD
+CLUS2SEC_IMP: ; S,Dが適切に設定されている
+  JSR L_LD    ; そのままコピーする
 CLUS2SEC:
   ; クラスタ番号をセクタ番号に変換する
   ; SECPERCLUSは2の累乗であることが保証されている
