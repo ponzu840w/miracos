@@ -31,23 +31,41 @@ INIT:
 
 TEST:
   ; にっちもさっちも
-  loadAY16 PATH_YRYR   ; ファイルパスを指定
+  loadAY16 PATH_YRYR  ; ファイルパスを指定
   JSR FUNC_FS_OPEN    ; ファイルをオープンする
-  PHA
+  STA FD0
+  loadAY16 PATH_CCP   ; ファイルパスを指定
+  JSR FUNC_FS_OPEN    ; ファイルをオープンする
+  STA FD1
+@LOOP:
   loadmem16 ZR0,$2000 ; 書き込み先
-  LDA #2
-  LDY #3              ; $03文字
-  PLX
+  JSR FUNC_CON_IN_CHR ; 文字入力を待機
+  AND #$0F            ; 一桁抽出
+  PHA
+  LDY #0              ; $03文字
+  LDX FD0
+  JSR FUNC_FS_READ_BYTS
+  loadmem16 ZR0,$2100 ; 書き込み先
+  PLA
+  LDY #0              ; $03文字
+  LDX FD1
   JSR FUNC_FS_READ_BYTS
   BRK
+  NOP
+  BRA @LOOP
 
-;PATH_CCP:       .ASCIIZ "A:/MIRACOS/CCP.COM"
-PATH_YRYR:       .ASCIIZ "A:/YRYR.TXT"
+; テスト用変数
+FD0:  .RES 1
+FD1:  .RES 1
+
+PATH_CCP:       .ASCIIZ "A:/MIRACOS/CCP.COM"
+PATH_YRYR:      .ASCIIZ "A:/YRYR.TXT"
 
 FUNC_FS_READ_BYTS:
   ; シーケンシャルアクセス
   ; input :X=fd, AY=len, ZR0=bfptr
-  ; output:AY=actual_len
+  ; output:AY=actual_len、C=EOF
+  PHX                             ; fd退避
   STA ZR2
   STY ZR2+1                       ; ZR2=len
   LDA ZR0
@@ -71,7 +89,7 @@ FUNC_FS_READ_BYTS:
   BCC @SKP_INCPAGE                ; C=0 上部
   INC ZP_SDSEEK_VEC16+1           ; C=1 下部
 @SKP_INCPAGE:
-  LDA FWK+FCTRL::SEEK_PTR+1       ; 第0バイト
+  LDA FWK+FCTRL::SEEK_PTR         ; 第0バイト
   CLC
   ADC ZP_SDSEEK_VEC16
   STA ZP_SDSEEK_VEC16             ; 下位バイトを加算
@@ -79,19 +97,35 @@ FUNC_FS_READ_BYTS:
   STA ZR0+1
   PLA
   STA ZR0                         ; 書き込み先を復帰
+  loadreg16 FWK+FCTRL::SIZ        ; サイズ
+  JSR AX_SRC                      ; 比較もとに
+  loadreg16 FWK+FCTRL::SEEK_PTR   ; シークポインタ
+  JSR AX_DST                      ; 書き込み先に
+  JSR L_CMP                       ; SIZとSEEK_PTRを比較
+  SEC                             ; C=最終バイトフラグ
+  BEQ @END                        ; （始まる前から）最終バイト読み取り完了につき終了
   ; 一文字づつ読み取り
 @LOOP:
   LDA #$FF                        ; 全ビットを見る
-  BIT ZR2+1                       ; 上位桁がゼロか
+  BIT ZR2+1                       ; 上位桁がゼロか  -len
   BNE @NZ
   BIT ZR2                         ; 下位桁がゼロか
-  BNE @NZ
-  LDA ZR3                         ; 終了処理、実際に読み込んだバイト数をロード
+  BNE @NZ                         ; まだ残ってるなら読み取りを実行、そうでなければ要求完了
+  CLC                             ; 最終バイトフラグを折る
+@END:
+  PLA                             ; 終了処理、現在ファイル記述子復帰
+  PHP
+  JSR PUT_FWK
+  LDA ZR3                         ; 実際に読み込んだバイト数をロード
   LDY ZR3+1
+  PLP
   RTS
 @NZ:                              ; どちらかがゼロではない
   LDA (ZP_SDSEEK_VEC16)           ; データを1バイト取得
   STA (ZR0)                       ; データを書き込み
+  JSR L_CMP                       ; SIZとSEEK_PTRを比較
+  SEC                             ; C=最終バイトフラグ
+  BEQ @END                        ; 最終バイト読み取り完了につき終了
   INC ZP_SDSEEK_VEC16             ; 下位をインクリメント
   BNE @SKP_INCH
   INC ZP_SDSEEK_VEC16+1           ; 上位をインクリメント
@@ -101,20 +135,22 @@ FUNC_FS_READ_BYTS:
   JSR NEXTSEC                     ; 次のセクタに移行
   JSR RDSEC                       ; ロード
 @SKP_INCH:
-  INC ZR0                         ; ZR0下位をインクリメント
+  INC ZR0                         ; ZR0下位をインクリメント -書き込み先
   BNE @SKP_INCH0
   INC ZR0+1                       ; ZR0上位をインクリメント
 @SKP_INCH0:
-  INC ZR3                         ; ZR3下位をインクリメント
+  INC ZR3                         ; ZR3下位をインクリメント -読み取りバイト数
   BNE @SKP_INCH3
   INC ZR3+1                       ; ZR3上位をインクリメント
 @SKP_INCH3:
-  DEC ZR2                         ; ZR2下位をデクリメント
+  DEC ZR2                         ; ZR2下位をデクリメント   -len
   LDA ZR2
   CMP #$FF
   BNE @SKP_DECH2
   DEC ZR2+1                       ; ZR2上位をデクリメント
 @SKP_DECH2:
+  LDA #1
+  JSR L_ADD_BYT                   ; SEEK_PTRをインクリメント
   BRA @LOOP
 
 FUNC_FS_FIND_FST:
@@ -836,6 +872,19 @@ L_ADD_BYT:
   CPY #4
   BNE @LOOP
   PLP
+  RTS
+
+L_CMP:
+  ; 32bit値同士が等しいか否かをゼロフラグで返す
+  LDY #0
+@LOOP:
+  LDA (ZP_LSRC0_VEC16),Y
+  CMP (ZP_LDST0_VEC16),Y
+  BNE @NOTEQ                  ; 違ってたら抜ける…フラグをそのまま
+  INY
+  CPY #4
+  BNE @LOOP                   ; 全部見たなら抜ける…フラグをそのまま
+@NOTEQ:
   RTS
 
 S_ADD_BYT:

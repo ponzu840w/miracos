@@ -17,7 +17,6 @@
   CUR_CLUS          .RES 4  ; 現在クラスタ
   CUR_SEC           .RES 1  ; クラスタ内セクタ
   SIZ               .RES 4  ; サイズ
-  ;RES_SIZ           .RES 4  ; 残るサイズ
   SEEK_PTR          .RES 4  ; シーケンシャルアクセス用ポインタ
 .ENDSTRUCT
 
