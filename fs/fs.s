@@ -27,39 +27,39 @@ INIT:
   INX
   CPX #(FCTRL_ALLOC_SIZE*2)-1
   BNE @FDT_LOOP
-  ;RTS
+  RTS
 
-TEST:
-  ; にっちもさっちも
-  loadAY16 PATH_YRYR  ; ファイルパスを指定
-  JSR FUNC_FS_OPEN    ; ファイルをオープンする
-  STA FD0
-  loadAY16 PATH_CCP   ; ファイルパスを指定
-  JSR FUNC_FS_OPEN    ; ファイルをオープンする
-  STA FD1
-@LOOP:
-  loadmem16 ZR0,$2000 ; 書き込み先
-  JSR FUNC_CON_IN_CHR ; 文字入力を待機
-  AND #$0F            ; 一桁抽出
-  PHA
-  LDY #0              ; $03文字
-  LDX FD0
-  JSR FUNC_FS_READ_BYTS
-  loadmem16 ZR0,$2100 ; 書き込み先
-  PLA
-  LDY #0              ; $03文字
-  LDX FD1
-  JSR FUNC_FS_READ_BYTS
-  BRK
-  NOP
-  BRA @LOOP
-
+;TEST:
+;  ; にっちもさっちも
+;  loadAY16 PATH_YRYR  ; ファイルパスを指定
+;  JSR FUNC_FS_OPEN    ; ファイルをオープンする
+;  STA FD0
+;  loadAY16 PATH_CCP   ; ファイルパスを指定
+;  JSR FUNC_FS_OPEN    ; ファイルをオープンする
+;  STA FD1
+;@LOOP:
+;  loadmem16 ZR0,$2000 ; 書き込み先
+;  JSR FUNC_CON_IN_CHR ; 文字入力を待機
+;  AND #$0F            ; 一桁抽出
+;  PHA
+;  LDY #0              ; $03文字
+;  LDX FD0
+;  JSR FUNC_FS_READ_BYTS
+;  loadmem16 ZR0,$2100 ; 書き込み先
+;  PLA
+;  LDY #0              ; $03文字
+;  LDX FD1
+;  JSR FUNC_FS_READ_BYTS
+;  BRK
+;  NOP
+;  BRA @LOOP
+;
 ; テスト用変数
-FD0:  .RES 1
-FD1:  .RES 1
-
-PATH_CCP:       .ASCIIZ "A:/MIRACOS/CCP.COM"
-PATH_YRYR:      .ASCIIZ "A:/YRYR.TXT"
+;FD0:  .RES 1
+;FD1:  .RES 1
+;
+;PATH_CCP:       .ASCIIZ "A:/MIRACOS/CCP.COM"
+;PATH_YRYR:      .ASCIIZ "A:/YRYR.TXT"
 
 FUNC_FS_READ_BYTS:
   ; シーケンシャルアクセス

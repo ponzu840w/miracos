@@ -10,6 +10,7 @@
   .PROC ROMZ
     .INCLUDE "../sd-monitor/zpmon.s"  ; モニタ用領域は確保するが、それ以外は無視
   .ENDPROC
+  .INCLUDE "gcon/zpgcon.s"
   .INCLUDE "fs/zpfs.s"
   .INCLUDE "zpbcos.s"
 
@@ -20,11 +21,16 @@
   .ENDPROC
   .INCLUDE "fs/varfs.s"
   .INCLUDE "varbcos.s"
+  .INCLUDE "gcon/vargcon.s"
 
 ; ROMとの共通バッファ
-.SEGMENT "ROMBF100"        ; $0200~
-  CONINBF_BASE:   .RES 256 ; UART受信用リングバッファ
-  SECBF512:       .RES 512 ; SDカード用セクタバッファ
+.SEGMENT "ROMBF100"         ; $0200~
+  CONINBF_BASE:   .RES 256  ; UART受信用リングバッファ
+  SECBF512:       .RES 512  ; SDカード用セクタバッファ
+
+.SEGMENT "APPBF100"
+  TXTVRAM768:     .RES 768  ; テキストVRAM3ページ
+  FONT2048:       .RES 2048 ; フォントグリフ8ページ
 
 ; ROMからのインポート
 ZR0 = ROMZ::ZR0
@@ -58,6 +64,12 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
   .PROC FS
     .INCLUDE "fs/fs.s"
   .ENDPROC
+  .PROC GCHR
+    .INCLUDE "gcon/gchr.s"
+  .ENDPROC
+  .PROC GCON
+    .INCLUDE "gcon/gcon.s"
+  .ENDPROC
 
 .SEGMENT "PREAPP"
 .SEGMENT "APP"
@@ -76,6 +88,7 @@ FUNC_RESET:
   LDA #%00000001  ; 今のところUARTのみが入力デバイスとして有効である
   STA ZP_CONIN_DEV
   JSR FS::INIT
+  JSR GCON::INIT
 @LOOP:
   JSR FUNC_CON_IN_CHR
   BRA @LOOP
