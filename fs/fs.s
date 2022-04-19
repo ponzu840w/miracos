@@ -1,6 +1,6 @@
 ;DEBUGBUILD:
 ; https://github.com/gfoot/sdcard6502/blob/master/src/1_readwritebyte.s
-.INCLUDE "../../sd-monitor/FXT65.inc"
+.INCLUDE "FXT65.inc"
 
 ; 命名規則
 ; BYT  8bit
