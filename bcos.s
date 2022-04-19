@@ -1,14 +1,14 @@
 ; MIRACOSの本体
 ; CP/MでいうところのBIOSとBDOSを混然一体としたもの
 ; ファンクションコール・インタフェース（特に意味はない）
-.INCLUDE "../sd-monitor/FXT65.inc"
-.INCLUDE "../sd-monitor/generic.mac"
-.INCLUDE "../sd-monitor/fscons.inc"
+.INCLUDE "FXT65.inc"
+.INCLUDE "generic.mac"
+.INCLUDE "fscons.inc"
 
 ; 変数領域宣言（ZP）
 .ZEROPAGE
   .PROC ROMZ
-    .INCLUDE "../sd-monitor/zpmon.s"  ; モニタ用領域は確保するが、それ以外は無視
+    .INCLUDE "zpmon.s"  ; モニタ用領域は確保するが、それ以外は無視
   .ENDPROC
   .INCLUDE "gcon/zpgcon.s"
   .INCLUDE "fs/zpfs.s"
@@ -17,7 +17,7 @@
 ; 変数領域定義
 .SEGMENT "MONVAR"
   .PROC ROM
-    .INCLUDE "../sd-monitor/varmon.s"
+    .INCLUDE "varmon.s"
   .ENDPROC
   .INCLUDE "fs/varfs.s"
   .INCLUDE "varbcos.s"
@@ -28,7 +28,8 @@
   CONINBF_BASE:   .RES 256  ; UART受信用リングバッファ
   SECBF512:       .RES 512  ; SDカード用セクタバッファ
 
-.SEGMENT "APPBF100"
+; OS独自バッファ
+.SEGMENT "COSBF100"
   TXTVRAM768:     .RES 768  ; テキストVRAM3ページ
   FONT2048:       .RES 2048 ; フォントグリフ8ページ
 
@@ -42,15 +43,10 @@ ZP_CONINBF_RD_P = ROMZ::ZP_INPUT_BF_RD_P
 ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
 
 ; 不要セグメント
-.SEGMENT "IPLVAR"
-.SEGMENT "LIB"
-.SEGMENT "INITDATA"
-.SEGMENT "ROMCODE"
-.SEGMENT "VECTORS"
-.SEGMENT "APPVAR"
+.SEGMENT "COSVAR" ; MONVARが$100を溢れない限り用がない
 
 ; --- BCOS本体 ---
-.SEGMENT "LIB"
+.SEGMENT "COSLIB"
   .INCLUDE "fs/fsmac.mac"
   .PROC BCOS_UART ; 単にUARTとするとアドレス宣言とかぶる
     .INCLUDE "uart.s"
@@ -71,8 +67,7 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
     .INCLUDE "gcon/gcon.s"
   .ENDPROC
 
-.SEGMENT "PREAPP"
-.SEGMENT "APP"
+.SEGMENT "COSCODE"
 ; システムコール ジャンプテーブル $0600
   BRA FUNC_RESET          ; 0 これだけ、JMP ($0600)でコール
 SYSCALL:
