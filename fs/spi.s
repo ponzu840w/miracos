@@ -1,6 +1,6 @@
 ; SDカードドライバのSPI部分
 ; しかし半二重である
-.INCLUDE "../../sd-monitor/FXT65.inc"
+.INCLUDE "../FXT65.inc"
 
 SETIN:
   ; --- SPIシフトレジスタを入力（MISO）モードにする

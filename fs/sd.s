@@ -1,5 +1,5 @@
 ; SDカードドライバのSDカード固有部分
-.INCLUDE "../../sd-monitor/FXT65.inc"
+.INCLUDE "../FXT65.inc"
 
 ; SDコマンド用固定引数
 ; 共通部分を重ねて圧縮している
