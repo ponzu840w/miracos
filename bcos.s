@@ -67,16 +67,18 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
     .INCLUDE "gcon/gcon.s"
   .ENDPROC
 
-.SEGMENT "COSCODE"
+.SEGMENT "SYSCALL"
 ; システムコール ジャンプテーブル $0600
-  BRA FUNC_RESET          ; 0 これだけ、JMP ($0600)でコール
+  JMP FUNC_RESET
 SYSCALL:
-  JMP (SYSCALL_TABLE-2,X) ; 呼び出し規約：Xにコール番号*2を格納してJSR $0602
+  JMP (SYSCALL_TABLE,X) ; 呼び出し規約：Xにコール番号*2を格納してJSR $0603
 SYSCALL_TABLE:
+  .WORD FUNC_RESET        ; 0 リセット
   .WORD FUNC_CON_IN_CHR   ; 1 コンソール入力
   .WORD FUNC_CON_OUT_CHR  ; 2 コンソール出力
   .WORD FUNC_CON_RAWIO    ; 3 コンソール生入力
 
+.SEGMENT "COSCODE"
 ; BDOS 0
 ; BCOS 0
 FUNC_RESET:
