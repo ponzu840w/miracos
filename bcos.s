@@ -132,6 +132,9 @@ FUNC_RESET:
   STA ZP_CON_DEV_CFG              ; 有効なコンソールデバイスの設定
   JSR FS::INIT                    ; ファイルシステムの初期化処理
   JSR GCON::INIT                  ; コンソール画面の初期化処理
+  ; TODO: SYSCALL.BINを配置する
+  ; TODO: CCP.COMを配置する
+  JMP $0700                       ; TPAへ飛ぶ
   ;RTS
 
 TEST:
