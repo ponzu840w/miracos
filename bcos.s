@@ -73,10 +73,12 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
 SYSCALL:
   JMP (SYSCALL_TABLE,X) ; 呼び出し規約：Xにコール番号*2を格納してJSR $0603
 SYSCALL_TABLE:
-  .WORD FUNC_RESET        ; 0 リセット、CCPロード部分に変更予定
-  .WORD FUNC_CON_IN_CHR   ; 1 コンソール入力
-  .WORD FUNC_CON_OUT_CHR  ; 2 コンソール出力
-  .WORD FUNC_CON_RAWIO    ; 3 コンソール生入力
+  .WORD FUNC_RESET          ; 0 リセット、CCPロード部分に変更予定
+  .WORD FUNC_CON_IN_CHR     ; 1 コンソール入力
+  .WORD FUNC_CON_OUT_CHR    ; 2 コンソール出力
+  .WORD FUNC_CON_RAWIO      ; 3 コンソール生入力
+  .WORD FUNC_CON_OUT_STR    ; 4 コンソール文字列出力
+  .WORD FS::FUNC_FS_OPEN    ; 5 ファイル記述子オープン
 
 .SEGMENT "COSCODE"
 ; BDOS 0
