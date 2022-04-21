@@ -208,7 +208,7 @@ FUNC_FS_CLOSE:
   SBC #NONSTD_FD            ; 標準ファイル分を減算
   BVS @SKP_CLOSESTDF
   RTS
-@SKP_CLOSESTDF
+@SKP_CLOSESTDF:
   ASL                       ; テーブル参照の為x2
   INC                       ; 上位を見るために+1
   TAX
