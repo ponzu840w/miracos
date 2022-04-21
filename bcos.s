@@ -73,7 +73,7 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
 SYSCALL:
   JMP (SYSCALL_TABLE,X) ; 呼び出し規約：Xにコール番号*2を格納してJSR $0603
 SYSCALL_TABLE:
-  .WORD FUNC_RESET        ; 0 リセット
+  .WORD FUNC_RESET        ; 0 リセット、CCPロード部分に変更予定
   .WORD FUNC_CON_IN_CHR   ; 1 コンソール入力
   .WORD FUNC_CON_OUT_CHR  ; 2 コンソール出力
   .WORD FUNC_CON_RAWIO    ; 3 コンソール生入力
@@ -145,6 +145,18 @@ C_RAWWAITIN:
   LDA #UART::XON
   JSR BCOS_UART::OUT_CHR
   PLA
-@END:
+END:
   RTS
+
+; BCOS4
+FUNC_CON_OUT_STR:
+  ; input:AY=str
+  ; コンソールから（CTRL+S）が押されると一時停止？
+  STA ZR5
+  STY ZR5+1                   ; ZR5を文字列インデックスに
+@LOOP:
+  LDA (ZR5),Y                 ; 文字をロード
+  BEQ END                     ; ヌルなら終わり
+  JSR FUNC_CON_OUT_CHR        ; 文字を表示（独自にした方が効率的かも）
+  BRA @LOOP                   ; ループ
 
