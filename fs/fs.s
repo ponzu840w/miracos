@@ -61,6 +61,7 @@ INIT:
 ;PATH_CCP:       .ASCIIZ "A:/MIRACOS/CCP.COM"
 ;PATH_YRYR:      .ASCIIZ "A:/YRYR.TXT"
 
+;BCOS 6
 FUNC_FS_READ_BYTS:
   ; シーケンシャルアクセス
   ; input :X=fd, AY=len, ZR0=bfptr
@@ -155,10 +156,12 @@ FUNC_FS_READ_BYTS:
 
 FUNC_FS_FIND_FST:
   ; FINFO構造体+ファイル名あるいはパス文字列から新たなFINFO構造体を得る
+  ; 初回（FST）
   ; input:AY=FINFOorPATH、ZR0=ファイル名（FINFO指定時）
   ; output:AY=FINFO
   RTS
 
+;BCOS 5
 FUNC_FS_OPEN:
   ; ドライブパスまたはFINFOポインタからファイル記述子をオープンして返す
   ; input:AY=ptr, X=mode
