@@ -1,2 +1,2 @@
-ZP_CONIN_DEV:  .RES 1  ; どの入力デバイスが有効かのフラグ。LSBからUART、PS2
+ZP_CON_DEV_CFG:  .RES 1  ; コンソール系デバイスが有効かのフラグ。LSBからUART-IN、UART-OUT、PS/2、GCON
 
