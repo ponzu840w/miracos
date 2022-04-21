@@ -79,6 +79,7 @@ SYSCALL_TABLE:
   .WORD FUNC_CON_RAWIO      ; 3 コンソール生入力
   .WORD FUNC_CON_OUT_STR    ; 4 コンソール文字列出力
   .WORD FS::FUNC_FS_OPEN    ; 5 ファイル記述子オープン
+  .WORD FS::FUNC_FS_CLOSE   ; 6 ファイル記述子クローズ
 
 .SEGMENT "COSCODE"
 ; BDOS 0

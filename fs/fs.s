@@ -183,6 +183,22 @@ FUNC_FS_OPEN:
   LDX #2                    ; EC2:OPENERR
   RTS
 
+; BCOS 6
+FUNC_FS_CLOSE:
+  ; ファイル記述子をクローズして開放する
+  ; input:A=fd
+  SEC
+  SBC #NONSTD_FD            ; 標準ファイル分を減算
+  BVS @SKP_CLOSESTDF
+  RTS
+@SKP_CLOSESTDF
+  ASL                       ; テーブル参照の為x2
+  INC                       ; 上位を見るために+1
+  TAX
+  LDA #0
+  STA FD_TABLE,X
+  RTS
+
 FD_OPEN:
   ; FINFOからファイル記述子をオープン
   ; output A=FD, X=EC
@@ -328,7 +344,7 @@ GET_NEXTFD:
   loadmem16 ZR0,FD_TABLE  ; テーブル読み取り
   LDY #1
 @TLOOP:
-  LDA (ZR0),Y
+  LDA (ZR0),Y             ;NOTE:間接参照する利益がないのでは？
   BEQ @ZERO
   INY
   INY
