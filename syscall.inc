@@ -1,3 +1,5 @@
+; コール場所
+SYSCALL             = $0603
 ; システムコールテーブル
 RESET               = 0
 CON_IN_CHR          = 1
