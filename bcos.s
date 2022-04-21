@@ -111,6 +111,7 @@ SYSCALL_TABLE:
   .WORD FUNC_CON_OUT_STR    ; 4 コンソール文字列出力
   .WORD FS::FUNC_FS_OPEN    ; 5 ファイル記述子オープン
   .WORD FS::FUNC_FS_CLOSE   ; 6 ファイル記述子クローズ
+  .WORD FUNC_CON_IN_STR     ; 7 バッファ行入力
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
@@ -238,4 +239,35 @@ FUNC_CON_OUT_STR:
   JSR FUNC_CON_OUT_CHR        ; 文字を表示（独自にした方が効率的かも）
   PLY
   BRA @LOOP                   ; ループ
+
+; -------------------------------------------------------------------
+; BCOS 7               コンソールバッファ行入力
+; -------------------------------------------------------------------
+; input   : AY   = buff
+;           ZR0L = バッファ長さ（1～255）
+; output  : A    = 実際に入力された字数
+; TODO:バックスペースや矢印キーを用いた行編集機能
+; -------------------------------------------------------------------
+FUNC_CON_IN_STR:
+  STA ZR1
+  STY ZR1+1             ; ZR1をバッファインデックスに
+  LDY #$FF
+@NEXT:
+  INY
+  PHY
+  LDA #$FD
+  JSR FUNC_CON_RAWIO    ; 入力待機するがエコーしない
+  CMP #$A               ; 改行か？
+  BEQ @END
+  JSR FUNC_CON_OUT_CHR  ; エコー出力
+  PLY
+  STA (ZR1),Y           ; バッファに書き込み
+  BRA @NEXT
+@END:
+  PLY
+  LDA #0
+  STA (ZR1),Y           ; 終端挿入
+  DEY
+  TYA                   ; 入力された字数を返す
+  RTS
 
