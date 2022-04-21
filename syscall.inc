@@ -8,4 +8,5 @@ CON_RAWIO           = 3
 CON_OUT_STR         = 4
 FS_OPEN             = 5
 FS_CLOSE            = 6
+CON_IN_STR          = 7
 

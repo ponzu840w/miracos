@@ -11,13 +11,20 @@
   .INCLUDE "syscall.inc"  ; システムコール番号
 .ENDPROC
 
+.macro syscall func
+  LDX #(BCOS::func)*2
+  JSR BCOS::SYSCALL
+.endmac
+
 ; -------------------------------------------------------------------
 ;                             変数領域
 ; -------------------------------------------------------------------
+ZR0 = $0000
 .ZEROPAGE
 
 .SEGMENT "COMBSS"
 CUR_DIR:          .RES 64 ; カレントディレクトリのパスが入る。二行分でアボン
+COMMAND_BUF:      .RES 64 ; コマンド入力バッファ
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -28,18 +35,21 @@ CUR_DIR:          .RES 64 ; カレントディレクトリのパスが入る。�
 ; -------------------------------------------------------------------
 START:
   loadAY16 STR_INITMESSAGE
-  LDX #BCOS::CON_OUT_STR*2
-  JSR BCOS::SYSCALL               ; タイトル表示
+  syscall CON_OUT_STR             ; タイトル表示
 
+; -------------------------------------------------------------------
+;                           シェルループ
+; -------------------------------------------------------------------
 LOOP:
   LDA #'>'
-  LDX #BCOS::CON_OUT_CHR*2
-  JSR BCOS::SYSCALL               ; プロンプト表示
-  LDX #BCOS::CON_IN_CHR*2         ; 1文字入力
-  JSR BCOS::SYSCALL
-  CMP #$03                        ; CTRL+C？
-  BEQ EXT                         ; CTRL+C入力により死亡
+  syscall CON_OUT_CHR             ; プロンプト表示
+  LDA #64                         ; バッファ長さ指定
+  STA ZR0
+  loadAY16 COMMAND_BUF            ; バッファ指定
+  syscall CON_IN_STR              ; バッファ行入力
   JSR PRT_LF
+  loadAY16 COMMAND_BUF
+  syscall CON_OUT_STR             ; バッファ表示
   BRA LOOP
 
 EXT:
