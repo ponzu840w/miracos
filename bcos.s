@@ -112,6 +112,7 @@ SYSCALL_TABLE:
   .WORD FS::FUNC_FS_OPEN    ; 5 ファイル記述子オープン
   .WORD FS::FUNC_FS_CLOSE   ; 6 ファイル記述子クローズ
   .WORD FUNC_CON_IN_STR     ; 7 バッファ行入力
+  .WORD GCHR::FUNC_GCHR_COL ; 8 2色テキスト画面パレット操作
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン

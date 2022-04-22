@@ -1,11 +1,59 @@
 ; 2色モードChDzによるキャラクタ表示
 .INCLUDE "FXT65.inc"
 
+
+; -------------------------------------------------------------------
+; BCOS 8             テキスト画面色操作
+; -------------------------------------------------------------------
+; input   : A = 動作選択
+;               $0 : 文字色を取得
+;               $1 : 背景色を取得
+;               $2 : 文字色を設定
+;               $3 : 背景色を設定
+;           Y = 色データ（下位ニブル有効、$2,$3動作時のみ
+; output  : A = 取得した色データ
+; 二色モードに限らず画面の状態は勝手に叩いていいのだが、
+; GCHRモジュールを使うならカーネルの支配下にないといけない
+; -------------------------------------------------------------------
+FUNC_GCHR_COL:
+  BIT #%00000010  ; bit1が立ってたら設定、でなければ取得
+  BNE @SETTING
+@GETTING:
+  ROR             ; bit0が立ってたら背景色、でなければ文字色
+  BCS @GETBACK
+@GETMAIN:
+  LDA COL_MAIN
+  RTS
+@GETBACK:
+  LDA COL_BACK
+  RTS
+@SETTING:
+  ROR             ; bit0が立ってたら背景色、でなければ文字色
+  BCS @SETBACK
+@SETMAIN:
+  STY COL_MAIN
+  BRA SET_TCP
+@SETBACK:
+  STY COL_BACK
+SET_TCP:
+  ; 2色パレットを変数から反映する
+  LDA COL_BACK
+  ASL
+  ASL
+  ASL
+  ASL
+  STA ZP_X
+  LDA COL_MAIN
+  AND #%00001111
+  ORA ZP_X
+  STA CRTC::TCP
+  RTS
+
 INIT:
   ; 2色モードの色を白黒に初期化
   LDA #$00                  ; 黒
   STA COL_BACK              ; 背景色に設定
-  LDA #$33                  ; 白
+  LDA #$03                  ; 緑
   STA COL_MAIN              ; 文字色に設定
   JSR CLEAR_TXTVRAM         ; TRAMの空白埋め
 ENTER_TXTMODE:
@@ -15,17 +63,6 @@ ENTER_TXTMODE:
   LDA #%11110010            ; 全内部行を2色モード、書き込みカウントアップ無効、2色モード座標
   STA CRTC::CFG
   STZ CRTC::RF              ; f0を表示
-  RTS
-
-SET_TCP:
-  ; 2色パレットを変数から反映する
-  LDA COL_BACK
-  AND #%11110000
-  STA ZP_X
-  LDA COL_MAIN
-  AND #%00001111
-  ORA ZP_X
-  STA CRTC::TCP
   RTS
 
 DRAW_ALLLINE:
