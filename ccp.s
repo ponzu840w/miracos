@@ -2,7 +2,7 @@
 ; COSアプリケーションはCCPを食いつぶすことがあり、ウォームブートでカードからリロードされる
 ; つまり特権的地位を持つかもしれないCOSアプリケーションである
 .ZEROPAGE
-.SEGMENT "COMCODE"
+.SEGMENT "CODE"
   BRK
-.SEGMENT "COMBSS"
+.SEGMENT "BSS"
 
