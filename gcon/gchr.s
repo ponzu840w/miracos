@@ -1,5 +1,5 @@
 ; 2色モードChDzによるキャラクタ表示
-.INCLUDE "../../sd-monitor/FXT65.inc"
+.INCLUDE "FXT65.inc"
 
 INIT:
   ; 2色モードの色を白黒に初期化
