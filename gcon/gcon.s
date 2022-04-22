@@ -1,5 +1,5 @@
 ; 2色モードChDzによるコンソールモジュール
-.INCLUDE "../../sd-monitor/FXT65.inc"
+.INCLUDE "FXT65.inc"
 
 PATH_FONT_DEFAULT:  .ASCIIZ "A:/MIRACOS/FONTS/MIRAFONT.FNT"
 
