@@ -107,7 +107,7 @@ SYSCALL_TABLE:
   .WORD FUNC_RESET          ; 0 リセット、CCPロード部分に変更予定
   .WORD FUNC_CON_IN_CHR     ; 1 コンソール入力
   .WORD FUNC_CON_OUT_CHR    ; 2 コンソール出力
-  .WORD FUNC_CON_RAWIO      ; 3 コンソール生入力
+  .WORD FUNC_CON_RAWIN      ; 3 コンソール生入力
   .WORD FUNC_CON_OUT_STR    ; 4 コンソール文字列出力
   .WORD FS::FUNC_FS_OPEN    ; 5 ファイル記述子オープン
   .WORD FS::FUNC_FS_CLOSE   ; 6 ファイル記述子クローズ
@@ -157,8 +157,8 @@ STR_TEST: .BYT "hello,BCOS.",$A,$0
 ; 使う場面がわからない…（改行もエコーするよこれ）
 ; -------------------------------------------------------------------
 FUNC_CON_IN_CHR:
-  LDA #$FD
-  JSR FUNC_CON_RAWIO      ; 待機入力するがエコーしない
+  LDA #$2
+  JSR FUNC_CON_RAWIN      ; 待機入力するがエコーしない
   JSR FUNC_CON_OUT_CHR    ; エコー
   RTS
 
@@ -185,34 +185,34 @@ FUNC_CON_OUT_CHR:
 ; -------------------------------------------------------------------
 ; BDOS 3
 ; input:A=動作選択
-;   A=$FF:コンソール入力があれば獲得するがエコーしない
-;   A=$FE:コンソール入力状況を返す
-;   A=$FD:文字入力があるまで待機し、エコーせずに返す
+;   A=$0:コンソール入力状況を返す
+;   A=$1:コンソール入力があれば返すがエコーしない
+;   A=$2:文字入力があるまで待機して返し、エコーしない
 ; output:A=獲得文字/$00（バッファなし）
 ; -------------------------------------------------------------------
-FUNC_CON_RAWIO:
-  CMP #$FE
-  BNE @NOT_FE
+FUNC_CON_RAWIN:
+  BIT #$FF
+  BNE @NOT_BUFLEN
   ; 入力状況を返すだけ
   LDA ZP_CONINBF_LEN
   RTS
-@NOT_FE:                ; 待機するかしないか、エコーせずに返す
-  CMP #$FD
-  BNE @SKP_WAIT         ; FDでなければ（FFなら）待機はしない
+@NOT_BUFLEN:            ; 待機するかしないか、エコーせずに返す
+  ROR
+  BCS @SKP_WAIT         ; FDでなければ（FFなら）待機はしない
 @WAIT:
   LDA ZP_CONINBF_LEN
   BEQ @WAIT             ; バッファに何もないなら待つ
 @SKP_WAIT:
 C_RAWWAITIN:
   LDA ZP_CONINBF_LEN
-  BEQ END             ; バッファに何もないなら0を返す
-  LDX ZP_CONINBF_RD_P  ; インデックス
-  LDA CONINBF_BASE,X   ; バッファから読む、ここからRTSまでA使わない
-  INC ZP_CONINBF_RD_P  ; 読み取りポインタ増加
-  DEC ZP_CONINBF_LEN   ; 残りバッファ減少
+  BEQ END               ; バッファに何もないなら0を返す
+  LDX ZP_CONINBF_RD_P   ; インデックス
+  LDA CONINBF_BASE,X    ; バッファから読む、ここからRTSまでA使わない
+  INC ZP_CONINBF_RD_P   ; 読み取りポインタ増加
+  DEC ZP_CONINBF_LEN    ; 残りバッファ減少
   LDX ZP_CONINBF_LEN
   CPX #$80              ; LEN - $80
-  BNE END              ; バッファに余裕があれば毎度XON送ってた…？
+  BNE END               ; バッファに余裕があれば毎度XON送ってた…？
   ; UARTが有効なら、RTS再開
   BBR0 ZP_CON_DEV_CFG,END
   PHA
@@ -256,8 +256,8 @@ FUNC_CON_IN_STR:
 @NEXT:
   INY
   PHY
-  LDA #$FD
-  JSR FUNC_CON_RAWIO    ; 入力待機するがエコーしない
+  LDA #$2
+  JSR FUNC_CON_RAWIN    ; 入力待機するがエコーしない
   CMP #$A               ; 改行か？
   BEQ @END
   JSR FUNC_CON_OUT_CHR  ; エコー出力
