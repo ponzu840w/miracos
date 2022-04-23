@@ -47,6 +47,7 @@ START:
 ;                           シェルループ
 ; -------------------------------------------------------------------
 LOOP:
+  JSR PRT_LF
   loadAY16 CUR_DIR
   syscall CON_OUT_STR             ; カレントディレクトリ表示
   LDA #'>'
@@ -55,10 +56,10 @@ LOOP:
   STA ZR0
   loadAY16 COMMAND_BUF            ; バッファ指定
   syscall CON_IN_STR              ; バッファ行入力
-  JSR PRT_LF
 ; コマンドライン解析
   LDA COMMAND_BUF                 ; バッファ先頭を取得
   BEQ LOOP                        ; バッファ長さ0ならとりやめ
+  JSR PRT_LF                      ; コマンド入力後の改行は、無入力ではやらない
   LDX #0                          ; 内部コマンド番号初期化
   loadmem16 ZR0,COMMAND_BUF       ; 入力されたコマンドをZR0に
   loadmem16 ZR1,ICOMNAMES         ; 内部コマンド名称配列をZR1に
@@ -85,8 +86,6 @@ EXEC_ICOM:                        ; Xで渡された内部コマンド番号を�
   ASL
   TAX
   JMP (ICOMVECS,X)
-  JSR PRT_LF
-  BRA LOOP
 
 ; -------------------------------------------------------------------
 ;                          内部コマンド
@@ -130,7 +129,6 @@ ICOM_DIR:
 ICOM_CD:
   loadAY16 COMMAND_BUF
   syscall CON_IN_STR    ; 引数解析がまだないので入力させる
-  JSR PRT_LF
   loadAY16 COMMAND_BUF
   JSR ANALYZE_PATH      ; パスを解析する
   BIT #%00000100        ; ルートを指している
@@ -152,7 +150,7 @@ ICOM_CD:
   CPX #0
   BEQ @SKP_NOTFOUND
   loadAY16 STR_NOTFOUND   ; 見つからなければエラー吐いて終わり
-  syscall CON_OUT_STR
+  JSR PRT_ERROR
   JMP LOOP
 @SKP_NOTFOUND:
   STA ZR0
@@ -162,14 +160,13 @@ ICOM_CD:
   CMP #DIRATTR_DIRECTORY  ; ディレクトリかをチェック
   BEQ @SKP_NOTDIR
   loadAY16 STR_NOTDIR     ; ディレクトリでなければエラー吐いて終わり
-  syscall CON_OUT_STR
+  JSR PRT_ERROR
   JMP LOOP
 @SKP_NOTDIR:
   loadmem16 ZR1,CUR_DIR
   loadAY16 COMMAND_BUF
-  JSR M_CP_AYS          ; カレントディレクトリに転送
+  JSR M_CP_AYS            ; カレントディレクトリに転送
 @END:
-  JSR PRT_LF
   JMP LOOP
 
 ; -------------------------------------------------------------------
@@ -336,8 +333,7 @@ M_CP_AYS:
 PRT_LF:
   ; 改行
   LDA #$A
-  LDX #BCOS::CON_OUT_CHR*2
-  JSR BCOS::SYSCALL
+  syscall CON_OUT_CHR
   RTS
 
 ANALYZE_PATH:
@@ -394,15 +390,26 @@ ANALYZE_PATH:
   LDA ZR1
   RTS
 
+PRT_ERROR:        ; エラー文字列を指定するとエラーを吐く
+  PHA
+  PHY
+  loadAY16 STR_ERROR
+  syscall CON_OUT_STR ; エラーの前置き
+  PLY
+  PLA
+  syscall CON_OUT_STR ; エラー内容
+  RTS
+
 ; -------------------------------------------------------------------
 ;                             データ領域
 ; -------------------------------------------------------------------
 STR_INITMESSAGE:  .BYT "MIRACOS 0.01 for FxT-65",$A,$A,$0 ; 起動時メッセージ
 STR_COMNOTFOUND:  .BYT "Unknown Command.",$A,$0
 STR_ICOM_COLOR_START:  .BYT "Console Color Setting.",$A,"j,k  : Character",$A,"h,l  : Background",$A,"ENTER: Complete",$0
-STR_GOODBYE:  .BYT "Good Bye.",$A,$0
-STR_NOTDIR:  .BYT "[Error]Not Directory.",$A,$0
-STR_NOTFOUND:  .BYT "[Error]Not Found.",$A,$0
+STR_GOODBYE:      .BYT "Good Bye.",$A,$0
+STR_NOTDIR:       .BYT "Not Directory.",$A,$0
+STR_NOTFOUND:     .BYT "Directory Not Found.",$A,$0
+STR_ERROR:        .BYT $A,"[Error] ",$0
 PATH_DEFAULT:     .ASCIIZ "A:"
 
 ; -------------------------------------------------------------------
@@ -412,7 +419,7 @@ ICOMNAMES:        .ASCIIZ "EXIT"        ; 0
                   .ASCIIZ "CD"          ; 1
                   .ASCIIZ "REBOOT"      ; 2
                   .ASCIIZ "COLOR"       ; 3
-                  .ASCIIZ "DIR"          ; 4
+                  .ASCIIZ "DIR"         ; 4
                   .BYT $0
 
 ICOMVECS:         .WORD ICOM_EXIT
