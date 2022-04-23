@@ -37,6 +37,7 @@
   .PROC ROM
     .INCLUDE "varmon.s"
   .ENDPROC
+  .INCLUDE "fs/structfs.s"
   .INCLUDE "fs/varfs.s"
   .INCLUDE "varbcos.s"
   .INCLUDE "gcon/vargcon.s"
@@ -117,6 +118,7 @@ SYSCALL_TABLE:
   .WORD FS::FUNC_FS_CLOSE   ; 6 ファイル記述子クローズ
   .WORD FUNC_CON_IN_STR     ; 7 バッファ行入力
   .WORD GCHR::FUNC_GCHR_COL ; 8 2色テキスト画面パレット操作
+  .WORD FS::FUNC_FS_FIND_FST; 9 最初のエントリの検索
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
