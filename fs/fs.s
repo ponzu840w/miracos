@@ -286,12 +286,16 @@ PATH2FINFO_ZR2:
   RTS
 @NEXT:
   JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得
+  ;BRK                  ; ヒットしたが開かれる前のFINFOを見れるBP
+  ;NOP
   CMP #$FF              ; 見つからないエラー
   BNE @SKP_E2
   LDX #2
   RTS
 @SKP_E2:
   JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く
+  ;BRK                  ; ヒットして開かれた内容を覗けるブレイクポイント
+  ;NOP
   BRA @LOOP
 
 INTOPEN_DRV:
@@ -305,6 +309,7 @@ INTOPEN_DRV:
 INTOPEN_ROOT:
   ; ルートディレクトリを開く
   loadreg16 DWK+DINFO::BPB_ROOTCLUS
+OPENCLUS:
   JSR CLUS2FWK
   JSR RDSEC
   RTS
@@ -313,10 +318,23 @@ INTOPEN_FILE:
   ; 内部的ファイルオープン
   LDA FINFO_WK+FINFO::DRV_NUM
   JSR INTOPEN_DRV                   ; ドライブ番号が違ったら更新
+  loadmem16 ZR0,FINFO_WK+FINFO::HEAD
+  LDA (ZR0)
+  LDY #1                            ; クラスタ番号がゼロなら特別処理
+  ORA (ZR0),Y
+  INY
+  ORA (ZR0),Y
+  INY
+  ORA (ZR0),Y
+  BNE @OTHERS                       ; クラスタ番号がゼロ
+  LDA FINFO_WK+FINFO::ATTR          ; 属性を取得
+  CMP #DIRATTR_DIRECTORY            ; ディレクトリ（..）か？
+  BNE @OTHERS
+  loadreg16 DWK+DINFO::BPB_ROOTCLUS ; ..がルートを示すので特別にルートをロード
+  BRA OPENCLUS
+@OTHERS:
   loadreg16 FINFO_WK+FINFO::HEAD
-  JSR CLUS2FWK
-  JSR RDSEC
-  RTS
+  BRA OPENCLUS
 
 PATH_SLASHNEXT:
   ; AYの次のスラッシュの次を得る
