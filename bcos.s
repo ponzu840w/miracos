@@ -65,6 +65,10 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
 ; 不要セグメント
 .SEGMENT "COSVAR" ; MONVARが$100を溢れない限り用がない
 
+.SCOPE
+  .INCLUDE "ccp.s"
+.ENDSCOPE
+
 ; -------------------------------------------------------------------
 ;                             BCOS本体
 ; -------------------------------------------------------------------
@@ -136,7 +140,7 @@ FUNC_RESET:
   JSR GCON::INIT                  ; コンソール画面の初期化処理
   ; TODO: SYSCALL.BINを配置する
   ; TODO: CCP.COMを配置する
-  JMP $0700                       ; TPAへ飛ぶ
+  JMP $5000                       ; TPAへ飛ぶ
   ;RTS
 
 TEST:
