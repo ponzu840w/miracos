@@ -6,7 +6,7 @@
 ; つまり特権的地位を持つかもしれないCOSアプリケーションである
 ; -------------------------------------------------------------------
 .INCLUDE "FXT65.inc"
-.INCLUDE "generic.mac"
+;.INCLUDE "generic.mac"
 .PROC BCOS
   .INCLUDE "syscall.inc"  ; システムコール番号
 .ENDPROC
@@ -50,6 +50,8 @@ LOOP:
   syscall CON_IN_STR              ; バッファ行入力
   JSR PRT_LF
 ; コマンドライン解析
+  LDA COMMAND_BUF                 ; バッファ先頭を取得
+  BEQ LOOP                        ; バッファ長さ0ならとりやめ
   LDX #0                          ; 内部コマンド番号初期化
   loadmem16 ZR0,COMMAND_BUF       ; 入力されたコマンドをZR0に
   loadmem16 ZR1,ICOMNAMES         ; 内部コマンド名称配列をZR1に
@@ -73,7 +75,6 @@ LOOP:
   JMP ICOM_NOTFOUND
 EXEC_ICOM:                        ; Xで渡された内部コマンド番号を実行する
   TXA
-  ;JSR PRT_BYT                     ; とりあえず内部コマンド番号を出力してみる
   ASL
   TAX
   JMP (ICOMVECS,X)
@@ -83,6 +84,16 @@ EXEC_ICOM:                        ; Xで渡された内部コマンド番号を�
 ; -------------------------------------------------------------------
 ;                          内部コマンド
 ; -------------------------------------------------------------------
+
+; -------------------------------------------------------------------
+;                          見つからない
+; -------------------------------------------------------------------
+ICOM_NOTFOUND:
+ICOM_CD:
+ICOM_REBOOT:
+  loadAY16 STR_COMNOTFOUND
+  syscall CON_OUT_STR
+  JMP LOOP
 
 ; -------------------------------------------------------------------
 ;                        ROMモニタに落ちる
@@ -100,23 +111,56 @@ ICOM_EXIT:
 ICOM_COLOR:
   loadAY16 STR_ICOM_COLOR_START
   syscall CON_OUT_STR                 ; 説明文
+@LOOP:
+  LDA #2
+  syscall CON_RAWIN                   ; コマンド入力
+@J:
+  CMP #'j'
+  BNE @K
+  LDA #0
+  JSR @GET
+  DEY
+  LDA #2
+  JSR @PUT
+  BRA @LOOP
+@K:
+  CMP #'k'
+  BNE @H
+  LDA #0
+  JSR @GET
+  INY
+  LDA #2
+  JSR @PUT
+  BRA @LOOP
+@H:
+  CMP #'h'
+  BNE @L
   LDA #1
-  syscall GCHR_COL
-  TAY
+  JSR @GET
+  DEY
+  LDA #3
+  JSR @PUT
+  BRA @LOOP
+@L:
+  CMP #'l'
+  BNE @ENT
+  LDA #1
+  JSR @GET
   INY
   LDA #3
+  JSR @PUT
+@ENT:
+  CMP #$A
+  BNE @LOOP
+  JSR PRT_LF
+  JMP LOOP
+@GET:
   syscall GCHR_COL
-  JMP LOOP
-
-; -------------------------------------------------------------------
-;                          見つからない
-; -------------------------------------------------------------------
-ICOM_NOTFOUND:
-ICOM_CD:
-ICOM_REBOOT:
-  loadAY16 STR_COMNOTFOUND
-  syscall CON_OUT_STR
-  JMP LOOP
+  TAY
+  RTS
+@PUT:
+  syscall GCHR_COL
+  RTS
 
 ; -------------------------------------------------------------------
 ;                          汎用関数群
@@ -204,7 +248,7 @@ PRT_LF:
 ; -------------------------------------------------------------------
 STR_INITMESSAGE:  .BYT "MIRACOS 0.01 for FxT-65",$A,$A,$0 ; 起動時メッセージ
 STR_COMNOTFOUND:  .BYT "Unknown Command.",$A,$0
-STR_ICOM_COLOR_START:  .BYT "Console Color Setting.",$A,"J,K: Character",$A,"H,L: Background",$A,"ENTER: Complete",$0
+STR_ICOM_COLOR_START:  .BYT "Console Color Setting.",$A,"j,k  : Character",$A,"h,l  : Background",$A,"ENTER: Complete",$0
 STR_GOODBYE:  .BYT "Good Bye.",$A,$0
 PATH_DEFAULT:     .BYT "A:/"
 
