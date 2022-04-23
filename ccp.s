@@ -7,6 +7,8 @@
 ; -------------------------------------------------------------------
 .INCLUDE "FXT65.inc"
 ;.INCLUDE "generic.mac"
+.INCLUDE "fs/structfs.s"
+.INCLUDE "fscons.inc"
 .PROC BCOS
   .INCLUDE "syscall.inc"  ; システムコール番号
 .ENDPROC
@@ -35,6 +37,9 @@ COMMAND_BUF:      .RES 64 ; コマンド入力バッファ
 ;                           シェルスタート
 ; -------------------------------------------------------------------
 START:
+  loadmem16 ZR1,CUR_DIR
+  loadAY16 PATH_DEFAULT
+  JSR M_CP_AYS          ; カレントディレクトリに転送
   loadAY16 STR_INITMESSAGE
   syscall CON_OUT_STR             ; タイトル表示
 
@@ -42,6 +47,8 @@ START:
 ;                           シェルループ
 ; -------------------------------------------------------------------
 LOOP:
+  loadAY16 CUR_DIR
+  syscall CON_OUT_STR             ; カレントディレクトリ表示
   LDA #'>'
   syscall CON_OUT_CHR             ; プロンプト表示
   LDA #64                         ; バッファ長さ指定
@@ -89,7 +96,6 @@ EXEC_ICOM:                        ; Xで渡された内部コマンド番号を�
 ;                          見つからない
 ; -------------------------------------------------------------------
 ICOM_NOTFOUND:
-ICOM_CD:
 ICOM_REBOOT:
   loadAY16 STR_COMNOTFOUND
   syscall CON_OUT_STR
@@ -103,6 +109,67 @@ ICOM_EXIT:
   syscall CON_OUT_STR
   BRK
   NOP
+  JMP LOOP
+
+; -------------------------------------------------------------------
+;                        ディレクトリ表示
+; -------------------------------------------------------------------
+ICOM_DIR:
+  loadAY16 COMMAND_BUF
+  syscall CON_IN_STR
+  ;loadAY16 COMMAND_BUF
+  ;syscall FS_FIND_FST
+  loadAY16 COMMAND_BUF
+  JSR ANALYZE_PATH
+  JSR PRT_BIN
+  JMP LOOP
+
+; -------------------------------------------------------------------
+;                     カレントディレクトリ変更
+; -------------------------------------------------------------------
+ICOM_CD:
+  loadAY16 COMMAND_BUF
+  syscall CON_IN_STR    ; 引数解析がまだないので入力させる
+  JSR PRT_LF
+  loadAY16 COMMAND_BUF
+  JSR ANALYZE_PATH      ; パスを解析する
+  BIT #%00000100        ; ルートを指している
+  BEQ @SKP_SETROOT
+  BIT #%00000001        ; ドライブが指定されていたら1
+  BEQ @SKP_CHANGEDRV    ; 0でありカレントドライブでいいので飛ばす
+  ; TODO:カーネルにドライブ情報の取得ファンクション
+  ; 存在しないドライブへのアクセスが検出できない
+  LDA COMMAND_BUF
+  STA CUR_DIR           ; ドライブレターをセット
+  LDA #':'
+  STA CUR_DIR+1         ; :を加えるのは完全なる親切心
+@SKP_CHANGEDRV:
+  STZ CUR_DIR+2         ; :で終わりにしてルートに
+  JMP LOOP
+@SKP_SETROOT:           ; サブディレクトリがあるか、あるいは…
+  loadAY16 COMMAND_BUF
+  syscall FS_FIND_FST
+  CPX #0
+  BEQ @SKP_NOTFOUND
+  loadAY16 STR_NOTFOUND   ; 見つからなければエラー吐いて終わり
+  syscall CON_OUT_STR
+  JMP LOOP
+@SKP_NOTFOUND:
+  STA ZR0
+  STY ZR0+1               ; 帰ってきたFINFO
+  LDY #FINFO::ATTR
+  LDA (ZR0),Y             ; 属性値を取得
+  CMP #DIRATTR_DIRECTORY  ; ディレクトリかをチェック
+  BEQ @SKP_NOTDIR
+  loadAY16 STR_NOTDIR     ; ディレクトリでなければエラー吐いて終わり
+  syscall CON_OUT_STR
+  JMP LOOP
+@SKP_NOTDIR:
+  loadmem16 ZR1,CUR_DIR
+  loadAY16 COMMAND_BUF
+  JSR M_CP_AYS          ; カレントディレクトリに転送
+@END:
+  JSR PRT_LF
   JMP LOOP
 
 ; -------------------------------------------------------------------
@@ -167,6 +234,23 @@ ICOM_COLOR:
 ; -------------------------------------------------------------------
 ; どうする？ライブラリ？システムコール？
 ; -------------------------------------------------------------------
+PRT_BIN:
+  LDX #8
+@LOOP:
+  ASL
+  PHA
+  LDA #'0'    ; キャリーが立ってなければ'0'
+  BCC @SKP_ADD1
+  INC         ; キャリーが立ってたら'1'
+@SKP_ADD1:
+  PHX
+  syscall CON_OUT_CHR
+  PLX
+  PLA
+  DEX
+  BNE @LOOP
+  RTS
+
 PRT_BYT:
   JSR BYT2ASC
   PHY
@@ -234,13 +318,80 @@ M_LEN_ZR1:  ; ZR1入力
   INY
   LDA (ZR1),Y
   BNE @LOOP
+M_LEN_RTS:
   RTS
+
+M_CP_AYS:
+  ; 文字列をコピーする
+  STA ZR0
+  STY ZR0+1
+  LDY #$FF
+@LOOP:
+  INY
+  LDA (ZR0),Y
+  STA (ZR1),Y
+  BEQ M_LEN_RTS
+  BRA @LOOP
 
 PRT_LF:
   ; 改行
   LDA #$A
   LDX #BCOS::CON_OUT_CHR*2
   JSR BCOS::SYSCALL
+  RTS
+
+ANALYZE_PATH:
+  ; あらゆる種類のパスを解析する
+  ; ディスクアクセスはしない
+  ; input : AY=パス先頭
+  ; output: A=分析結果
+  ;           bit3:/で終わる
+  ;           bit2:ルートディレクトリを指す
+  ;           bit1:ルートから始まる（相対パスでない
+  ;           bit0:ドライブ文字を含む
+  STA ZR0
+  STY ZR0+1
+  STZ ZR1         ; 記録保存用
+  LDY #1
+  LDA (ZR0),Y     ; :の有無を見る
+  CMP #':'
+  BNE @NODRIVE
+  SMB0 ZR1        ; ドライブ文字があるフラグを立てる
+  LDA #2          ; ポインタを進め、ドライブなしと同一条件にする
+  CLC
+  ADC ZR0
+  STA ZR0
+  LDA #0
+  ADC ZR0+1
+  STA ZR0+1
+  LDA (ZR0)       ; 最初の文字を見る
+  BEQ @ROOTEND    ; 何もないならルートを指している（ドライブ前提
+@NODRIVE:
+  LDA (ZR0)       ; 最初の文字を見る
+  CMP #'/'
+  BNE @NOTFULL    ; /でないなら相対パス（ドライブ指定なし前提
+  SMB1 ZR1        ; ルートから始まるフラグを立てる
+@NOTFULL:
+  LDY #$FF
+@LOOP:            ; 最後の文字を調べるループ
+  INY
+  LDA (ZR0),Y
+  BEQ @SKP_LOOP
+  CMP #' '
+  BEQ @SKP_LOOP
+  BRA @LOOP       ; 以下、(ZR0),Yはヌルかスペース
+@SKP_LOOP:
+  DEY             ; 最後の文字を指す
+  LDA (ZR0),Y     ; 最後の文字を読む
+  CMP #'/'
+  BNE @END        ; 最後が/でなければ終わり
+  SMB3 ZR1        ; /で終わるフラグを立てる
+  CPY #0          ; /で終わり、しかも一文字だけなら、それはルートを指している
+  BNE @END
+@ROOTEND:
+  SMB2 ZR1        ; ルートディレクトリが指されているフラグを立てる
+@END:
+  LDA ZR1
   RTS
 
 ; -------------------------------------------------------------------
@@ -250,7 +401,9 @@ STR_INITMESSAGE:  .BYT "MIRACOS 0.01 for FxT-65",$A,$A,$0 ; 起動時メッセ�
 STR_COMNOTFOUND:  .BYT "Unknown Command.",$A,$0
 STR_ICOM_COLOR_START:  .BYT "Console Color Setting.",$A,"j,k  : Character",$A,"h,l  : Background",$A,"ENTER: Complete",$0
 STR_GOODBYE:  .BYT "Good Bye.",$A,$0
-PATH_DEFAULT:     .BYT "A:/"
+STR_NOTDIR:  .BYT "[Error]Not Directory.",$A,$0
+STR_NOTFOUND:  .BYT "[Error]Not Found.",$A,$0
+PATH_DEFAULT:     .ASCIIZ "A:"
 
 ; -------------------------------------------------------------------
 ;                        内部コマンドテーブル
@@ -259,10 +412,12 @@ ICOMNAMES:        .ASCIIZ "EXIT"        ; 0
                   .ASCIIZ "CD"          ; 1
                   .ASCIIZ "REBOOT"      ; 2
                   .ASCIIZ "COLOR"       ; 3
+                  .ASCIIZ "DIR"          ; 4
                   .BYT $0
 
 ICOMVECS:         .WORD ICOM_EXIT
                   .WORD ICOM_CD
                   .WORD ICOM_REBOOT
                   .WORD ICOM_COLOR
+                  .WORD ICOM_DIR
 
