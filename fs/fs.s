@@ -165,11 +165,26 @@ FUNC_FS_READ_BYTS:
   JSR L_ADD_BYT                   ; SEEK_PTRをインクリメント
   BRA @LOOP
 
+; -------------------------------------------------------------------
+; BCOS 9                  ファイル検索
+; -------------------------------------------------------------------
+; input :AY=FINFOorPATH、ZR0=ファイル名（FINFO指定時）
+; output:AY=FINFO
+; FINFO構造体+ファイル名あるいはパス文字列から新たなFINFO構造体を得る
+; 初回（FST）
+; -------------------------------------------------------------------
 FUNC_FS_FIND_FST:
-  ; FINFO構造体+ファイル名あるいはパス文字列から新たなFINFO構造体を得る
-  ; 初回（FST）
-  ; input:AY=FINFOorPATH、ZR0=ファイル名（FINFO指定時）
-  ; output:AY=FINFO
+  STA ZR2
+  STY ZR2+1
+  LDA (ZR2)                 ; 先頭バイトを取得
+  CMP #$FF                  ; FINFOシグネチャ
+  ;BEQ @FINFO
+@PATH:
+  JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
+  BEQ @SKP_PATHERR          ; エラーハンドル
+  LDX #1                    ; EC1:PATHERR
+@SKP_PATHERR:
+  loadAY16 FINFO_WK
   RTS
 
 ; -------------------------------------------------------------------
