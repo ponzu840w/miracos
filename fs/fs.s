@@ -188,31 +188,6 @@ FUNC_FS_FIND_FST:
   RTS
 
 ; -------------------------------------------------------------------
-; BCOS 5                  ファイルオープン
-; -------------------------------------------------------------------
-; ドライブパスまたはFINFOポインタからファイル記述子をオープンして返す
-; input:AY=ptr, X=mode
-; output:A=FD, X=ERR
-; -------------------------------------------------------------------
-FUNC_FS_OPEN:
-  STA ZR2
-  STY ZR2+1
-  LDA (ZR2)                 ; 先頭バイトを取得
-  CMP #$FF                  ; FINFOシグネチャ
-  BEQ @FINFO
-@PATH:
-  JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
-  BEQ @SKP_PATHERR          ; エラーハンドル
-  LDX #1                    ; EC1:PATHERR
-  RTS
-@SKP_PATHERR:
-@FINFO:
-  JSR FD_OPEN
-  BEQ X0RTS                 ; エラーハンドル
-  LDX #2                    ; EC2:OPENERR
-  RTS
-
-; -------------------------------------------------------------------
 ; BCOS 6                  ファイルクローズ
 ; -------------------------------------------------------------------
 ; ファイル記述子をクローズして開放する
@@ -244,8 +219,7 @@ FUNC_FS_CLOSE:
 ;           bit0:ドライブ文字を含む
 ; -------------------------------------------------------------------
 FUNC_FS_PURSE:
-  STA ZR0
-  STY ZR0+1
+  storeAY16 ZR0
   STZ ZR1         ; 記録保存用
   LDY #1
   LDA (ZR0),Y     ; :の有無を見る
@@ -309,7 +283,52 @@ FUNC_FS_CHDIR:
 ; output: AY=絶対パス先頭
 ; -------------------------------------------------------------------
 FUNC_FS_FPATH:
+  storeAY16 ZR2           ; 与えられたパスをZR2に
+  JSR FUNC_FS_PURSE       ; パスを解析する
+  BBR2 ZR1,@SKP_SETROOT   ; ルートを指している
+  BBR0 ZR1,@SKP_CHANGEDRV ; 0でありカレントドライブでいいので飛ばす
+  ; TODO:カーネルにドライブ情報の取得ファンクション
+  ; 存在しないドライブへのアクセスが検出できない
+  LDA (ZR2)               ; ドライブレターを読み取り
+  CMP #'A'
+  BEQ @SKP_CHANGEDRV      ; 決め打ちでAでなければエラー
+  ;loadAY16 STR_NOTFOUNDDRV
+  ;JSR PRT_ERROR
+  BRK
+  NOP
+  RTS
+@SKP_CHANGEDRV:
+  STZ CUR_DIR+2         ; :で終わりにしてルートに
+  BRA @RET
+@SKP_SETROOT:           ; サブディレクトリがあるか、あるいは…
+  
+@RET
   loadAY16 CUR_DIR
+  RTS
+
+; -------------------------------------------------------------------
+; BCOS 5                  ファイルオープン
+; -------------------------------------------------------------------
+; ドライブパスまたはFINFOポインタからファイル記述子をオープンして返す
+; input:AY=ptr, X=mode
+; output:A=FD, X=ERR
+; -------------------------------------------------------------------
+FUNC_FS_OPEN:
+  STA ZR2
+  STY ZR2+1
+  LDA (ZR2)                 ; 先頭バイトを取得
+  CMP #$FF                  ; FINFOシグネチャ
+  BEQ @FINFO
+@PATH:
+  JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
+  BEQ @SKP_PATHERR          ; エラーハンドル
+  LDX #1                    ; EC1:PATHERR
+  RTS
+@SKP_PATHERR:
+@FINFO:
+  JSR FD_OPEN
+  BEQ X0RTS                 ; エラーハンドル
+  LDX #2                    ; EC2:OPENERR
   RTS
 
 FD_OPEN:

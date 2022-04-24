@@ -32,3 +32,9 @@
   JSR MON::PRT_STR
 .endmac
 
+; AYをメモリに格納する
+.macro storeAY16 dst
+  STA dst
+  STY dst+1
+.endmac
+
