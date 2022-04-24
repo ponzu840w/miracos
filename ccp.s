@@ -28,7 +28,6 @@ ZR3 = ZR2+2
 .ZEROPAGE
 
 .BSS
-CUR_DIR:          .RES 64 ; カレントディレクトリのパスが入る。二行分でアボン
 COMMAND_BUF:      .RES 64 ; コマンド入力バッファ
 
 ; -------------------------------------------------------------------
@@ -39,9 +38,6 @@ COMMAND_BUF:      .RES 64 ; コマンド入力バッファ
 ;                           シェルスタート
 ; -------------------------------------------------------------------
 START:
-  loadmem16 ZR1,CUR_DIR
-  loadAY16 PATH_DEFAULT
-  JSR M_CP_AYS                    ; カレントディレクトリに転送
   loadAY16 STR_INITMESSAGE
   syscall CON_OUT_STR             ; タイトル表示
 
@@ -50,7 +46,8 @@ START:
 ; -------------------------------------------------------------------
 LOOP:
   JSR PRT_LF
-  loadAY16 CUR_DIR
+  loadAY16 STR_DOT
+  syscall FS_FPATH
   syscall CON_OUT_STR             ; カレントディレクトリ表示
   LDA #'>'
   syscall CON_OUT_CHR             ; プロンプト表示
@@ -122,79 +119,13 @@ ICOM_DIR:
 ;                     カレントディレクトリ変更
 ; -------------------------------------------------------------------
 ICOM_CD:
-  loadAY16 CUR_DIR
-  JSR M_LEN
-  STY ZR3               ; 長さYを保存
   loadAY16 COMMAND_BUF
-  syscall CON_IN_STR    ; 引数解析がまだないので入力させる
+  syscall CON_IN_STR      ; 引数解析がまだないので入力させる
   loadAY16 COMMAND_BUF
-  JSR ANALYZE_PATH      ; パスを解析する
-  BIT #%00000100        ; ルートを指している
-  BEQ @SKP_SETROOT
-  BIT #%00000001        ; ドライブが指定されていたら1
-  BEQ @SKP_CHANGEDRV    ; 0でありカレントドライブでいいので飛ばす
-  ; TODO:カーネルにドライブ情報の取得ファンクション
-  ; 存在しないドライブへのアクセスが検出できない
-  LDA COMMAND_BUF       ; ドライブレターを読み取り
-  CMP #'A'
-  BEQ @SKP_CHANGEDRV    ; 決め打ちでAでなければエラー
-  loadAY16 STR_NOTFOUNDDRV
-  JSR PRT_ERROR
-@SKP_CHANGEDRV:
-  STZ CUR_DIR+2         ; :で終わりにしてルートに
-  JMP LOOP
-@SKP_SETROOT:           ; サブディレクトリがあるか、あるいは…
-  BIT #%00000010        ; 絶対パスであれば立つフラグ
-  BNE @SKP_CAT          ; 相対パスであれば、CUR_DIRとの連結作業が必要
-  LDA #'/'
-  LDY ZR3               ; CUR_DIRの長さ
-  STA CUR_DIR,Y         ; /を追加
-  TYA
-  INC                   ; /の次を指す
-  CLC                   ; /の次を指すZR1を作成
-  ADC #<CUR_DIR
-  STA ZR1
-  LDA #0
-  ADC #>CUR_DIR
-  STA ZR1+1
-  loadAY16 COMMAND_BUF  ; 入力された相対パスを連結
-  JSR M_CP_AYS
-  ;loadAY16 CUR_DIR
-  ;syscall CON_OUT_STR   ; くっつけた結果を表示してみる
-  loadmem16 ZR1,COMMAND_BUF
-  loadAY16 CUR_DIR
-  JSR M_CP_AYS          ; バッファに転送
-@SKP_CAT:
-  loadAY16 COMMAND_BUF
-  syscall FS_FIND_FST
-  CPX #0
-  BEQ @SKP_NOTFOUND
-  TXA
-  JSR PRT_BYT
-  loadAY16 STR_NOTFOUND   ; 見つからなければエラー吐いて終わり
-  JSR PRT_ERROR
-  LDY ZR3
-  LDA #0
-  STA CUR_DIR,Y
-  JMP LOOP
-@SKP_NOTFOUND:
-  STA ZR0
-  STY ZR0+1               ; 帰ってきたFINFO
-  LDY #FINFO::ATTR
-  LDA (ZR0),Y             ; 属性値を取得
-  CMP #DIRATTR_DIRECTORY  ; ディレクトリかをチェック
-  BEQ @SKP_NOTDIR
-  loadAY16 STR_NOTDIR     ; ディレクトリでなければエラー吐いて終わり
-  JSR PRT_ERROR
-  LDY ZR3
-  LDA #0
-  STA CUR_DIR,Y
-  JMP LOOP
-@SKP_NOTDIR:
-  loadmem16 ZR1,CUR_DIR
-  loadAY16 COMMAND_BUF
-  JSR M_CP_AYS            ; カレントディレクトリに転送
-@END:
+  syscall FS_CHDIR
+  BCC @SKP_ERR
+  JMP BCOS_ERROR
+@SKP_ERR:
   JMP LOOP
 
 ; -------------------------------------------------------------------
@@ -255,12 +186,6 @@ ICOM_COLOR:
   RTS
 
 ICOM_TEST:
-  loadAY16 COMMAND_BUF
-  syscall CON_IN_STR      ; 引数解析がまだないので入力させる
-  loadAY16 COMMAND_BUF
-  syscall FS_FPATH        ; 入力結果をフルパスに変換せよ
-  BCS BCOS_ERROR
-  syscall CON_OUT_STR     ; エラーが発生しなければ帰ったAYを表示
   JMP LOOP
 
 ; -------------------------------------------------------------------
@@ -269,6 +194,7 @@ ICOM_TEST:
 ; どうする？ライブラリ？システムコール？
 ; -------------------------------------------------------------------
 BCOS_ERROR:
+  JSR PRT_LF
   syscall ERR_GET
   syscall ERR_MES
   JMP LOOP
@@ -445,15 +371,12 @@ PRT_ERROR:        ; エラー文字列を指定するとエラーを吐く
 ; -------------------------------------------------------------------
 ;                             データ領域
 ; -------------------------------------------------------------------
-STR_INITMESSAGE:  .BYT "MIRACOS 0.01 for FxT-65",$A,$A,$0 ; 起動時メッセージ
+STR_INITMESSAGE:  .BYT "MIRACOS 0.02 for FxT-65",$A,$0 ; 起動時メッセージ
 STR_COMNOTFOUND:  .BYT "Unknown Command.",$A,$0
 STR_ICOM_COLOR_START:  .BYT "Console Color Setting.",$A,"j,k  : Character",$A,"h,l  : Background",$A,"ENTER: Complete",$0
 STR_GOODBYE:      .BYT "Good Bye.",$A,$0
-STR_NOTDIR:       .BYT "Not Directory.",$A,$0
-STR_NOTFOUND:     .BYT "Directory Not Found.",$A,$0
-STR_ERROR:        .BYT $A,"[Error] ",$0
-STR_NOTFOUNDDRV:     .BYT "Drive Not Found.",$A,$0
-PATH_DEFAULT:     .ASCIIZ "A:"
+STR_ERROR:        .BYT "[ERROR] ",$A,$0
+STR_DOT:          .BYT ".",$0                             ; これの絶対パスを得ると、それはカレントディレクトリ
 
 ; -------------------------------------------------------------------
 ;                        内部コマンドテーブル
