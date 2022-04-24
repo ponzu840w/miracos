@@ -167,7 +167,7 @@ FUNC_FS_READ_BYTS:
   BRA @LOOP
 
 ; -------------------------------------------------------------------
-; BCOS 9                  ファイル検索
+; BCOS 9                   ファイル検索                エラーハンドル
 ; -------------------------------------------------------------------
 ; input :AY=FINFOorPATH、ZR0=ファイル名（FINFO指定時）
 ; output:AY=FINFO
@@ -182,10 +182,11 @@ FUNC_FS_FIND_FST:
   ;BEQ @FINFO
 @PATH:
   JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
-  BEQ @SKP_PATHERR          ; エラーハンドル
-  LDX #1                    ; EC1:PATHERR
+  BCC @SKP_PATHERR          ; エラーハンドル
+  RTS
 @SKP_PATHERR:
   loadAY16 FINFO_WK
+  CLC
   RTS
 
 ; -------------------------------------------------------------------
@@ -265,7 +266,7 @@ FUNC_FS_PURSE:
   RTS
 
 ; -------------------------------------------------------------------
-; BCOS 11              カレントディレクトリ変更
+; BCOS 11              カレントディレクトリ変更        エラーハンドル
 ; -------------------------------------------------------------------
 ; input : AY=パス先頭
 ; output: A=分析結果
@@ -275,7 +276,30 @@ FUNC_FS_PURSE:
 ;           bit0:ドライブ文字を含む
 ; -------------------------------------------------------------------
 FUNC_FS_CHDIR:
+  JSR FUNC_FS_FPATH             ; 何はともあれフルパス取得
+  pushAY16                      ; フルパスをプッシュ
+  JSR FUNC_FS_PURSE             ; ディレクトリである必要性をチェック
+  BBS2 ZR1,@OK                  ; ルートディレクトリを指すならディレクトリチェック不要
+  pullAY16
+  pushAY16                      ; フルパスをプッシュ
+  JSR FUNC_FS_FIND_FST          ; 検索
+  BCC @SKPERR
+  pullAY16
   RTS
+@SKPERR:                        ; どうやら存在するらしい
+  LDA FINFO_WK+FINFO::ATTR      ; 属性値を取得
+  CMP #DIRATTR_DIRECTORY        ; ディレクトリかをチェック
+  BNE @NOTDIR
+@OK:
+  loadmem16 ZR1,CUR_DIR         ; カレントディレクトリを対象に
+  pullAY16                      ; フルパスをプルしてソースに
+  JSR M_CP_AYS                  ; カレントディレクトリを更新
+  CLC
+  RTS
+@NOTDIR:                        ; ERR:ディレクトリ以外に移動しようとした
+  pullAY16
+  LDA #ERR::NOT_DIR
+  JMP ERR::REPORT
 
 ; -------------------------------------------------------------------
 ; BCOS 12                 絶対パス取得                エラーレポート
@@ -378,8 +402,7 @@ FUNC_FS_OPEN:
   BEQ @FINFO
 @PATH:
   JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
-  BEQ @SKP_PATHERR          ; エラーハンドル
-  LDX #1                    ; EC1:PATHERR
+  BCC @SKP_PATHERR          ; エラーハンドル
   RTS
 @SKP_PATHERR:
 @FINFO:
@@ -421,8 +444,8 @@ PATH2FINFO_ZR2:
   LDA (ZR2),Y           ; 二文字目
   CMP #':'              ; ドライブ文字があること判別
   BEQ @SKP_E1
-  LDX #1                ; EC1:NoDrive
-  RTS
+  LDA #ERR::ILLEGAL_PATH
+  JMP ERR::REPORT       ; ERR:ドライブ文字がないパスをぶち込まれても困る
 @SKP_E1:
   LDA (ZR2)             ; ドライブレターを取得
   SEC
@@ -439,16 +462,16 @@ PATH2FINFO_ZR2:
   CPX #0
   BEQ @NEXT             ; パス要素がまだあるなら続行
   loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
-  LDX #0                ; 成功コード
+  CLC                   ; 成功コード
   RTS
 @NEXT:
   JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得
   ;BRK                  ; ヒットしたが開かれる前のFINFOを見れるBP
   ;NOP
-  CMP #$FF              ; 見つからないエラー
+  CMP #$FF              ; 見つからない場合
   BNE @SKP_E2
-  LDX #2
-  RTS
+  LDA #ERR::FILE_NOT_FOUND
+  JMP ERR::REPORT       ; ERR:指定されてファイルが見つからなかった
 @SKP_E2:
   JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く
   ;BRK                  ; ヒットして開かれた内容を覗けるブレイクポイント

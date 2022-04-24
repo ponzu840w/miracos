@@ -50,3 +50,13 @@
   LDY src+1
 .endmac
 
+.macro pushAY16
+  PHA
+  PHY
+.endmac
+
+.macro pullAY16
+  PLY
+  PLA
+.endmac
+
