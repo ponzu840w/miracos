@@ -42,6 +42,10 @@
   .INCLUDE "varbcos.s"
   .INCLUDE "gcon/vargcon.s"
 
+; OS側変数領域
+.SEGMENT "COSVAR"
+  .INCLUDE "fs/varfs2.s"
+
 ; ROMとの共通バッファ
 .SEGMENT "ROMBF100"         ; $0200~
   CONINBF_BASE:   .RES 256  ; UART受信用リングバッファ
@@ -62,9 +66,6 @@ ZR5 = ROMZ::ZR5
 ZP_CONINBF_WR_P = ROMZ::ZP_INPUT_BF_WR_P
 ZP_CONINBF_RD_P = ROMZ::ZP_INPUT_BF_RD_P
 ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
-
-; 不要セグメント
-.SEGMENT "COSVAR" ; MONVARが$100を溢れない限り用がない
 
 .SCOPE
   .INCLUDE "ccp.s"
@@ -119,6 +120,9 @@ SYSCALL_TABLE:
   .WORD FUNC_CON_IN_STR     ; 7 バッファ行入力
   .WORD GCHR::FUNC_GCHR_COL ; 8 2色テキスト画面パレット操作
   .WORD FS::FUNC_FS_FIND_FST; 9 最初のエントリの検索
+  .WORD FS::FUNC_FS_PURSE   ; 10 パス文字列の解析
+  .WORD FS::FUNC_FS_CHDIR   ; 11 カレントディレクトリ変更
+  .WORD FS::FUNC_FS_FPATH   ; 12 絶対パス取得
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン

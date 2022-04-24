@@ -11,4 +11,7 @@ FS_CLOSE            = 6
 CON_IN_STR          = 7
 GCHR_COL            = 8
 FS_FIND_FST         = 9
+FS_PURSE            = 10
+FS_CHDIR            = 11
+FS_FPATH            = 12
 
