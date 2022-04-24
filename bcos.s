@@ -80,6 +80,9 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
 ; -------------------------------------------------------------------
 .SEGMENT "COSLIB"
   .INCLUDE "fs/fsmac.mac"
+  .PROC ERR
+    .INCLUDE "error.s"
+  .ENDPROC
   .PROC BCOS_UART ; 単にUARTとするとアドレス宣言とかぶる
     .INCLUDE "uart.s"
   .ENDPROC
