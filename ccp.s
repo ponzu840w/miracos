@@ -256,11 +256,11 @@ ICOM_COLOR:
 
 ICOM_TEST:
   loadAY16 COMMAND_BUF
-  syscall CON_IN_STR    ; 引数解析がまだないので入力させる
+  syscall CON_IN_STR      ; 引数解析がまだないので入力させる
   loadAY16 COMMAND_BUF
-  syscall FS_FPATH
+  syscall FS_FPATH        ; 入力結果をフルパスに変換せよ
   BCS BCOS_ERROR
-  syscall CON_OUT_STR
+  syscall CON_OUT_STR     ; エラーが発生しなければ帰ったAYを表示
   JMP LOOP
 
 ; -------------------------------------------------------------------
