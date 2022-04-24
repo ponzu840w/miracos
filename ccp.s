@@ -41,7 +41,7 @@ COMMAND_BUF:      .RES 64 ; コマンド入力バッファ
 START:
   loadmem16 ZR1,CUR_DIR
   loadAY16 PATH_DEFAULT
-  JSR M_CP_AYS          ; カレントディレクトリに転送
+  JSR M_CP_AYS                    ; カレントディレクトリに転送
   loadAY16 STR_INITMESSAGE
   syscall CON_OUT_STR             ; タイトル表示
 
@@ -116,13 +116,6 @@ ICOM_EXIT:
 ;                        ディレクトリ表示
 ; -------------------------------------------------------------------
 ICOM_DIR:
-  loadAY16 COMMAND_BUF
-  syscall CON_IN_STR
-  ;loadAY16 COMMAND_BUF
-  ;syscall FS_FIND_FST
-  loadAY16 COMMAND_BUF
-  JSR ANALYZE_PATH
-  JSR PRT_BIN
   JMP LOOP
 
 ; -------------------------------------------------------------------
@@ -260,6 +253,11 @@ ICOM_COLOR:
 @PUT:
   syscall GCHR_COL
   RTS
+
+ICOM_TEST:
+  syscall FS_FPATH
+  syscall CON_OUT_STR
+  JMP LOOP
 
 ; -------------------------------------------------------------------
 ;                          汎用関数群
@@ -456,6 +454,7 @@ ICOMNAMES:        .ASCIIZ "EXIT"        ; 0
                   .ASCIIZ "REBOOT"      ; 2
                   .ASCIIZ "COLOR"       ; 3
                   .ASCIIZ "DIR"         ; 4
+                  .ASCIIZ "TEST"        ; 5
                   .BYT $0
 
 ICOMVECS:         .WORD ICOM_EXIT
@@ -463,4 +462,5 @@ ICOMVECS:         .WORD ICOM_EXIT
                   .WORD ICOM_REBOOT
                   .WORD ICOM_COLOR
                   .WORD ICOM_DIR
+                  .WORD ICOM_TEST
 
