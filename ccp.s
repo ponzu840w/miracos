@@ -255,6 +255,9 @@ ICOM_COLOR:
   RTS
 
 ICOM_TEST:
+  loadAY16 COMMAND_BUF
+  syscall CON_IN_STR    ; 引数解析がまだないので入力させる
+  loadAY16 COMMAND_BUF
   syscall FS_FPATH
   syscall CON_OUT_STR
   JMP LOOP
