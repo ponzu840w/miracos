@@ -5,6 +5,7 @@
 ; 1バイトのファイル記述子をオープンすることでファイルにアクセス可能
 ; -------------------------------------------------------------------
 .INCLUDE "FXT65.inc"
+.INCLUDE "errorcode.inc"
 
 ; 命名規則
 ; BYT  8bit
@@ -292,18 +293,16 @@ FUNC_FS_FPATH:
   LDA (ZR2)               ; ドライブレターを読み取り
   CMP #'A'
   BEQ @SKP_CHANGEDRV      ; 決め打ちでAでなければエラー
-  ;loadAY16 STR_NOTFOUNDDRV
-  ;JSR PRT_ERROR
-  BRK
-  NOP
-  RTS
+  LDA #DRV_NOT_FOUND
+  JMP ERR::REPORT
 @SKP_CHANGEDRV:
   STZ CUR_DIR+2         ; :で終わりにしてルートに
   BRA @RET
 @SKP_SETROOT:           ; サブディレクトリがあるか、あるいは…
   
-@RET
+@RET:
   loadAY16 CUR_DIR
+  CLC
   RTS
 
 ; -------------------------------------------------------------------
