@@ -278,31 +278,57 @@ FUNC_FS_CHDIR:
   RTS
 
 ; -------------------------------------------------------------------
-; BCOS 12                 絶対パス取得
+; BCOS 12                 絶対パス取得                エラーレポート
 ; -------------------------------------------------------------------
 ; input : AY=相対/絶対パス先頭
 ; output: AY=絶対パス先頭
 ; -------------------------------------------------------------------
 FUNC_FS_FPATH:
-  storeAY16 ZR2           ; 与えられたパスをZR2に
-  JSR FUNC_FS_PURSE       ; パスを解析する
-  BBR2 ZR1,@SKP_SETROOT   ; ルートを指している
-  BBR0 ZR1,@SKP_CHANGEDRV ; 0でありカレントドライブでいいので飛ばす
-  ; TODO:カーネルにドライブ情報の取得ファンクション
-  ; 存在しないドライブへのアクセスが検出できない
-  LDA (ZR2)               ; ドライブレターを読み取り
-  CMP #'A'
-  BEQ @SKP_CHANGEDRV      ; 決め打ちでAでなければエラー
-  LDA #DRV_NOT_FOUND
-  JMP ERR::REPORT
-@SKP_CHANGEDRV:
-  STZ CUR_DIR+2         ; :で終わりにしてルートに
-  BRA @RET
-@SKP_SETROOT:           ; サブディレクトリがあるか、あるいは…
-  
-@RET:
+  storeAY16 ZR2                 ; 与えられたパスをZR2に
+  loadmem16 ZR1,PATH_WK         ; PATH_WKにカレントディレクトリをコピー
   loadAY16 CUR_DIR
-  CLC
+  JSR M_CP_AYS
+  loadAY16 CUR_DIR
+  JSR M_LEN                     ; Yにカレントディレクトリの長さを与える
+  STY ZR3                       ; ZR3に保存
+  LDA ZR2
+  LDY ZR2+1
+  JSR FUNC_FS_PURSE             ; パスを解析する
+  ;BBR2 ZR1,@SKP_SETROOT         ; サブディレクトリやファイル（ルートディレクトリを指さない）なら分岐
+  BBR0 ZR1,@NO_DRV              ; ドライブレターがないなら分岐
+  ; ドライブが指定された（A:/MIRACOS/）
+  loadmem16 ZR1,PATH_WK         ; PATH_WKに与えられたパスをそのままコピー
+  mem2AY16 ZR2                  ; 与えられたパス
+  JSR M_CP_AYS
+  BRA @DEL_SLH                  ; 最終工程だけは共有
+@NO_DRV:                        ; 少なくともドライブレターを流用しなければならない
+  BBS1 ZR1,@ZETTAI              ; 絶対パスなら分岐
+@SOUTAI:                        ; 相対パスである
+  LDA #'/'
+  LDY ZR3                       ; カレントディレクトリの長さを取得
+  STA PATH_WK,Y                 ; 最後に区切り文字を設定
+  INY
+  loadreg16 PATH_WK
+  JSR S_ADD_BYT                 ; Yを加算してつぎ足すべき場所を産出
+  STA ZR1
+  STX ZR1+1
+  BRA @CONCAT
+@ZETTAI:                        ; 絶対パスである
+  loadmem16 ZR1,PATH_WK+2       ; ワークエリアのA:より後が対象
+@CONCAT:                        ; 接合
+  mem2AY16 ZR2                  ; 与えられたパスがソース
+  JSR M_CP_AYS                  ; 文字列コピーで接合
+@DEL_SLH:                       ; 最終工程スラッシュ消し
+  loadAY16 PATH_WK
+  JSR M_LEN                     ; 最終結果の長さを取得
+  LDA PATH_WK-1,Y
+  CMP #'/'
+  BNE @RET
+  LDA #0
+  STA PATH_WK-1,Y
+@RET:
+  loadAY16 PATH_WK
+  CLC                           ; キャリークリアで成功を示す
   RTS
 
 ; -------------------------------------------------------------------
@@ -1235,6 +1261,34 @@ EQPATHELM:
   CLC
   RTS
 
+M_CP_AYS:
+  ; 文字列をコピーする
+  STA ZR0
+  STY ZR0+1
+  LDY #$FF
+@LOOP:
+  INY
+  LDA (ZR0),Y
+  STA (ZR1),Y
+  BEQ M_LEN_RTS
+  BRA @LOOP
+
+M_LEN:
+  ; 文字列の長さを取得する
+  ; input:AY
+  ; output:Y
+  STA ZR1
+  STY ZR1+1
+M_LEN_ZR1:  ; ZR1入力
+  LDY #$FF
+@LOOP:
+  INY
+  LDA (ZR1),Y
+  BNE @LOOP
+M_LEN_RTS:
+  RTS
+
+
 ;STR_LEN:
 ;  ; 文字列の長さを取得する
 ;  ; input:AY
@@ -1269,4 +1323,7 @@ EQPATHELM:
 ;@EQ:
 ;  CLC
 ;  RTS
+CUR_DIR:
+.ASCIIZ "A:"
+.RES 64     ; カレントディレクトリのパスが入る。二行分でアボン
 
