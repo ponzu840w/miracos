@@ -300,7 +300,7 @@ FUNC_FS_FPATH:
   loadmem16 ZR1,PATH_WK         ; PATH_WKに与えられたパスをそのままコピー
   mem2AY16 ZR2                  ; 与えられたパス
   JSR M_CP_AYS
-  BRA @DEL_SLH                  ; 最終工程だけは共有
+  BRA @CLEAR_DOT                ; 最終工程だけは共有
 @NO_DRV:                        ; 少なくともドライブレターを流用しなければならない
   BBS1 ZR1,@ZETTAI              ; 絶対パスなら分岐
 @SOUTAI:                        ; 相対パスである
@@ -318,6 +318,29 @@ FUNC_FS_FPATH:
 @CONCAT:                        ; 接合
   mem2AY16 ZR2                  ; 与えられたパスがソース
   JSR M_CP_AYS                  ; 文字列コピーで接合
+@CLEAR_DOT:                     ; .を削除する
+  LDX #$FF
+@CLEAR_DOT_LOOP:                ; .を削除するための探索ループ
+  STY ZR0
+  INX
+  LDA PATH_WK,X
+  BEQ @DEL_SLH
+  CMP #'/'
+  BNE @CLEAR_DOT_LOOP           ; /でないならパス
+  TXA                           ; 前の/としてインデックスを保存
+  TAY
+  LDA PATH_WK+1,X               ; 一つ先読み
+  CMP #'.'                      ; /.であるか
+  BNE @CLEAR_DOT_LOOP
+  LDA PATH_WK+2,X               ; さらに先読み
+  CMP #'.'                      ; /..であるか
+  BEQ @DELDOTS
+@DELDOT:                        ; /.を削除
+  LDA PATH_WK+2,X
+  STA PATH_WK,X
+  BEQ @CLEAR_DOT
+  INX
+  BRA @DELDOT
 @DEL_SLH:                       ; 最終工程スラッシュ消し
   loadAY16 PATH_WK
   JSR M_LEN                     ; 最終結果の長さを取得
@@ -330,6 +353,15 @@ FUNC_FS_FPATH:
   loadAY16 PATH_WK
   CLC                           ; キャリークリアで成功を示す
   RTS
+@DELDOTS:                       ; ../を消すループ（飛び地）
+  LDY ZR0
+@DELDOTS_LOOP:
+  LDA PATH_WK+3,X
+  STA PATH_WK,Y
+  BEQ @CLEAR_DOT                ; 文頭からやり直す
+  INX
+  INY
+  BRA @DELDOTS_LOOP
 
 ; -------------------------------------------------------------------
 ; BCOS 5                  ファイルオープン
