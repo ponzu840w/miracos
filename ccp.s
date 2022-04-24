@@ -259,6 +259,7 @@ ICOM_TEST:
   syscall CON_IN_STR    ; 引数解析がまだないので入力させる
   loadAY16 COMMAND_BUF
   syscall FS_FPATH
+  BCS BCOS_ERROR
   syscall CON_OUT_STR
   JMP LOOP
 
@@ -267,6 +268,11 @@ ICOM_TEST:
 ; -------------------------------------------------------------------
 ; どうする？ライブラリ？システムコール？
 ; -------------------------------------------------------------------
+BCOS_ERROR:
+  syscall ERR_GET
+  syscall ERR_MES
+  JMP LOOP
+
 PRT_BIN:
   LDX #8
 @LOOP:

@@ -14,4 +14,6 @@ FS_FIND_FST         = 9
 FS_PURSE            = 10
 FS_CHDIR            = 11
 FS_FPATH            = 12
+ERR_GET             = 13
+ERR_MES             = 14
 
