@@ -126,6 +126,8 @@ SYSCALL_TABLE:
   .WORD FS::FUNC_FS_PURSE   ; 10 パス文字列の解析
   .WORD FS::FUNC_FS_CHDIR   ; 11 カレントディレクトリ変更
   .WORD FS::FUNC_FS_FPATH   ; 12 絶対パス取得
+  .WORD ERR::FUNC_ERR_GET   ; 13 エラー番号取得
+  .WORD ERR::FUNC_ERR_MES   ; 14 エラー表示
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
