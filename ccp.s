@@ -59,6 +59,27 @@ LOOP:
   LDA COMMAND_BUF                 ; バッファ先頭を取得
   BEQ LOOP                        ; バッファ長さ0ならとりやめ
   JSR PRT_LF                      ; コマンド入力後の改行は、無入力ではやらない
+; コマンド名と引数の分離
+  LDX #$FF
+@CMDNAME_LOOP:
+  INX
+  LDA COMMAND_BUF,X
+  BEQ @CMDNAME_0END               ; 引数がなかった
+  CMP #' '                        ; 空白か？
+  BNE @CMDNAME_LOOP
+  STZ COMMAND_BUF,X               ; 空白をヌルに
+  BRA @PUSH_ARG
+@CMDNAME_0END:
+  STZ COMMAND_BUF+1,X             ; ダブル0で引数がないことを示す
+@PUSH_ARG:                        ; COMMAND_BUF+X+1=引数先頭を渡したい
+  TXA
+  SEC
+  ADC #<COMMAND_BUF
+  PHA                             ; 下位をプッシュ
+  LDA #0
+  ADC #>COMMAND_BUF
+  PHA                             ; 上位をプッシュ
+@SEARCH_ICOM:
   LDX #0                          ; 内部コマンド番号初期化
   loadmem16 ZR0,COMMAND_BUF       ; 入力されたコマンドをZR0に
   loadmem16 ZR1,ICOMNAMES         ; 内部コマンド名称配列をZR1に
@@ -84,6 +105,8 @@ EXEC_ICOM:                        ; Xで渡された内部コマンド番号を�
   TXA
   ASL
   TAX
+  PLY
+  PLA
   JMP (ICOMVECS,X)
 
 ; -------------------------------------------------------------------
@@ -119,10 +142,12 @@ ICOM_DIR:
 ;                     カレントディレクトリ変更
 ; -------------------------------------------------------------------
 ICOM_CD:
-  loadAY16 COMMAND_BUF
-  syscall CON_IN_STR      ; 引数解析がまだないので入力させる
-  loadAY16 COMMAND_BUF
-  syscall FS_CHDIR
+  ;loadAY16 COMMAND_BUF
+  ;syscall CON_IN_STR      ; 引数解析がまだないので入力させる
+  ;loadAY16 COMMAND_BUF
+  ;BRK
+  ;NOP
+  syscall FS_CHDIR          ; テーブルジャンプ前にコマンドライン引数を受け取った
   BCC @SKP_ERR
   JMP BCOS_ERROR
 @SKP_ERR:
