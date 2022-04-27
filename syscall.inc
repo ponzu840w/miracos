@@ -16,4 +16,6 @@ FS_CHDIR            = 11
 FS_FPATH            = 12
 ERR_GET             = 13
 ERR_MES             = 14
+UPPER_CHR           = 15
+UPPER_STR           = 16
 
