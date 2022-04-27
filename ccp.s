@@ -55,6 +55,8 @@ LOOP:
   STA ZR0
   loadAY16 COMMAND_BUF            ; バッファ指定
   syscall CON_IN_STR              ; バッファ行入力
+  loadAY16 COMMAND_BUF            ; バッファ指定
+  syscall UPPER_STR               ; 大文字変換
 ; コマンドライン解析
   LDA COMMAND_BUF                 ; バッファ先頭を取得
   BEQ LOOP                        ; バッファ長さ0ならとりやめ
