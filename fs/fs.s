@@ -248,8 +248,8 @@ FUNC_FS_PURSE:
   INY
   LDA (ZR0),Y
   BEQ @SKP_LOOP
-  CMP #' '
-  BEQ @SKP_LOOP
+  ;CMP #' '
+  ;BEQ @SKP_LOOP
   BRA @LOOP       ; 以下、(ZR0),Yはヌルかスペース
 @SKP_LOOP:
   DEY             ; 最後の文字を指す
