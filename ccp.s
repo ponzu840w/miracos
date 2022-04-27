@@ -211,6 +211,10 @@ ICOM_COLOR:
   RTS
 
 ICOM_TEST:
+  syscall UPPER_STR
+  LDA ZR0
+  LDY ZR0+1
+  syscall CON_OUT_STR
   JMP LOOP
 
 ; -------------------------------------------------------------------
