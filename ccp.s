@@ -144,11 +144,6 @@ ICOM_DIR:
 ;                     カレントディレクトリ変更
 ; -------------------------------------------------------------------
 ICOM_CD:
-  ;loadAY16 COMMAND_BUF
-  ;syscall CON_IN_STR      ; 引数解析がまだないので入力させる
-  ;loadAY16 COMMAND_BUF
-  ;BRK
-  ;NOP
   syscall FS_CHDIR          ; テーブルジャンプ前にコマンドライン引数を受け取った
   BCC @SKP_ERR
   JMP BCOS_ERROR
