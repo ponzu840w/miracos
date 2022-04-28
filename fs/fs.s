@@ -454,8 +454,7 @@ PATH2FINFO_ZR2:
   JSR PATH_SLASHNEXT    ; 次の（初回ならルート直下の）要素先頭
   STA ZR2
   STY ZR2+1
-  CPX #0
-  BEQ @NEXT             ; パス要素がまだあるなら続行
+  BCC @NEXT             ; パス要素がまだあるなら続行
   loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
   CLC                   ; 成功コード
   RTS
@@ -511,9 +510,13 @@ INTOPEN_FILE:
   loadreg16 FINFO_WK+FINFO::HEAD
   BRA OPENCLUS
 
+PATH_SLASHNEXT_GETNULL:
+  ; 下のサブルーチンの、その要素が/で終わるのかnullで終わるのか通知する版
+  JSR PATH_SLASHNEXT
+
 PATH_SLASHNEXT:
-  ; AYの次のスラッシュの次を得る
-  ; 終端にあったらX=1
+  ; AYの次のスラッシュの次を得る、AYが進む
+  ; そこがnullならC=1（失敗
   STA ZR0
   STY ZR0+1
   LDY #$FF
@@ -521,7 +524,7 @@ PATH_SLASHNEXT:
   INY
   LDA (ZR0),Y
   BNE @SKP_ERR
-  LDX #1
+  SEC
   RTS
 @SKP_ERR:
   CMP #'/'
@@ -529,7 +532,7 @@ PATH_SLASHNEXT:
   INY                   ; スラッシュの次を示す
   LDA (ZR0),Y
   BNE @SKP_ERR2
-  LDX #1
+  SEC
   RTS
 @SKP_ERR2:
   LDA ZR0
@@ -537,7 +540,7 @@ PATH_SLASHNEXT:
   JSR S_ADD_BYT
   PHX
   PLY
-  LDX #0
+  CLC
   RTS
 
 FCTRL_ALLOC:
@@ -820,26 +823,26 @@ DIR_NEXTMATCH:
   loadmem16 ZR1,FINFO_WK+FINFO::NAME ; 拾ってきた名前
 ;  JSR EQPATHELM                 ; 名前を比較
 @EQPATHELM:
-  ; AYとZR0が等しいかを返す
+  ; AYとZR0が等しいかを返すサブルーチンだったが、統合
   ; 終端文字としてヌル、スラッシュを使用可能
-  LDY #$FF                ; インデックスはゼロから
+  LDY #$FF                      ; インデックスはゼロから
 @LOOP:
   INY
   LDA (ZR2),Y
-  BEQ @END                ; ヌル終端なら終端検査に入る
+  BEQ @END                      ; ヌル終端なら終端検査に入る
   CMP #'/'
-  BEQ @END                ; スラッシュ終端なら終端検査に入る
+  BEQ @END                      ; スラッシュ終端なら終端検査に入る
   CMP (ZR1),Y
-  BEQ @LOOP               ; 一致すればもう一文字
+  BEQ @LOOP                     ; 一致すればもう一文字
   PLA
-  BRA @NEXT               ; 一致しなければ次へ
+  BRA @NEXT                     ; 一致しなければ次へ
 @END:
   LDA (ZR1),Y
-  BEQ @EQ                 ; ヌル終端なら終端検査に入る
+  BEQ @EQ                       ; ヌル終端なら終端検査に入る
   CMP #'/'
-  BEQ @EQ                 ; スラッシュ終端なら終端検査に入る
+  BEQ @EQ                       ; スラッシュ終端なら終端検査に入る
   PLA
-  BRA @NEXT               ; 終端でなければ次へ
+  BRA @NEXT                     ; 終端でなければ次へ
 @EQ:
 ; EQPATHELM終了
   PLA                           ; 属性値をプル
