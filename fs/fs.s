@@ -269,11 +269,6 @@ FUNC_FS_PURSE:
 ; BCOS 11              カレントディレクトリ変更        エラーハンドル
 ; -------------------------------------------------------------------
 ; input : AY=パス先頭
-; output: A=分析結果
-;           bit3:/で終わる
-;           bit2:ルートディレクトリを指す
-;           bit1:ルートから始まる（相対パスでない
-;           bit0:ドライブ文字を含む
 ; -------------------------------------------------------------------
 FUNC_FS_CHDIR:
   JSR FUNC_FS_FPATH             ; 何はともあれフルパス取得
@@ -822,14 +817,32 @@ DIR_NEXTMATCH:
   RTS
 @SKP_END:
   PHA                           ; 属性値をプッシュ
-  LDA ZR2
-  STA ZR0
-  LDA ZR2+1
-  STA ZR0+1
-  loadAY16 FINFO_WK+FINFO::NAME ; 拾ってきた名前
-  JSR EQPATHELM                 ; 名前を比較
+  loadmem16 ZR1,FINFO_WK+FINFO::NAME ; 拾ってきた名前
+;  JSR EQPATHELM                 ; 名前を比較
+@EQPATHELM:
+  ; AYとZR0が等しいかを返す
+  ; 終端文字としてヌル、スラッシュを使用可能
+  LDY #$FF                ; インデックスはゼロから
+@LOOP:
+  INY
+  LDA (ZR2),Y
+  BEQ @END                ; ヌル終端なら終端検査に入る
+  CMP #'/'
+  BEQ @END                ; スラッシュ終端なら終端検査に入る
+  CMP (ZR1),Y
+  BEQ @LOOP               ; 一致すればもう一文字
+  PLA
+  BRA @NEXT               ; 一致しなければ次へ
+@END:
+  LDA (ZR1),Y
+  BEQ @EQ                 ; ヌル終端なら終端検査に入る
+  CMP #'/'
+  BEQ @EQ                 ; スラッシュ終端なら終端検査に入る
+  PLA
+  BRA @NEXT               ; 終端でなければ次へ
+@EQ:
+; EQPATHELM終了
   PLA                           ; 属性値をプル
-  BCS @NEXT                     ; 一致しないなら次
   RTS
 
 DIR_NEXTENT:
@@ -1287,33 +1300,6 @@ M_SFN_RAW2DOT:
   ; 結果のポインタを返す
   LDA ZP_LDST0_VEC16
   LDX ZP_LDST0_VEC16+1
-  RTS
-
-EQPATHELM:
-  ; AYとZR0が等しいかを返す
-  ; 終端文字としてヌル、スラッシュを使用可能
-  STA ZR1
-  STY ZR1+1
-  LDY #$FF                ; インデックスはゼロから
-@LOOP:
-  INY
-  LDA (ZR0),Y
-  BEQ @END                ; ヌル終端なら終端検査に入る
-  CMP #'/'
-  BEQ @END                ; スラッシュ終端なら終端検査に入る
-  CMP (ZR1),Y
-  BEQ @LOOP               ; 一致すればもう一文字
-@NOT:
-  SEC
-  RTS
-@END:
-  LDA (ZR1),Y
-  BEQ @EQ                 ; ヌル終端なら終端検査に入る
-  CMP #'/'
-  BEQ @EQ                 ; スラッシュ終端なら終端検査に入る
-  BRA @NOT
-@EQ:
-  CLC
   RTS
 
 M_CP_AYS:
