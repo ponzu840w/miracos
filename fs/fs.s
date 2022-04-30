@@ -150,9 +150,11 @@ FUNC_FS_READ_BYTS:
   ;BRK                             ; 次のセクタに行くときのBP
   ;NOP
   JSR NEXTSEC                     ; 次のセクタに移行
-  BRK
-  NOP
+  ;BRK
+  ;NOP
   JSR RDSEC                       ; ロード
+  ;BRK                             ; Aに示されるエラーコードを見る
+  ;NOP
 @SKP_INCH:
   INC ZR0                         ; ZR0下位をインクリメント -書き込み先
   BNE @SKP_INCH0
@@ -714,6 +716,10 @@ LOAD_DWK:
 RDSEC:
   loadmem16 ZP_SDSEEK_VEC16,SECBF512
   loadmem16 ZP_SDCMDPRM_VEC16,(FWK_REAL_SEC)
+  LDA #<FWK_REAL_SEC                          ; リアルセクタ番号を監視
+  LDX #>FWK_REAL_SEC
+  BRK
+  NOP
   JSR SD::RDSEC
   BEQ @SKP_E
   LDA #1
