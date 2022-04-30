@@ -136,6 +136,8 @@ FUNC_FS_READ_BYTS:
 @NZ:                              ; どちらかがゼロではない
   LDA (ZP_SDSEEK_VEC16)           ; データを1バイト取得
   STA (ZR0)                       ; データを書き込み
+  ;BRK                             ; データ監視用BP…呼ばれない！？
+  ;NOP
   JSR L_CMP                       ; SIZとSEEK_PTRを比較
   SEC                             ; C=最終バイトフラグ
   BEQ @END                        ; 最終バイト読み取り完了につき終了
@@ -397,6 +399,7 @@ FUNC_FS_OPEN:
   BEQ @FINFO
 @PATH:
   JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
+  ;BRK                      ; 上のPATH2INFOは$40をロードする
   BCC @SKP_PATHERR          ; エラーハンドル
   RTS
 @SKP_PATHERR:
@@ -671,13 +674,22 @@ LOAD_DWK:
   ; ドライブ情報をワークエリアに展開する
   ; 複数ドライブが実装されるまでは徒労もいいところ
   ; input A=ドライブ番号
-  STA FWK+FCTRL::DRV_NUM  ; ファイルワークエリアのドライブ番号をセット
+  ;STA FWK+FCTRL::DRV_NUM  ; ファイルワークエリアのドライブ番号をセット
+  STZ FWK+FCTRL::DRV_NUM  ; ファイルワークエリアのドライブ番号をセット
   ASL                     ; ベクタテーブルなので二倍にする
   TAY
   LDA DRV_TABLE,Y
   STA ZR0
   LDA DRV_TABLE+1,Y
   STA ZR0+1
+  ;LDA ZR0                 ; ベクタ位置を表示するBP
+  ;LDX ZR0+1
+  ;BRK
+  ;NOP
+  LDA #$14                ; テーブルが壊れるので応急処置
+  LDX #$05
+  STA ZR0
+  STX ZR0+1
   ; コピーループ
   LDY #0
 @LOOP:
@@ -685,8 +697,10 @@ LOAD_DWK:
   STA DWK,Y
   INY
   CPY #.SIZEOF(DINFO)      ; DINFOのサイズ分コピーしたら終了
-  CPY #$11
+  ;CPY #$11
   BNE @LOOP
+  ;BRK                       ; ロード結果を示すBP
+  ;NOP
   RTS
 
 RDSEC:
@@ -1052,6 +1066,8 @@ CLUS2SEC:
   JSR L_SB_BYT
   ; *SECPERCLUS
   LDA DWK+DINFO::BPB_SECPERCLUS
+  ;BRK                            ; SECPERCLUSを正しく読んでいることを確かめるBP
+  ;NOP
 @LOOP:
   TAX
   JSR L_X2
