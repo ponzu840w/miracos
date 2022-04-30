@@ -451,10 +451,14 @@ PATH2FINFO_ZR2:
 @LOOP:
   LDA ZR2
   LDY ZR2+1
-  JSR PATH_SLASHNEXT    ; 次の（初回ならルート直下の）要素先頭
+  JSR PATH_SLASHNEXT    ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1
   STA ZR2
   STY ZR2+1
-  BCC @NEXT             ; パス要素がまだあるなら続行
+  BCS @LAST             ; パス要素がまだあるなら続行
+  JSR @NEXT             ; 非最終要素
+  BRA @LOOP
+@LAST:                  ; 最終要素
+  JSR @NEXT
   loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
   CLC                   ; 成功コード
   RTS
@@ -470,7 +474,8 @@ PATH2FINFO_ZR2:
   JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く
   ;BRK                  ; ヒットして開かれた内容を覗けるブレイクポイント
   ;NOP
-  BRA @LOOP
+  ;BRA @LOOP
+  RTS
 
 INTOPEN_DRV:
   ; input:A=DRV
@@ -513,6 +518,13 @@ INTOPEN_FILE:
 PATH_SLASHNEXT_GETNULL:
   ; 下のサブルーチンの、その要素が/で終わるのかnullで終わるのか通知する版
   JSR PATH_SLASHNEXT
+  BCC @SKP_FIRSTNULL        ; そもそもnullから開始される
+  RTS
+@SKP_FIRSTNULL:
+  pushAY16
+  JSR PATH_SLASHNEXT        ; 進んだ先の次を探知
+  pullAY16
+  RTS                       ; キャリー含め返す
 
 PATH_SLASHNEXT:
   ; AYの次のスラッシュの次を得る、AYが進む
@@ -524,20 +536,18 @@ PATH_SLASHNEXT:
   INY
   LDA (ZR0),Y
   BNE @SKP_ERR
+@EXP:                   ; 例外終了
   SEC
   RTS
 @SKP_ERR:
   CMP #'/'
   BNE @LOOP
   INY                   ; スラッシュの次を示す
-  LDA (ZR0),Y
-  BNE @SKP_ERR2
-  SEC
-  RTS
-@SKP_ERR2:
+  LDA (ZR0),Y           ; /の次がヌルならやはり例外終了
+  BEQ @EXP
   LDA ZR0
   LDX ZR0+1
-  JSR S_ADD_BYT
+  JSR S_ADD_BYT         ; ZR0+Y
   PHX
   PLY
   CLC
@@ -821,7 +831,6 @@ DIR_NEXTMATCH:
 @SKP_END:
   PHA                           ; 属性値をプッシュ
   loadmem16 ZR1,FINFO_WK+FINFO::NAME ; 拾ってきた名前
-;  JSR EQPATHELM                 ; 名前を比較
 @EQPATHELM:
   ; AYとZR0が等しいかを返すサブルーチンだったが、統合
   ; 終端文字としてヌル、スラッシュを使用可能
@@ -829,7 +838,7 @@ DIR_NEXTMATCH:
 @LOOP:
   INY
   LDA (ZR2),Y
-  BEQ @END                      ; ヌル終端なら終端検査に入る
+  ;BEQ @END                      ; ヌル終端なら終端検査に入る
   CMP #'/'
   BEQ @END                      ; スラッシュ終端なら終端検査に入る
   CMP (ZR1),Y
@@ -838,7 +847,7 @@ DIR_NEXTMATCH:
   BRA @NEXT                     ; 一致しなければ次へ
 @END:
   LDA (ZR1),Y
-  BEQ @EQ                       ; ヌル終端なら終端検査に入る
+  ;BEQ @EQ                       ; ヌル終端なら終端検査に入る
   CMP #'/'
   BEQ @EQ                       ; スラッシュ終端なら終端検査に入る
   PLA
