@@ -147,7 +147,11 @@ FUNC_FS_READ_BYTS:
   LDA ZP_SDSEEK_VEC16+1
   CMP #(>SECBF512)+2              ; 読み切ったらEQ
   BNE @SKP_INCH
+  ;BRK                             ; 次のセクタに行くときのBP
+  ;NOP
   JSR NEXTSEC                     ; 次のセクタに移行
+  BRK
+  NOP
   JSR RDSEC                       ; ロード
 @SKP_INCH:
   INC ZR0                         ; ZR0下位をインクリメント -書き込み先
@@ -455,6 +459,8 @@ PATH2FINFO_ZR2:
   LDA ZR2
   LDY ZR2+1
   JSR PATH_SLASHNEXT    ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1
+  ;BRK                   ; AYが次の要素先頭を指してるBP
+  ;NOP
   STA ZR2
   STY ZR2+1
   BCS @LAST             ; パス要素がまだあるなら続行
@@ -466,6 +472,8 @@ PATH2FINFO_ZR2:
   CLC                   ; 成功コード
   RTS
 @NEXT:
+  ;BRK
+  ;NOP
   JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得
   ;BRK                  ; ヒットしたが開かれる前のFINFOを見れるBP
   ;NOP
@@ -852,7 +860,7 @@ DIR_NEXTMATCH:
 @LOOP:
   INY
   LDA (ZR2),Y
-  ;BEQ @END                      ; ヌル終端なら終端検査に入る
+  BEQ @END                      ; ヌル終端なら終端検査に入る
   CMP #'/'
   BEQ @END                      ; スラッシュ終端なら終端検査に入る
   CMP (ZR1),Y
@@ -861,7 +869,7 @@ DIR_NEXTMATCH:
   BRA @NEXT                     ; 一致しなければ次へ
 @END:
   LDA (ZR1),Y
-  ;BEQ @EQ                       ; ヌル終端なら終端検査に入る
+  BEQ @EQ                       ; ヌル終端なら終端検査に入る
   CMP #'/'
   BEQ @EQ                       ; スラッシュ終端なら終端検査に入る
   PLA
