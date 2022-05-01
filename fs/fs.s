@@ -145,8 +145,14 @@ FUNC_FS_READ_BYTS:
   LDA ZP_SDSEEK_VEC16+1
   CMP #(>SECBF512)+2              ; 読み切ったらEQ
   BNE @SKP_INCH
+  ;BRK                             ; 次のセクタに行くときのBP
+  ;NOP
   JSR NEXTSEC                     ; 次のセクタに移行
+  ;BRK
+  ;NOP
   JSR RDSEC                       ; ロード
+  ;BRK                             ; Aに示されるエラーコードを見る
+  ;NOP
 @SKP_INCH:
   INC ZR0                         ; ZR0下位をインクリメント -書き込み先
   BNE @SKP_INCH0
@@ -397,11 +403,15 @@ FUNC_FS_OPEN:
   BEQ @FINFO
 @PATH:
   JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
+  ;BRK                      ; 上のPATH2INFOは$40をロードする
+  ;NOP
   BCC @SKP_PATHERR          ; エラーハンドル
   RTS
 @SKP_PATHERR:
 @FINFO:
   JSR FD_OPEN
+  ;BRK
+  ;NOP
   BEQ X0RTS                 ; エラーハンドル
   LDX #2                    ; EC2:OPENERR
   RTS
@@ -452,17 +462,25 @@ PATH2FINFO_ZR2:
   LDA ZR2
   LDY ZR2+1
   JSR PATH_SLASHNEXT_GETNULL    ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1
+  ;BRK                   ; AYが次の要素先頭を指してるBP
+  ;NOP
   STA ZR2
   STY ZR2+1
   BCS @LAST             ; パス要素がまだあるなら続行
   JSR @NEXT             ; 非最終要素
   BRA @LOOP
 @LAST:                  ; 最終要素
+  ;LDA ZR2               ; LASTが本当にLASTか確かめるBP
+  ;LDY ZR2+1
+  ;BRK
+  ;NOP
   JSR @NEXT
   loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
   CLC                   ; 成功コード
   RTS
 @NEXT:
+  ;BRK
+  ;NOP
   JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得
   ;BRK                  ; ヒットしたが開かれる前のFINFOを見れるBP
   ;NOP
@@ -494,7 +512,7 @@ OPENCLUS:
   RTS
 
 INTOPEN_FILE:
-  ; 内部的ファイルオープン
+  ; 内部的ファイルオープン（バッファに展開する）
   LDA FINFO_WK+FINFO::DRV_NUM
   JSR INTOPEN_DRV                   ; ドライブ番号が違ったら更新
   loadmem16 ZR0,FINFO_WK+FINFO::HEAD
@@ -678,6 +696,14 @@ LOAD_DWK:
   STA ZR0
   LDA DRV_TABLE+1,Y
   STA ZR0+1
+  ;LDA ZR0                 ; ベクタ位置を表示するBP
+  ;LDX ZR0+1
+  ;BRK
+  ;NOP
+  LDA #$14                ; テーブルが壊れるので応急処置
+  LDX #$05
+  STA ZR0
+  STX ZR0+1
   ; コピーループ
   LDY #0
 @LOOP:
@@ -685,13 +711,19 @@ LOAD_DWK:
   STA DWK,Y
   INY
   CPY #.SIZEOF(DINFO)      ; DINFOのサイズ分コピーしたら終了
-  CPY #$11
+  ;CPY #$11
   BNE @LOOP
+  ;BRK                       ; ロード結果を示すBP
+  ;NOP
   RTS
 
 RDSEC:
   loadmem16 ZP_SDSEEK_VEC16,SECBF512
   loadmem16 ZP_SDCMDPRM_VEC16,(FWK_REAL_SEC)
+  ;LDA #<FWK_REAL_SEC                          ; リアルセクタ番号を監視
+  ;LDX #>FWK_REAL_SEC
+  ;BRK
+  ;NOP
   JSR SD::RDSEC
   BEQ @SKP_E
   LDA #1
@@ -713,7 +745,7 @@ RDSEC:
 ;  BEQ @FAT32
 ;  CMP #SYSTEMID_FAT32NOCHS
 ;  BEQ @FAT32
-;  BRK
+;BRK
 ;@FAT32:
 ;  ; ソースを上位のみ設定
 ;  LDA #(>SECBF512)+1
@@ -838,7 +870,7 @@ DIR_NEXTMATCH:
 @LOOP:
   INY
   LDA (ZR2),Y
-  ;BEQ @END                      ; ヌル終端なら終端検査に入る
+  BEQ @END                      ; ヌル終端なら終端検査に入る
   CMP #'/'
   BEQ @END                      ; スラッシュ終端なら終端検査に入る
   CMP (ZR1),Y
@@ -847,7 +879,7 @@ DIR_NEXTMATCH:
   BRA @NEXT                     ; 一致しなければ次へ
 @END:
   LDA (ZR1),Y
-  ;BEQ @EQ                       ; ヌル終端なら終端検査に入る
+  BEQ @EQ                       ; ヌル終端なら終端検査に入る
   CMP #'/'
   BEQ @EQ                       ; スラッシュ終端なら終端検査に入る
   PLA
@@ -1052,6 +1084,8 @@ CLUS2SEC:
   JSR L_SB_BYT
   ; *SECPERCLUS
   LDA DWK+DINFO::BPB_SECPERCLUS
+  ;BRK                            ; SECPERCLUSを正しく読んでいることを確かめるBP
+  ;NOP
 @LOOP:
   TAX
   JSR L_X2
