@@ -716,10 +716,10 @@ LOAD_DWK:
 RDSEC:
   loadmem16 ZP_SDSEEK_VEC16,SECBF512
   loadmem16 ZP_SDCMDPRM_VEC16,(FWK_REAL_SEC)
-  LDA #<FWK_REAL_SEC                          ; リアルセクタ番号を監視
-  LDX #>FWK_REAL_SEC
-  BRK
-  NOP
+  ;LDA #<FWK_REAL_SEC                          ; リアルセクタ番号を監視
+  ;LDX #>FWK_REAL_SEC
+  ;BRK
+  ;NOP
   JSR SD::RDSEC
   BEQ @SKP_E
   LDA #1
@@ -741,7 +741,7 @@ RDSEC:
 ;  BEQ @FAT32
 ;  CMP #SYSTEMID_FAT32NOCHS
 ;  BEQ @FAT32
-;  BRK
+;BRK
 ;@FAT32:
 ;  ; ソースを上位のみ設定
 ;  LDA #(>SECBF512)+1
