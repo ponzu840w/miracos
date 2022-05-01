@@ -406,11 +406,14 @@ FUNC_FS_OPEN:
 @PATH:
   JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
   ;BRK                      ; 上のPATH2INFOは$40をロードする
+  ;NOP
   BCC @SKP_PATHERR          ; エラーハンドル
   RTS
 @SKP_PATHERR:
 @FINFO:
   JSR FD_OPEN
+  ;BRK
+  ;NOP
   BEQ X0RTS                 ; エラーハンドル
   LDX #2                    ; EC2:OPENERR
   RTS
@@ -460,15 +463,19 @@ PATH2FINFO_ZR2:
 @LOOP:
   LDA ZR2
   LDY ZR2+1
-  JSR PATH_SLASHNEXT    ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1
-  ;BRK                   ; AYが次の要素先頭を指してるBP
-  ;NOP
+  JSR PATH_SLASHNEXT_GETNULL    ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1
+  BRK                   ; AYが次の要素先頭を指してるBP
+  NOP
   STA ZR2
   STY ZR2+1
   BCS @LAST             ; パス要素がまだあるなら続行
   JSR @NEXT             ; 非最終要素
   BRA @LOOP
 @LAST:                  ; 最終要素
+  ;LDA ZR2               ; LASTが本当にLASTか確かめるBP
+  ;LDY ZR2+1
+  ;BRK
+  ;NOP
   JSR @NEXT
   loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
   CLC                   ; 成功コード
@@ -485,8 +492,8 @@ PATH2FINFO_ZR2:
   JMP ERR::REPORT       ; ERR:指定されてファイルが見つからなかった
 @SKP_E2:
   JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く
-  ;BRK                  ; ヒットして開かれた内容を覗けるブレイクポイント
-  ;NOP
+  BRK                  ; ヒットして開かれた内容を覗けるブレイクポイント
+  NOP
   ;BRA @LOOP
   RTS
 
@@ -507,7 +514,7 @@ OPENCLUS:
   RTS
 
 INTOPEN_FILE:
-  ; 内部的ファイルオープン
+  ; 内部的ファイルオープン（バッファに展開する）
   LDA FINFO_WK+FINFO::DRV_NUM
   JSR INTOPEN_DRV                   ; ドライブ番号が違ったら更新
   loadmem16 ZR0,FINFO_WK+FINFO::HEAD

@@ -130,8 +130,8 @@ RDINIT:
   CMP #$04          ; この例が多い
   ;JSR DELAY
   ;BEQ RDINIT
-  BRK
-  NOP
+  ;BRK
+  ;NOP
   LDA #$01         ; EC1:CMD17Error
   RTS
 @RDSUCCESS:
@@ -166,6 +166,10 @@ WAITRES:
 @RETRY:
   JSR SPI::RDBYT ; なぜか、直前に送ったCRCが帰ってきてしまう
 .IFDEF DEBUGBUILD
+  PHA
+  LDA #'w'
+  JSR FUNC_CON_OUT_CHR
+  PLA
   PHA
   JSR PRT_BYT_S
   PLA
@@ -202,17 +206,22 @@ SENDCMD:
   LDA (ZP_SDCMDPRM_VEC16),Y
   PHY
   ; 引数表示
-  PHA
-  JSR SPI::WRBYT
-  PLA
   .IFDEF DEBUGBUILD
+    PHA
     JSR PRT_BYT_S
+    PLA
   .ENDIF
+  JSR SPI::WRBYT
   PLY
   DEY
   BPL @LOOP
   ; CRC送信
   LDA SDCMD_CRC
+  .IFDEF DEBUGBUILD
+    PHA
+    JSR PRT_BYT_S     ; CRC表示
+    PLA
+  .ENDIF
   JSR SPI::WRBYT
   .IFDEF DEBUGBUILD
     ; レス表示
