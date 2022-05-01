@@ -1,3 +1,4 @@
+DEBUGBUILD = 1
 ; SDカードドライバのSDカード固有部分
 .INCLUDE "../FXT65.inc"
 
@@ -126,10 +127,11 @@ RDINIT:
   JSR SENDCMD
   CMP #$00
   BEQ @RDSUCCESS
-  ;CMP #$04          ; この例が多い
+  CMP #$04          ; この例が多い
   ;JSR DELAY
   ;BEQ RDINIT
-  ;BRK
+  BRK
+  NOP
   LDA #$01         ; EC1:CMD17Error
   RTS
 @RDSUCCESS:
@@ -181,7 +183,8 @@ SENDCMD:
   PHA
   .IFDEF DEBUGBUILD
     ; コマンド内容表示
-    ;print STR_CMD
+    loadAY16 STR_CMD
+    JSR FUNC_CON_OUT_STR
     PLA
     PHA
     AND #%00111111
@@ -214,12 +217,14 @@ SENDCMD:
   .IFDEF DEBUGBUILD
     ; レス表示
     LDA #'='
-    ;JSR MON::PRT_CHAR_UART
+    JSR FUNC_CON_OUT_CHR
   .ENDIF
   JSR SD::WAITRES
   PHA
   .IFDEF DEBUGBUILD
     JSR PRT_BYT_S
+    LDA #$A
+    JSR FUNC_CON_OUT_CHR
   .ENDIF
   cs0high
   LDX #1
@@ -251,4 +256,44 @@ RDR7:
   ;JSR MON::PRT_BYT
   cs0high
   RTS
+
+PRT_BYT_S:  ;デバッグ用
+  PHA
+  LDA #' '
+  JSR FUNC_CON_OUT_CHR
+  PLA
+  JSR BYT2ASC
+  PHY
+  JSR @CALL
+  PLA
+@CALL:
+  JSR FUNC_CON_OUT_CHR
+  RTS
+
+BYT2ASC:
+  ; Aで与えられたバイト値をASCII値AYにする
+  ; Aから先に表示すると良い
+  PHA           ; 下位のために保存
+  AND #$0F
+  JSR NIB2ASC
+  TAY
+  PLA
+  LSR           ; 右シフトx4で上位を下位に持ってくる
+  LSR
+  LSR
+  LSR
+  JSR NIB2ASC
+  RTS
+
+NIB2ASC:
+  ; #$0?をアスキー一文字にする
+  ORA #$30
+  CMP #$3A
+  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
+  ADC #$06
+@SKP_ADC:
+  RTS
+
+STR_CMD:
+  .ASCIIZ "CMD"
 
