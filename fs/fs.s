@@ -700,8 +700,8 @@ LOAD_DWK:
   LDX DRV_TABLE+1,Y
   ;BRK                     ; ベクタ位置を表示するBP
   ;NOP
-  LDA #$14                ; テーブルが壊れるので応急処置
-  LDX #$05
+  ;LDA #$14                ; テーブルが壊れるので応急処置
+  ;LDX #$05
   STA ZR0
   STX ZR0+1
   ; コピーループ
