@@ -455,6 +455,7 @@ PATH2FINFO_ZR2:
   LDA (ZR2)             ; ドライブレターを取得
   SEC
   SBC #'A'              ; ドライブ番号に変換
+  STA FINFO_WK+FINFO::DRV_NUM ; ドライブ番号を登録
   JSR INTOPEN_DRV       ; ドライブを開く
   JSR INTOPEN_ROOT      ; ルートディレクトリを開く
   ; ディレクトリをたどる旅
@@ -497,8 +498,11 @@ PATH2FINFO_ZR2:
 
 INTOPEN_DRV:
   ; input:A=DRV
+  ;BRK                   ; ドライブ要求を監視するBP
+  ;NOP
   CMP DWK_CUR_DRV       ; カレントドライブと比較
   BEQ @SKP_LOAD         ; 変わらないならスキップ
+  STA DWK_CUR_DRV       ; カレントドライブ更新
   JSR LOAD_DWK
 @SKP_LOAD:
   RTS
@@ -693,12 +697,8 @@ LOAD_DWK:
   ASL                     ; ベクタテーブルなので二倍にする
   TAY
   LDA DRV_TABLE,Y
-  STA ZR0
-  LDA DRV_TABLE+1,Y
-  STA ZR0+1
-  ;LDA ZR0                 ; ベクタ位置を表示するBP
-  ;LDX ZR0+1
-  ;BRK
+  LDX DRV_TABLE+1,Y
+  ;BRK                     ; ベクタ位置を表示するBP
   ;NOP
   LDA #$14                ; テーブルが壊れるので応急処置
   LDX #$05
