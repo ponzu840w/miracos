@@ -44,5 +44,5 @@ ERROR_MES:
 EM_DRV_NOT_FOUND:             .BYT "Drive Not Found.",$A,$0
 EM_ILLEGAL_PATH:              .BYT "Illegal Path.",$A,$0
 EM_FILE_NOT_FOUND:            .BYT "File Not Found.",$A,$0
-EM_NOT_DIR:                    .BYT "Not Directory.",$A,$0
+EM_NOT_DIR:                   .BYT "Not Directory.",$A,$0
 

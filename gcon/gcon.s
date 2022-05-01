@@ -12,6 +12,8 @@ INIT:
   loadmem16 ZR0,FONT2048      ; 書き込み先
   loadAY16  2048              ; 長さ
   JSR FS::FUNC_FS_READ_BYTS   ; ロード
+  ;BRK
+  ;NOP
   JSR GCHR::INIT
   STZ CURSOR_X
   LDA #23                     ; 最下行
