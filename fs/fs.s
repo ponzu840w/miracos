@@ -451,7 +451,7 @@ PATH2FINFO_ZR2:
 @LOOP:
   LDA ZR2
   LDY ZR2+1
-  JSR PATH_SLASHNEXT    ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1
+  JSR PATH_SLASHNEXT_GETNULL    ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1
   STA ZR2
   STY ZR2+1
   BCS @LAST             ; パス要素がまだあるなら続行
