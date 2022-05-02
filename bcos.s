@@ -129,7 +129,8 @@ SYSCALL_TABLE:
   .WORD ERR::FUNC_ERR_GET   ; 13 エラー番号取得
   .WORD ERR::FUNC_ERR_MES   ; 14 エラー表示
   .WORD FUNC_UPPER_CHR      ; 15 小文字を大文字に
-  .WORD FUNC_UPPER_STR      ; 15 文字列の小文字を大文字に
+  .WORD FUNC_UPPER_STR      ; 16 文字列の小文字を大文字に
+  .WORD FS::FUNC_FS_FIND_NXT; 17 次のエントリの検索
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン

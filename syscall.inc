@@ -18,4 +18,5 @@ ERR_GET             = 13
 ERR_MES             = 14
 UPPER_CHR           = 15
 UPPER_STR           = 16
+FS_FIND_NXT         = 17
 
