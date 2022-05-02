@@ -42,7 +42,7 @@
   LDA src
   STA dst
   LDA src+1
-  STA dst
+  STA dst+1
 .endmac
 
 .macro mem2AY16 src

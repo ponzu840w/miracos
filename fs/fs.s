@@ -190,6 +190,41 @@ FUNC_FS_FIND_FST:
   RTS
 
 ; -------------------------------------------------------------------
+; BCOS 17                ファイル検索（次）              エラーハンドル
+; -------------------------------------------------------------------
+; input :AY=前のFINFO、ZR0=ファイル名
+; output:AY=FINFO
+; -------------------------------------------------------------------
+FUNC_FS_FIND_NXT:
+  storeAY16 ZR1                       ; ZR1=与えられたFINFO
+  LDY #.SIZEOF(FINFO)-1
+@DLFWK_LOOP:                          ; 与えられたFINFOをワークエリアにコピーするループ
+  LDA (ZR1),Y
+  STA FINFO_WK,Y
+  DEY
+  BPL @DLFWK_LOOP                     ; FINFOコピー終了
+  loadreg16 FINFO_WK+FINFO::DIR_CLUS
+  JSR CLUS2FWK                        ; FINFOの親ディレクトリの現在クラスタをFWKに展開、ただしSEC=0
+  LDA FINFO_WK+FINFO::DIR_SEC
+  STA FWK+FCTRL::CUR_SEC              ; 現在セクタ反映
+  JSR OPENCLUS                        ; セクタ読み取り
+  LDA FINFO_WK+FINFO::DIR_ENT
+  ASL                                 ; 左に転がしてSDSEEK下位を復元、C=後半フラグ
+  STA ZP_SDSEEK_VEC16
+  LDA #>SECBF512                      ; 前半のSDSEEK
+  ADC #0                              ; C=1つまり後半であれば+1する
+  STA ZP_SDSEEK_VEC16+1               ; SDSEEK上位を復元
+  mem2mem16 ZR2,ZR0
+  JSR DIR_NEXTMATCH_NEXT_ZR2
+  CMP #$FF                            ; もう無いか？
+  CLC
+  BNE @SUCS
+  SEC
+@SUCS:
+  loadAY16 FINFO_WK
+  RTS
+
+; -------------------------------------------------------------------
 ; BCOS 6                  ファイルクローズ
 ; -------------------------------------------------------------------
 ; ファイル記述子をクローズして開放する
@@ -606,9 +641,9 @@ CLUS2FWK:
 FILE_REOPEN:
   ; ここから呼ぶと現在のファイルを開きなおす
   ; 現在クラスタ番号に先頭クラスタ番号をコピー
-  loadreg16 (FWK+FCTRL::CUR_CLUS)
+  loadreg16 FWK+FCTRL::CUR_CLUS
   JSR AX_DST
-  loadreg16 (FWK+FCTRL::HEAD)
+  loadreg16 FWK+FCTRL::HEAD
   JSR L_LD_AXS
   ; 現在クラスタ内セクタ番号をゼロに
   STZ FWK+FCTRL::CUR_SEC
@@ -692,12 +727,12 @@ RDSEC:
   loadmem16 ZP_SDSEEK_VEC16,SECBF512
   loadmem16 ZP_SDCMDPRM_VEC16,(FWK_REAL_SEC)  ; NOTE:FWK_REAL_SECを読んで監視するBP
   JSR SD::RDSEC
-  BEQ @SKP_E
-  LDA #1
-  RTS
+  SEC
+  BNE @ERR
 @SKP_E:
   DEC ZP_SDSEEK_VEC16+1
-  LDA #0
+  CLC
+@ERR:
   RTS
 
 ;DIR_OPEN_BYNAME:
@@ -756,9 +791,12 @@ DIR_NEXTMATCH:
   STA ZR2                       ; ZR2=マッチパターン（ファイル名）
   STY ZR2+1
   JSR DIR_NEXTENT_ENT           ; 初回用エントリ
-  BRA @FIRST
+  ;BRA @FIRST
+  BRA :+
+DIR_NEXTMATCH_NEXT_ZR2:         ; 今のポイントを無視して次を探すためのエントリポイント
 @NEXT:
   JSR DIR_NEXTENT               ; 次のエントリを拾う
+:
 @FIRST:
   CMP #$FF                      ; もうエントリがない時のエラーハンドル
   BNE @SKP_END
@@ -881,10 +919,6 @@ DIR_GETENT:
 @SKP_8:                         ; シークがセクタ前半ならC=0、後半ならC=1
   LDA ZP_SDSEEK_VEC16           ; シーク位置の下位、32bitアライメント
   ROR ; 16                      ; キャリーを巻き込む
-  LSR ; 8
-  LSR ; 4
-  LSR ; 2
-  LSR ; 1
   STA FINFO_WK+FINFO::DIR_ENT   ; セクタ内エントリ番号を登録
   LDY #OFS_DIR_ATTR
   LDA (ZP_SDSEEK_VEC16),Y
@@ -975,8 +1009,6 @@ CLUS2SEC:
   JSR L_SB_BYT
   ; *SECPERCLUS
   LDA DWK+DINFO::BPB_SECPERCLUS
-  ;BRK                            ; SECPERCLUSを正しく読んでいることを確かめるBP
-  ;NOP
 @LOOP:
   TAX
   JSR L_X2

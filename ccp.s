@@ -139,6 +139,16 @@ ICOM_EXIT:
 ; -------------------------------------------------------------------
 ICOM_DIR:
   syscall FS_FIND_FST
+  BCS @END
+  INC
+  syscall CON_OUT_STR
+@LOOP:
+  syscall FS_FIND_NXT
+  BCS @END
+  INC
+  syscall CON_OUT_STR
+  BRA @LOOP
+  @END:
   JMP LOOP
 
 ; -------------------------------------------------------------------
