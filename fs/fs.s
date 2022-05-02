@@ -247,10 +247,7 @@ FUNC_FS_PURSE:
 @LOOP:            ; 最後の文字を調べるループ
   INY
   LDA (ZR0),Y
-  BEQ @SKP_LOOP
-  ;CMP #' '
-  ;BEQ @SKP_LOOP
-  BRA @LOOP       ; 以下、(ZR0),Yはヌルかスペース
+  BNE @LOOP       ; 以下、(ZR0),Yはヌル
 @SKP_LOOP:
   DEY             ; 最後の文字を指す
   LDA (ZR0),Y     ; 最後の文字を読む
@@ -277,7 +274,7 @@ FUNC_FS_CHDIR:
   BBS2 ZR1,@OK                  ; ルートディレクトリを指すならディレクトリチェック不要
   pullAY16
   pushAY16                      ; フルパスをプッシュ
-  JSR FUNC_FS_FIND_FST          ; 検索
+  JSR FUNC_FS_FIND_FST          ; 検索、成功したらC=0
   BCC @SKPERR
   pullAY16
   RTS
@@ -301,6 +298,8 @@ FUNC_FS_CHDIR:
 ; -------------------------------------------------------------------
 ; input : AY=相対/絶対パス先頭
 ; output: AY=絶対パス先頭
+; FINFOを受け取ったら親ディレクトリを追いかけてフルパスを組み立てることも
+;  検討したが面倒すぎて折れた
 ; -------------------------------------------------------------------
 FUNC_FS_FPATH:
   storeAY16 ZR2                 ; 与えられたパスをZR2に
@@ -445,7 +444,7 @@ PATH2FINFO_ZR2:
   LDA (ZR2)             ; ドライブレターを取得
   SEC
   SBC #'A'              ; ドライブ番号に変換
-  STA FINFO_WK+FINFO::DRV_NUM ; ドライブ番号を登録
+  ;STA FINFO_WK+FINFO::DRV_NUM ; ドライブ番号を登録
   JSR INTOPEN_DRV       ; ドライブを開く
   JSR INTOPEN_ROOT      ; ルートディレクトリを開く
   ; ディレクトリをたどる旅
@@ -818,31 +817,6 @@ PATTERNMATCH:                   ; http://www.6502.org/source/strings/patmatch.ht
 @FAIL:
   CLC                           ; マッチしなかったらC=0が帰る
   RTS
-; PATTERNMATCH終了
-
-;@EQPATHELM:
-;  ; AYとZR0が等しいかを返すサブルーチンだったが、統合
-;  ; 終端文字としてヌル、スラッシュを使用可能
-;  LDY #$FF                      ; インデックスはゼロから
-;@LOOP:
-;  INY
-;  LDA (ZR2),Y
-;  BEQ @END                      ; ヌル終端なら終端検査に入る
-;  CMP #'/'
-;  BEQ @END                      ; スラッシュ終端なら終端検査に入る
-;  CMP FINFO_WK+FINFO::NAME,Y
-;  BEQ @LOOP                     ; 一致すればもう一文字
-;  PLA
-;  BRA @NEXT                     ; 一致しなければ次へ
-;@END:
-;  LDA FINFO_WK+FINFO::NAME,Y
-;  BEQ @EQ                       ; ヌル終端なら終端検査に入る
-;  CMP #'/'
-;  BEQ @EQ                       ; スラッシュ終端なら終端検査に入る
-;  PLA
-;  BRA @NEXT                     ; 終端でなければ次へ
-;@EQ:
-; EQPATHELM終了
 
 DIR_NEXTENT:
   ; 次の有効な（LFNでない）エントリを拾ってくる
@@ -890,15 +864,37 @@ DIR_GETENT:
   ; ZP_SDSEEK_VEC16がディレクトリエントリ先頭にある
   ; 属性
   ; LFNだったらサボる
+  LDA FWK+FCTRL::DRV_NUM        ; FWKのドライブ番号を引っ張る
+  STA FINFO_WK+FINFO::DRV_NUM   ; DRV_NUM登録
+  LDX #4
+@CLUSLOOP:                      ; ディレクトリの現在クラスタとクラスタ内セクタをコピー
+  LDA FWK+FCTRL::CUR_CLUS,X
+  STA FINFO_WK+FINFO::DIR_CLUS,X
+  DEX
+  BPL @CLUSLOOP
+  ; セクタ内エントリ番号の登録
+  LDA ZP_SDSEEK_VEC16+1         ; シーク位置の上位
+  CMP #>SECBF512                ; バッファの上位と同じか
+  CLC
+  BEQ @SKP_8
+  SEC
+@SKP_8:                         ; シークがセクタ前半ならC=0、後半ならC=1
+  LDA ZP_SDSEEK_VEC16           ; シーク位置の下位、32bitアライメント
+  ROR ; 16                      ; キャリーを巻き込む
+  LSR ; 8
+  LSR ; 4
+  LSR ; 2
+  LSR ; 1
+  STA FINFO_WK+FINFO::DIR_ENT   ; セクタ内エントリ番号を登録
   LDY #OFS_DIR_ATTR
   LDA (ZP_SDSEEK_VEC16),Y
-  STA FINFO_WK+FINFO::ATTR
-  CMP #DIRATTR_LONGNAME     ; LFNならサボる
+  STA FINFO_WK+FINFO::ATTR      ; 一応LFNであったとしても属性は残しておく
+  CMP #DIRATTR_LONGNAME         ; LFNならサボる
   BEQ @EXT
   ; 名前
   LDA (ZP_SDSEEK_VEC16)
-  BEQ @EXT                  ; 0ならもうない
-  CMP #$E5                  ; 消去されたエントリならサボる
+  BEQ @EXT                      ; 0ならもうない
+  CMP #$E5                      ; 消去されたエントリならサボる
   BEQ @EXT
   LDA ZP_SDSEEK_VEC16
   LDX ZP_SDSEEK_VEC16+1
