@@ -457,11 +457,14 @@ PATH2FINFO_ZR2:
   STY ZR2+1
   BCS @LAST             ; パス要素がまだあるなら続行
   JSR @NEXT             ; 非最終要素
-  BRA @LOOP
+  BCC @LOOP             ; 見つからないエラーがなければ次の要素へ
+  RTS                   ; 見つからなければC=1を保持して戻る
 @LAST:                  ; 最終要素 ; NOTE:ZR2を読むと、LASTが本当にLASTか見えるBP
   JSR @NEXT
+  BCS @ERREND           ; 最終要素が見つからなかったらC=1を保持して戻る
   loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
   CLC                   ; 成功コード
+@ERREND:
   RTS
 @NEXT:
   JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得 NOTE:ヒットしたが開かれる前のFINFOを見るBP
@@ -471,6 +474,7 @@ PATH2FINFO_ZR2:
   JMP ERR::REPORT       ; ERR:指定されてファイルが見つからなかった
 @SKP_E2:
   JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く NOTE:開かれた内容を覗くBP
+  CLC                   ; コールされた時の成功を知るC=0
   RTS
 
 INTOPEN_DRV:

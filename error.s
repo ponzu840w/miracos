@@ -29,6 +29,10 @@ FUNC_ERR_GET:
 FUNC_ERR_MES:
   ASL
   TAX
+  PHX
+  loadAY16 STR_ERROR
+  JSR FUNC_CON_OUT_STR
+  PLX
   LDA ERROR_MES_TABLE,X
   LDY ERROR_MES_TABLE+1,X
   JSR FUNC_CON_OUT_STR
@@ -45,4 +49,6 @@ EM_DRV_NOT_FOUND:             .BYT "Drive Not Found.",$A,$0
 EM_ILLEGAL_PATH:              .BYT "Illegal Path.",$A,$0
 EM_FILE_NOT_FOUND:            .BYT "File Not Found.",$A,$0
 EM_NOT_DIR:                   .BYT "Not Directory.",$A,$0
+
+STR_ERROR:                    .BYT "[BCOSERR] ",$0
 
