@@ -32,7 +32,7 @@
   ; 次を検索するためのデータ
   DRV_NUM           .RES 1  ; ドライブ番号
   DIR_CLUS          .RES 4  ; 親ディレクトリ現在クラスタ
-  DIR_SEC           .RES 4  ; 親ディレクトリ現在セクタ
+  DIR_SEC           .RES 1  ; 親ディレクトリ現在クラスタ内セクタ
   DIR_ENT           .RES 1  ; セクタ内エントリ番号（0~15）
 .ENDSTRUCT
 
