@@ -754,7 +754,7 @@ DIR_NEXTMATCH:
   ; Aには属性が入って帰る
   ; もう何もなければ$FFを返す
   ; input:AY=ファイル名
-  STA ZR2
+  STA ZR2                       ; ZR2=マッチパターン（ファイル名）
   STY ZR2+1
   JSR DIR_NEXTENT_ENT           ; 初回用エントリ
   BRA @FIRST
@@ -766,32 +766,83 @@ DIR_NEXTMATCH:
   RTS
 @SKP_END:
   PHA                           ; 属性値をプッシュ
-  loadmem16 ZR1,FINFO_WK+FINFO::NAME ; 拾ってきた名前
-@EQPATHELM:
-  ; AYとZR0が等しいかを返すサブルーチンだったが、統合
-  ; 終端文字としてヌル、スラッシュを使用可能
-  LDY #$FF                      ; インデックスはゼロから
-@LOOP:
-  INY
-  LDA (ZR2),Y
-  BEQ @END                      ; ヌル終端なら終端検査に入る
-  CMP #'/'
-  BEQ @END                      ; スラッシュ終端なら終端検査に入る
-  CMP (ZR1),Y
-  BEQ @LOOP                     ; 一致すればもう一文字
-  PLA
-  BRA @NEXT                     ; 一致しなければ次へ
-@END:
-  LDA (ZR1),Y
-  BEQ @EQ                       ; ヌル終端なら終端検査に入る
-  CMP #'/'
-  BEQ @EQ                       ; スラッシュ終端なら終端検査に入る
-  PLA
-  BRA @NEXT                     ; 終端でなければ次へ
-@EQ:
-; EQPATHELM終了
+  LDA ZR2
+  LDY ZR2+1
+  JSR PATTERNMATCH
   PLA                           ; 属性値をプル
+  BCC @NEXT                     ; C=0つまりマッチしなかったら次を見る
   RTS
+
+PATTERNMATCH:                   ; http://www.6502.org/source/strings/patmatch.htm by Paul Guertin
+  LDY #0                        ; ZR2パターンのインデックス
+  LDX #$FF                      ; FINFO::NAMEのインデックス
+@NEXT:
+  LDA (ZR2),Y                   ; 次のパターン文字を見る
+  CMP #'*'                      ; スターか？
+  BEQ @STAR
+  INX
+  CMP #'?'                      ; ハテナか
+  BNE @REG                      ; スターでもはてなでもないので普通の文字
+  LDA FINFO_WK+FINFO::NAME,X    ; ハテナなのでなんにでもマッチする（同じ文字をロードしておいて比較する）
+  BEQ @FAIL                     ; 終了ならマッチしない
+  CMP #'/'
+  BEQ @FAIL
+@REG:
+  CMP FINFO_WK+FINFO::NAME,X    ; 文字が等しいか？
+  BEQ @EQ
+  CMP #'/'                      ; これらは終端か2
+  BEQ @FOUND
+  BRA @FAIL
+@EQ:
+  INY                           ; 合っている、続けよう
+  CMP #0                        ; これらは終端か
+  BNE @NEXT
+@FOUND:
+  RTS                           ; 成功したのでC=1を返す（SECしなくてよいのか）
+@STAR:
+  INY                           ; ZR2パターンの*をスキップ
+  CMP (ZR2),Y                   ; 連続する*は一つの*に等しい
+  BEQ @STAR                     ; のでスキップする
+@STLOOP:
+  PHY
+  PHX
+  JSR @NEXT
+  PLX
+  PLY
+  BCS @FOUND                    ; マッチしたらC=1が帰る
+  INX                           ; マッチしなかったら*を成長させる
+  LDA FINFO_WK+FINFO::NAME,X    ; 終端か
+  BEQ @FAIL
+  CMP #'/'
+  BNE @STLOOP
+@FAIL:
+  CLC                           ; マッチしなかったらC=0が帰る
+  RTS
+; PATTERNMATCH終了
+
+;@EQPATHELM:
+;  ; AYとZR0が等しいかを返すサブルーチンだったが、統合
+;  ; 終端文字としてヌル、スラッシュを使用可能
+;  LDY #$FF                      ; インデックスはゼロから
+;@LOOP:
+;  INY
+;  LDA (ZR2),Y
+;  BEQ @END                      ; ヌル終端なら終端検査に入る
+;  CMP #'/'
+;  BEQ @END                      ; スラッシュ終端なら終端検査に入る
+;  CMP FINFO_WK+FINFO::NAME,Y
+;  BEQ @LOOP                     ; 一致すればもう一文字
+;  PLA
+;  BRA @NEXT                     ; 一致しなければ次へ
+;@END:
+;  LDA FINFO_WK+FINFO::NAME,Y
+;  BEQ @EQ                       ; ヌル終端なら終端検査に入る
+;  CMP #'/'
+;  BEQ @EQ                       ; スラッシュ終端なら終端検査に入る
+;  PLA
+;  BRA @NEXT                     ; 終端でなければ次へ
+;@EQ:
+; EQPATHELM終了
 
 DIR_NEXTENT:
   ; 次の有効な（LFNでない）エントリを拾ってくる
