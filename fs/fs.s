@@ -169,17 +169,14 @@ FUNC_FS_READ_BYTS:
 ; -------------------------------------------------------------------
 ; BCOS 9                   ファイル検索                エラーハンドル
 ; -------------------------------------------------------------------
-; input :AY=FINFOorPATH、ZR0=ファイル名（FINFO指定時）
+; input :AY=PATH
 ; output:AY=FINFO
-; FINFO構造体+ファイル名あるいはパス文字列から新たなFINFO構造体を得る
+; パス文字列から新たなFINFO構造体を得る
 ; 初回（FST）
 ; -------------------------------------------------------------------
 FUNC_FS_FIND_FST:
-  STA ZR2
-  STY ZR2+1
-  LDA (ZR2)                 ; 先頭バイトを取得
-  CMP #$FF                  ; FINFOシグネチャ
-  ;BEQ @FINFO
+  JSR FUNC_FS_FPATH         ; 何はともあれフルパス取得
+FIND_FST_RAWPATH_ZR2:       ; FPATHを多重に呼ぶと狂うので"とりあえず"スキップ
 @PATH:
   JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
   BCC @SKP_PATHERR          ; エラーハンドル
@@ -215,10 +212,6 @@ FUNC_FS_FIND_NXT:
   LDA #>SECBF512                      ; 前半のSDSEEK
   ADC #0                              ; C=1つまり後半であれば+1する
   STA ZP_SDSEEK_VEC16+1               ; SDSEEK上位を復元
-  ;mem2mem16 ZR2,ZR0
-  ;mem2AY16 ZR2
-  ;BRK
-  ;NOP
   JSR DIR_NEXTMATCH_NEXT_ZR2
   CMP #$FF                            ; もう無いか？
   CLC
@@ -308,14 +301,14 @@ FUNC_FS_PURSE:
 ; -------------------------------------------------------------------
 FUNC_FS_CHDIR:
   JSR FUNC_FS_FPATH             ; 何はともあれフルパス取得
-  pushAY16                      ; フルパスをプッシュ
+  pushAY16
   JSR FUNC_FS_PURSE             ; ディレクトリである必要性をチェック
   BBS2 ZR1,@OK                  ; ルートディレクトリを指すならディレクトリチェック不要
   pullAY16
-  pushAY16                      ; フルパスをプッシュ
-  JSR FUNC_FS_FIND_FST          ; 検索、成功したらC=0
+  pushAY16
+  storeAY16 ZR2
+  JSR FIND_FST_RAWPATH_ZR2      ; 検索、成功したらC=0
   BCC @SKPERR
-  pullAY16
   RTS
 @SKPERR:                        ; どうやら存在するらしい
   LDA FINFO_WK+FINFO::ATTR      ; 属性値を取得
