@@ -8,8 +8,6 @@ INIT:
   ; フォントロードで使うのでファイルシステムモジュールが起動していること
   loadAY16 PATH_FONT_DEFAULT
   JSR FS::FUNC_FS_OPEN        ; フォントファイルをオープン
-  BRK
-  NOP
   TAX                         ; ファイル記述子をXに
   PHX
   loadmem16 ZR0,FONT2048      ; 書き込み先
