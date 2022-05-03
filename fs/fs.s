@@ -207,14 +207,18 @@ FUNC_FS_FIND_NXT:
   JSR CLUS2FWK                        ; FINFOの親ディレクトリの現在クラスタをFWKに展開、ただしSEC=0
   LDA FINFO_WK+FINFO::DIR_SEC
   STA FWK+FCTRL::CUR_SEC              ; 現在セクタ反映
-  JSR OPENCLUS                        ; セクタ読み取り
+  ;JSR OPENCLUS                        ; セクタ読み取り
+  JSR RDSEC
   LDA FINFO_WK+FINFO::DIR_ENT
   ASL                                 ; 左に転がしてSDSEEK下位を復元、C=後半フラグ
   STA ZP_SDSEEK_VEC16
   LDA #>SECBF512                      ; 前半のSDSEEK
   ADC #0                              ; C=1つまり後半であれば+1する
   STA ZP_SDSEEK_VEC16+1               ; SDSEEK上位を復元
-  mem2mem16 ZR2,ZR0
+  ;mem2mem16 ZR2,ZR0
+  ;mem2AY16 ZR2
+  ;BRK
+  ;NOP
   JSR DIR_NEXTMATCH_NEXT_ZR2
   CMP #$FF                            ; もう無いか？
   CLC
@@ -465,7 +469,7 @@ X0RTS:
 PATH2FINFO:
   ; フルパスからFINFOをゲットする
   ; input:AY=PATH
-  ; output:AY=FINFO
+  ; output:AY=FINFO, ZR2=最終要素の先頭
   STA ZR2
   STY ZR2+1             ; パス先頭を格納
 PATH2FINFO_ZR2:
@@ -484,11 +488,9 @@ PATH2FINFO_ZR2:
   JSR INTOPEN_ROOT      ; ルートディレクトリを開く
   ; ディレクトリをたどる旅
 @LOOP:
-  LDA ZR2
-  LDY ZR2+1
+  mem2AY16 ZR2
   JSR PATH_SLASHNEXT_GETNULL    ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1 NOTE:AYが次のよう先頭を指すBP
-  STA ZR2
-  STY ZR2+1
+  storeAY16 ZR2
   BCS @LAST             ; パス要素がまだあるなら続行
   JSR @NEXT             ; 非最終要素
   BCC @LOOP             ; 見つからないエラーがなければ次の要素へ

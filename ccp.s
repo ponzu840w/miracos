@@ -25,10 +25,13 @@ ZR0 = $0000
 ZR1 = ZR0+2
 ZR2 = ZR1+2
 ZR3 = ZR2+2
+ZR4 = ZR3+2
+ZR5 = ZR4+2
 .ZEROPAGE
 
 .BSS
 COMMAND_BUF:      .RES 64 ; コマンド入力バッファ
+FINFO_VEC16:      .RES 2
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -139,14 +142,18 @@ ICOM_EXIT:
 ; -------------------------------------------------------------------
 ICOM_DIR:
   syscall FS_FIND_FST
+  storeAY16 FINFO_VEC16
   BCS @END
   INC
   syscall CON_OUT_STR
+  JSR PRT_LF
 @LOOP:
+  mem2AY16 FINFO_VEC16
   syscall FS_FIND_NXT
   BCS @END
   INC
   syscall CON_OUT_STR
+  JSR PRT_LF
   BRA @LOOP
   @END:
   JMP LOOP
