@@ -204,8 +204,7 @@ FUNC_FS_FIND_NXT:
   JSR CLUS2FWK                        ; FINFOの親ディレクトリの現在クラスタをFWKに展開、ただしSEC=0
   LDA FINFO_WK+FINFO::DIR_SEC
   STA FWK+FCTRL::CUR_SEC              ; 現在セクタ反映
-  ;JSR OPENCLUS                        ; セクタ読み取り
-  JSR RDSEC
+  JSR RDSEC                           ; セクタ読み取り
   LDA FINFO_WK+FINFO::DIR_ENT
   ASL                                 ; 左に転がしてSDSEEK下位を復元、C=後半フラグ
   STA ZP_SDSEEK_VEC16

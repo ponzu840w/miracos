@@ -150,7 +150,7 @@ ICOM_DIR:
 @LOOP:
   mem2AY16 FINFO_VEC16
   syscall FS_FIND_NXT
-  BCS @ERR
+  BCS @END
   INC
   syscall CON_OUT_STR
   JSR PRT_LF
