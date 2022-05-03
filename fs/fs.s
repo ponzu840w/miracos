@@ -652,6 +652,7 @@ FILE_REOPEN:
   loadreg16 (FWK_REAL_SEC)
   JSR AX_DST
   JSR CLUS2SEC_IMP
+  loadreg16 (FWK_REAL_SEC)
   RTS
 
 FD2FCTRL:
@@ -791,8 +792,7 @@ DIR_NEXTMATCH:
   STA ZR2                       ; ZR2=マッチパターン（ファイル名）
   STY ZR2+1
   JSR DIR_NEXTENT_ENT           ; 初回用エントリ
-  ;BRA @FIRST
-  BRA :+
+  BRA :+                        ; @FIRST
 DIR_NEXTMATCH_NEXT_ZR2:         ; 今のポイントを無視して次を探すためのエントリポイント
 @NEXT:
   JSR DIR_NEXTENT               ; 次のエントリを拾う
