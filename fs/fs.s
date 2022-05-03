@@ -176,9 +176,9 @@ FUNC_FS_READ_BYTS:
 ; -------------------------------------------------------------------
 FUNC_FS_FIND_FST:
   JSR FUNC_FS_FPATH         ; 何はともあれフルパス取得
-FIND_FST_RAWPATH_ZR2:       ; FPATHを多重に呼ぶと狂うので"とりあえず"スキップ
+FIND_FST_RAWPATH:           ; FPATHを多重に呼ぶと狂うので"とりあえず"スキップ
 @PATH:
-  JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
+  JSR PATH2FINFO            ; パスからFINFOを開く
   BCC @SKP_PATHERR          ; エラーハンドル
   RTS
 @SKP_PATHERR:
@@ -306,8 +306,7 @@ FUNC_FS_CHDIR:
   BBS2 ZR1,@OK                  ; ルートディレクトリを指すならディレクトリチェック不要
   pullAY16
   pushAY16
-  storeAY16 ZR2
-  JSR FIND_FST_RAWPATH_ZR2      ; 検索、成功したらC=0
+  JSR FIND_FST_RAWPATH          ; 検索、成功したらC=0
   BCC @SKPERR
   RTS
 @SKPERR:                        ; どうやら存在するらしい

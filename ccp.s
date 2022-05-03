@@ -143,20 +143,23 @@ ICOM_EXIT:
 ICOM_DIR:
   syscall FS_FIND_FST
   storeAY16 FINFO_VEC16
-  BCS @END
+  BCS @ERR
   INC
   syscall CON_OUT_STR
   JSR PRT_LF
 @LOOP:
   mem2AY16 FINFO_VEC16
   syscall FS_FIND_NXT
-  BCS @END
+  BCS @ERR
   INC
   syscall CON_OUT_STR
   JSR PRT_LF
   BRA @LOOP
-  @END:
+@END:
   JMP LOOP
+@ERR:
+  JSR BCOS_ERROR
+  BRA @END
 
 ; -------------------------------------------------------------------
 ;                     カレントディレクトリ変更
