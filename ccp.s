@@ -428,7 +428,7 @@ PRT_ERROR:        ; エラー文字列を指定するとエラーを吐く
 ; -------------------------------------------------------------------
 ;                             データ領域
 ; -------------------------------------------------------------------
-STR_INITMESSAGE:  .BYT "MIRACOS 0.02 for FxT-65",$A,$0 ; 起動時メッセージ
+STR_INITMESSAGE:  .BYT "MIRACOS 0.03 for FxT-65",$A,$0 ; 起動時メッセージ
 STR_COMNOTFOUND:  .BYT "Unknown Command.",$A,$0
 STR_ICOM_COLOR_START:  .BYT "Console Color Setting.",$A,"j,k  : Character",$A,"h,l  : Background",$A,"ENTER: Complete",$0
 STR_GOODBYE:      .BYT "Good Bye.",$A,$0
