@@ -276,14 +276,24 @@ FUNC_CON_IN_STR:
   PHY
   LDA #$2
   JSR FUNC_CON_RAWIN    ; 入力待機するがエコーしない
+  PLY
   CMP #$A               ; 改行か？
-  BEQ @END
+  BEQ @END              ; 改行なら行入力終了
+  CMP #$8               ; ^H(BS)か？
+  BNE @WRITE            ; なら直下のバックスペース処理
+  CPY #0                ; Y=0ならそれ以上後退できない
+  BEQ @NEXT             ; ので無視
+  DEY                   ; 後退
+  DEY                   ; 後退
+  BRA @ECHO             ; バッファには書き込まず、エコーのみ
+@WRITE:
+  STA (ZR1),Y           ; バッファに書き込み
+@ECHO:
+  PHY
   JSR FUNC_CON_OUT_CHR  ; エコー出力
   PLY
-  STA (ZR1),Y           ; バッファに書き込み
   BRA @NEXT
 @END:
-  PLY
   LDA #0
   STA (ZR1),Y           ; 終端挿入
   DEY
