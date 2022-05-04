@@ -141,6 +141,16 @@ ICOM_EXIT:
 ;                        ディレクトリ表示
 ; -------------------------------------------------------------------
 ICOM_DIR:
+  storeAY16 ZR0                 ; 引数を格納
+  LDA (ZR0)                     ; 最初の文字がnullか
+  BNE @FIND                     ; nullなら特殊な*処理
+  LDA #'*'
+  STA (ZR0)
+  LDA #0
+  LDY #1
+  STA (ZR0),Y
+@FIND:
+  mem2AY16 ZR0
   syscall FS_FIND_FST
   storeAY16 FINFO_VEC16
   BCS @ERR
