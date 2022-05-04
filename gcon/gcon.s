@@ -36,6 +36,14 @@ PUTC:
   STZ CURSOR_X
   RTS
 @SKP_LF:
+  CMP #$8
+  BNE @SKP_BS           ; バックスペースなら1文字消す
+  DEC CURSOR_X          ; カーソルを戻す
+  LDA #' '              ; 一つ戻ってスペースを書き込む
+  JSR PUTC
+  DEC CURSOR_X          ; 再びカーソルを戻す
+  RTS
+@SKP_BS:
   PHA
   LDA CURSOR_Y
   CMP #24

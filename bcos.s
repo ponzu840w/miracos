@@ -268,8 +268,7 @@ FUNC_CON_OUT_STR:
 ; TODO:バックスペースや矢印キーを用いた行編集機能
 ; -------------------------------------------------------------------
 FUNC_CON_IN_STR:
-  STA ZR1
-  STY ZR1+1             ; ZR1をバッファインデックスに
+  storeAY16 ZR1         ; ZR1をバッファインデックスに
   LDY #$FF
 @NEXT:
   INY
@@ -281,10 +280,10 @@ FUNC_CON_IN_STR:
   BEQ @END              ; 改行なら行入力終了
   CMP #$8               ; ^H(BS)か？
   BNE @WRITE            ; なら直下のバックスペース処理
-  CPY #0                ; Y=0ならそれ以上後退できない
+  DEY                   ; 後退（先行INY打消し
+  CPY #$FF                ; Y=0ならそれ以上後退できない
   BEQ @NEXT             ; ので無視
-  DEY                   ; 後退
-  DEY                   ; 後退
+  DEY                   ; 後退（本質
   BRA @ECHO             ; バッファには書き込まず、エコーのみ
 @WRITE:
   STA (ZR1),Y           ; バッファに書き込み
