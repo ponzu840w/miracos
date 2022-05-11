@@ -8,13 +8,14 @@ INIT:
   ; フォントロードで使うのでファイルシステムモジュールが起動していること
   loadAY16 PATH_FONT_DEFAULT
   JSR FS::FUNC_FS_OPEN        ; フォントファイルをオープン NOTE:ロードできたかを見るBP
-  TAX                         ; ファイル記述子をXに
-  PHX
+  ;STA ZR1
+  TAX
+  PHA
   loadmem16 ZR0,FONT2048      ; 書き込み先
   loadAY16  2048              ; 長さ
   JSR FS::FUNC_FS_READ_BYTS   ; ロード NOTE:ロードできたかを見るBP
   JSR GCHR::INIT
-  PLX                         ; FD復帰
+  PLA                         ; FD復帰
   JSR FS::FUNC_FS_CLOSE       ; クローズ
   STZ CURSOR_X
   LDA #23                     ; 最下行
