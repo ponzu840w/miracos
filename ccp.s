@@ -31,7 +31,6 @@ ZR5 = ZR4+2
 
 .BSS
 COMMAND_BUF:      .RES 64 ; コマンド入力バッファ
-FINFO_VEC16:      .RES 2
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -124,9 +123,9 @@ ICOM_NOTFOUND:
 ; 外部コマンド実行
   loadAY16 COMMAND_BUF            ; 元のコマンド行を（壊してないっけか？
   syscall FS_FPATH                ; フルパス取得
-  pushAY16
-  syscall CON_OUT_STR             ; 出力
-  pullAY16
+  ;pushAY16
+  ;syscall CON_OUT_STR             ; 出力
+  ;pullAY16
   syscall FS_OPEN                 ; コマンドファイルをオープン
   BCS COMMAND_NOTFOUND            ; オープンできなかったらあきらめる
   STA ZR1                         ; ファイル記述子をZR1に
@@ -171,17 +170,27 @@ ICOM_DIR:
 @FIND:
   mem2AY16 ZR0
   syscall FS_FIND_FST
-  storeAY16 FINFO_VEC16
+  storeAY16 ZR4
   BCS @ERR
   INC
   syscall CON_OUT_STR
   JSR PRT_LF
 @LOOP:
-  mem2AY16 FINFO_VEC16
+  mem2AY16 ZR4
   syscall FS_FIND_NXT
   BCS @END
   INC
-  syscall CON_OUT_STR
+  syscall CON_OUT_STR           ; ファイル名を出力
+  mem2AY16 ZR4
+  storeAY16 ZR0
+  LDA ZR0                       ; 下位桁取得
+  ADC #FINFO::ATTR              ; 属性を取得したいのでオフセット加算
+  STA ZR0
+  BCC @SKP_C
+  INC ZR0+1
+@SKP_C:
+  LDA (ZR0)
+  JSR PRT_BYT
   JSR PRT_LF
   BRA @LOOP
 @END:
