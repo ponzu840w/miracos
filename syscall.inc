@@ -19,4 +19,5 @@ ERR_MES             = 14
 UPPER_CHR           = 15
 UPPER_STR           = 16
 FS_FIND_NXT         = 17
+FS_READ_BYTS        = 18
 

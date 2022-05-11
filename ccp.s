@@ -104,8 +104,7 @@ LOOP:
   STA ZR1+1
   INX                             ; 内部コマンド番号インデックスを増加
   BNE @NEXT_ICOM                  ; Xが一周しないうちは周回
-  ; TODO:ここに内部コマンドが見つからないときのコード
-  JMP ICOM_NOTFOUND
+  JMP ICOM_NOTFOUND               ; このジャンプはおそらく呼ばれえない
 EXEC_ICOM:                        ; Xで渡された内部コマンド番号を実行する
   TXA
   ASL
@@ -122,7 +121,28 @@ EXEC_ICOM:                        ; Xで渡された内部コマンド番号を�
 ;                          見つからない
 ; -------------------------------------------------------------------
 ICOM_NOTFOUND:
+; 外部コマンド実行
+  loadAY16 COMMAND_BUF            ; 元のコマンド行を（壊してないっけか？
+  syscall FS_FPATH                ; フルパス取得
+  pushAY16
+  syscall CON_OUT_STR             ; 出力
+  pullAY16
+  syscall FS_OPEN                 ; コマンドファイルをオープン
+  BCS COMMAND_NOTFOUND            ; オープンできなかったらあきらめる
+  TAX                             ; ファイル記述子をXに
+  PHX
+  PHX                             ; READ_BYTSに渡す用、CLOSEに渡す用で二回プッシュ
+  loadmem16 ZR0,$0700             ; 書き込み先
+  loadAY16  256                   ; 長さ（仮
+  syscall FS_READ_BYTS            ; ロード
+  PLA
+  syscall FS_CLOSE                ; クローズ
+  JSR $0700                       ; コマンドを呼ぶ
+  JMP LOOP
+
 ICOM_REBOOT:
+COMMAND_NOTFOUND:
+; いよいよもってコマンドが見つからなかった
   loadAY16 STR_COMNOTFOUND
   syscall CON_OUT_STR
   JMP LOOP

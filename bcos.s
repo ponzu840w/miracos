@@ -118,24 +118,25 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
 SYSCALL:
   JMP (SYSCALL_TABLE,X) ; 呼び出し規約：Xにコール番号*2を格納してJSR $0603
 SYSCALL_TABLE:
-  .WORD FUNC_RESET          ; 0 リセット、CCPロード部分に変更予定
-  .WORD FUNC_CON_IN_CHR     ; 1 コンソール入力
-  .WORD FUNC_CON_OUT_CHR    ; 2 コンソール出力
-  .WORD FUNC_CON_RAWIN      ; 3 コンソール生入力
-  .WORD FUNC_CON_OUT_STR    ; 4 コンソール文字列出力
-  .WORD FS::FUNC_FS_OPEN    ; 5 ファイル記述子オープン
-  .WORD FS::FUNC_FS_CLOSE   ; 6 ファイル記述子クローズ
-  .WORD FUNC_CON_IN_STR     ; 7 バッファ行入力
-  .WORD GCHR::FUNC_GCHR_COL ; 8 2色テキスト画面パレット操作
-  .WORD FS::FUNC_FS_FIND_FST; 9 最初のエントリの検索
-  .WORD FS::FUNC_FS_PURSE   ; 10 パス文字列の解析
-  .WORD FS::FUNC_FS_CHDIR   ; 11 カレントディレクトリ変更
-  .WORD FS::FUNC_FS_FPATH   ; 12 絶対パス取得
-  .WORD ERR::FUNC_ERR_GET   ; 13 エラー番号取得
-  .WORD ERR::FUNC_ERR_MES   ; 14 エラー表示
-  .WORD FUNC_UPPER_CHR      ; 15 小文字を大文字に
-  .WORD FUNC_UPPER_STR      ; 16 文字列の小文字を大文字に
-  .WORD FS::FUNC_FS_FIND_NXT; 17 次のエントリの検索
+  .WORD FUNC_RESET                ; 0 リセット、CCPロード部分に変更予定
+  .WORD FUNC_CON_IN_CHR           ; 1 コンソール入力
+  .WORD FUNC_CON_OUT_CHR          ; 2 コンソール出力
+  .WORD FUNC_CON_RAWIN            ; 3 コンソール生入力
+  .WORD FUNC_CON_OUT_STR          ; 4 コンソール文字列出力
+  .WORD FS::FUNC_FS_OPEN          ; 5 ファイル記述子オープン
+  .WORD FS::FUNC_FS_CLOSE         ; 6 ファイル記述子クローズ
+  .WORD FUNC_CON_IN_STR           ; 7 バッファ行入力
+  .WORD GCHR::FUNC_GCHR_COL       ; 8 2色テキスト画面パレット操作
+  .WORD FS::FUNC_FS_FIND_FST      ; 9 最初のエントリの検索
+  .WORD FS::FUNC_FS_PURSE         ; 10 パス文字列の解析
+  .WORD FS::FUNC_FS_CHDIR         ; 11 カレントディレクトリ変更
+  .WORD FS::FUNC_FS_FPATH         ; 12 絶対パス取得
+  .WORD ERR::FUNC_ERR_GET         ; 13 エラー番号取得
+  .WORD ERR::FUNC_ERR_MES         ; 14 エラー表示
+  .WORD FUNC_UPPER_CHR            ; 15 小文字を大文字に
+  .WORD FUNC_UPPER_STR            ; 16 文字列の小文字を大文字に
+  .WORD FS::FUNC_FS_FIND_NXT      ; 17 次のエントリの検索
+  .WORD FS::FUNC_FS_READ_BYTS     ; 18 バイト数指定ファイル読み取り
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
@@ -161,22 +162,22 @@ FUNC_RESET:
     ; SYSCALL.SYSを配置する
     loadAY16 PATH_SYSCALL
     JSR FS::FUNC_FS_OPEN            ; フォントファイルをオープン
-    TAX                             ; ファイル記述子をXに
-    PHX
+    PHA
+    PHA
     loadmem16 ZR0,$0600             ; 書き込み先
     loadAY16  256                   ; 長さ
     JSR FS::FUNC_FS_READ_BYTS       ; ロード
-    PLX
+    PLA
     JSR FS::FUNC_FS_CLOSE           ; クローズ
     ; CCP.SYSを配置する
     loadAY16 PATH_CCP
     JSR FS::FUNC_FS_OPEN            ; CCPをオープン
-    TAX                             ; ファイル記述子をXに
-    PHX
+    PHA
+    PHA
     loadmem16 ZR0,$5000             ; 書き込み先
     loadAY16  1024                  ; 長さ決め打ち、長い分には害はないはず
     JSR FS::FUNC_FS_READ_BYTS       ; ロード
-    PLX
+    PLA
     JSR FS::FUNC_FS_CLOSE           ; クローズ
   .ENDIF
   JMP $5000                       ; CCP（仮）へ飛ぶ
