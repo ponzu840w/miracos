@@ -162,7 +162,7 @@ FUNC_RESET:
     ; SYSCALL.SYSを配置する
     loadAY16 PATH_SYSCALL
     JSR FS::FUNC_FS_OPEN            ; フォントファイルをオープン
-    PHA
+    STA ZR1
     PHA
     loadmem16 ZR0,$0600             ; 書き込み先
     loadAY16  256                   ; 長さ
@@ -172,7 +172,7 @@ FUNC_RESET:
     ; CCP.SYSを配置する
     loadAY16 PATH_CCP
     JSR FS::FUNC_FS_OPEN            ; CCPをオープン
-    PHA
+    STA ZR1
     PHA
     loadmem16 ZR0,$5000             ; 書き込み先
     loadAY16  1024                  ; 長さ決め打ち、長い分には害はないはず

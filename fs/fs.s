@@ -78,18 +78,17 @@ INIT:
 ; output:AY=actual_len、C=EOF
 ; -------------------------------------------------------------------
 FUNC_FS_READ_BYTS:
-  PHX                            ; fd退避…って、Xレジスタは使えないよ…
   STA ZR2
   STY ZR2+1                       ; ZR2=len
-  ;LDA ZR1
-  ;PHA                             ; fd退避
+  LDA ZR1
+  PHA                             ; fd退避
   LDA ZR0
   LDY ZR0+1
   PHA
   PHY                             ; 書き込み先を退避
   STZ ZR3
   STZ ZR3+1                       ; ZR3を実際に読み取ったバイト数のカウンタとして初期化
-  TXA                             ; FDをAに
+  LDA ZR1                         ; FDをAに
   JSR LOAD_FWK                    ; FDからFCTRL構造体をロード
   loadreg16 FWK_REAL_SEC          ; リアルセクタ
   JSR AX_DST                      ; 書き込み先に
