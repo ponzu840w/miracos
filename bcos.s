@@ -5,6 +5,11 @@
 ; CP/MでいうところのBIOSとBDOSを混然一体としたもの
 ; ファンクションコール・インタフェース（特に意味はない）
 ; -------------------------------------------------------------------
+; アセンブル設定スイッチ
+TRUE = 1
+FALSE = 0
+SRECBUILD = TRUE  ; TRUEで、テスト用のUARTによるロードに適した形にする
+
 .INCLUDE "FXT65.inc"
 .INCLUDE "generic.mac"
 .INCLUDE "fscons.inc"
@@ -152,40 +157,35 @@ FUNC_RESET:
   STA ZP_CON_DEV_CFG              ; 有効なコンソールデバイスの設定
   JSR FS::INIT                    ; ファイルシステムの初期化処理
   JSR GCON::INIT                  ; コンソール画面の初期化処理
-  ; SYSCALL.SYSを配置する
-  loadAY16 PATH_SYSCALL
-  JSR FS::FUNC_FS_OPEN            ; フォントファイルをオープン
-  TAX                             ; ファイル記述子をXに
-  PHX
-  loadmem16 ZR0,$0600             ; 書き込み先
-  loadAY16  256                   ; 長さ
-  JSR FS::FUNC_FS_READ_BYTS       ; ロード
-  PLX
-  JSR FS::FUNC_FS_CLOSE           ; クローズ
-  ; CCP.SYSを配置する
-  loadAY16 PATH_CCP
-  JSR FS::FUNC_FS_OPEN            ; CCPをオープン
-  TAX                             ; ファイル記述子をXに
-  PHX
-  loadmem16 ZR0,$5000             ; 書き込み先
-  loadAY16  1024                  ; 長さ決め打ち、長い分には害はないはず
-  JSR FS::FUNC_FS_READ_BYTS       ; ロード
-  PLX
-  JSR FS::FUNC_FS_CLOSE           ; クローズ
+  .IF !SRECBUILD                  ; 分離部分の配置は、UARTロードの時は不要
+    ; SYSCALL.SYSを配置する
+    loadAY16 PATH_SYSCALL
+    JSR FS::FUNC_FS_OPEN            ; フォントファイルをオープン
+    TAX                             ; ファイル記述子をXに
+    PHX
+    loadmem16 ZR0,$0600             ; 書き込み先
+    loadAY16  256                   ; 長さ
+    JSR FS::FUNC_FS_READ_BYTS       ; ロード
+    PLX
+    JSR FS::FUNC_FS_CLOSE           ; クローズ
+    ; CCP.SYSを配置する
+    loadAY16 PATH_CCP
+    JSR FS::FUNC_FS_OPEN            ; CCPをオープン
+    TAX                             ; ファイル記述子をXに
+    PHX
+    loadmem16 ZR0,$5000             ; 書き込み先
+    loadAY16  1024                  ; 長さ決め打ち、長い分には害はないはず
+    JSR FS::FUNC_FS_READ_BYTS       ; ロード
+    PLX
+    JSR FS::FUNC_FS_CLOSE           ; クローズ
+  .ENDIF
   JMP $5000                       ; CCP（仮）へ飛ぶ
   ;RTS
 
-;TEST:
-;  loadAY16 STR_TEST
-;  JSR FUNC_CON_OUT_STR
-;@LOOP:
-;  JSR FUNC_CON_IN_CHR
-;  BRA @LOOP
-;
-;STR_TEST: .BYT "hello,BCOS.",$A,$0
-
-PATH_SYSCALL:         .ASCIIZ "A:/MIRACOS/SYSCALL.SYS"
-PATH_CCP:             .ASCIIZ "A:/MIRACOS/CCP.SYS"
+.IF !SRECBUILD
+  PATH_SYSCALL:         .ASCIIZ "A:/MIRACOS/SYSCALL.SYS"
+  PATH_CCP:             .ASCIIZ "A:/MIRACOS/CCP.SYS"
+.ENDIF
 
 ; -------------------------------------------------------------------
 ; BCOS 1                  コンソール文字入力
