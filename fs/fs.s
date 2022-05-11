@@ -311,8 +311,8 @@ FUNC_FS_CHDIR:
   RTS
 @SKPERR:                        ; どうやら存在するらしい
   LDA FINFO_WK+FINFO::ATTR      ; 属性値を取得
-  CMP #DIRATTR_DIRECTORY        ; ディレクトリかをチェック
-  BNE @NOTDIR
+  AND #DIRATTR_DIRECTORY        ; ディレクトリかをチェック
+  BEQ @NOTDIR
 @OK:
   loadmem16 ZR1,CUR_DIR         ; カレントディレクトリを対象に
   pullAY16                      ; フルパスをプルしてソースに
