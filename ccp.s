@@ -415,16 +415,6 @@ ANALYZE_PATH:
   LDA ZR1
   RTS
 
-PRT_ERROR:        ; エラー文字列を指定するとエラーを吐く
-  PHA
-  PHY
-  loadAY16 STR_ERROR
-  syscall CON_OUT_STR ; エラーの前置き
-  PLY
-  PLA
-  syscall CON_OUT_STR ; エラー内容
-  RTS
-
 ; -------------------------------------------------------------------
 ;                             データ領域
 ; -------------------------------------------------------------------
@@ -432,7 +422,6 @@ STR_INITMESSAGE:  .BYT "MIRACOS 0.03 for FxT-65",$A,$0 ; 起動時メッセー�
 STR_COMNOTFOUND:  .BYT "Unknown Command.",$A,$0
 STR_ICOM_COLOR_START:  .BYT "Console Color Setting.",$A,"j,k  : Character",$A,"h,l  : Background",$A,"ENTER: Complete",$0
 STR_GOODBYE:      .BYT "Good Bye.",$A,$0
-STR_ERROR:        .BYT "[ERROR] ",$A,$0
 STR_DOT:          .BYT ".",$0                             ; これの絶対パスを得ると、それはカレントディレクトリ
 
 ; -------------------------------------------------------------------
