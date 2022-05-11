@@ -129,8 +129,7 @@ ICOM_NOTFOUND:
   pullAY16
   syscall FS_OPEN                 ; コマンドファイルをオープン
   BCS COMMAND_NOTFOUND            ; オープンできなかったらあきらめる
-  TAX                             ; ファイル記述子をXに
-  PHX
+  STA ZR1                         ; ファイル記述子をZR1に
   PHX                             ; READ_BYTSに渡す用、CLOSEに渡す用で二回プッシュ
   loadmem16 ZR0,$0700             ; 書き込み先
   loadAY16  256                   ; 長さ（仮
