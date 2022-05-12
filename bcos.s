@@ -184,8 +184,8 @@ FUNC_RESET:
   ;RTS
 
 .IF !SRECBUILD
-  PATH_SYSCALL:         .ASCIIZ "A:/MIRACOS/SYSCALL.SYS"
-  PATH_CCP:             .ASCIIZ "A:/MIRACOS/CCP.SYS"
+  PATH_SYSCALL:         .ASCIIZ "A:/MCOS/SYSCALL.SYS"
+  PATH_CCP:             .ASCIIZ "A:/MCOS/CCP.SYS"
 .ENDIF
 
 ; -------------------------------------------------------------------
