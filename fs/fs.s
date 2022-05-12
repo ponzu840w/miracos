@@ -260,6 +260,7 @@ FUNC_FS_CLOSE:
 ;           bit2:ルートディレクトリを指す
 ;           bit1:ルートから始まる（相対パスでない
 ;           bit0:ドライブ文字を含む
+; ZR0,1使用
 ; -------------------------------------------------------------------
 FUNC_FS_PURSE:
   storeAY16 ZR0
@@ -310,11 +311,10 @@ FUNC_FS_PURSE:
 ; -------------------------------------------------------------------
 FUNC_FS_CHDIR:
   JSR FUNC_FS_FPATH             ; 何はともあれフルパス取得
-  pushAY16
+  storeAY16 ZR3                 ; フルパスをZR3に格納
   JSR FUNC_FS_PURSE             ; ディレクトリである必要性をチェック
   BBS2 ZR1,@OK                  ; ルートディレクトリを指すならディレクトリチェック不要
-  pullAY16
-  pushAY16
+  mem2AY16 ZR3
   JSR FIND_FST_RAWPATH          ; 検索、成功したらC=0
   BCC @SKPERR
   RTS
@@ -324,12 +324,11 @@ FUNC_FS_CHDIR:
   BEQ @NOTDIR
 @OK:
   loadmem16 ZR1,CUR_DIR         ; カレントディレクトリを対象に
-  pullAY16                      ; フルパスをプルしてソースに
+  mem2AY16 ZR3                  ; フルパスをソースに
   JSR M_CP_AYS                  ; カレントディレクトリを更新
   CLC
   RTS
 @NOTDIR:                        ; ERR:ディレクトリ以外に移動しようとした
-  pullAY16
   LDA #ERR::NOT_DIR
   JMP ERR::REPORT
 
@@ -471,6 +470,7 @@ PATH2FINFO:
   ; フルパスからFINFOをゲットする
   ; input:AY=PATH
   ; output:AY=FINFO, ZR2=最終要素の先頭
+  ; ZR0,2使用
   STA ZR2
   STY ZR2+1             ; パス先頭を格納
 PATH2FINFO_ZR2:

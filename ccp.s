@@ -210,14 +210,14 @@ ICOM_LS:
   BNE @ATTRLOOP
   JSR PRT_S                     ; 区切りスペース
   ; [DEBUG] FINFO表示
-  LDY #FINFO::DIR_SEC           ; クラスタ内セクタ番号
-  LDA (ZR4),Y
-  JSR PRT_BYT
-  JSR PRT_S
-  LDY #FINFO::DIR_ENT           ; エントリ番号
-  LDA (ZR4),Y
-  JSR PRT_BYT
-  JSR PRT_S
+  ;LDY #FINFO::DIR_SEC           ; クラスタ内セクタ番号
+  ;LDA (ZR4),Y
+  ;JSR PRT_BYT
+  ;JSR PRT_S
+  ;LDY #FINFO::DIR_ENT           ; エントリ番号
+  ;LDA (ZR4),Y
+  ;JSR PRT_BYT
+  ;JSR PRT_S
   ; ファイル名
   mem2AY16 ZR4
   INC
