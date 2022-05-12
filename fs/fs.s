@@ -203,8 +203,9 @@ FUNC_FS_FIND_NXT:
   BPL @DLFWK_LOOP                     ; FINFOコピー終了
   loadreg16 FINFO_WK+FINFO::DIR_CLUS
   JSR CLUS2FWK                        ; FINFOの親ディレクトリの現在クラスタをFWKに展開、ただしSEC=0
-  LDA FINFO_WK+FINFO::DIR_SEC
+  LDA FINFO_WK+FINFO::DIR_SEC         ; クラスタ内セクタ番号を取得
   STA FWK+FCTRL::CUR_SEC              ; 現在セクタ反映
+  JSR FLASH_REALSEC
   JSR RDSEC                           ; セクタ読み取り
   LDA FINFO_WK+FINFO::DIR_ENT
   ASL                                 ; 左に転がしてSDSEEK下位を復元、C=後半フラグ
@@ -219,6 +220,14 @@ FUNC_FS_FIND_NXT:
   SEC
 @SUCS:
   loadAY16 FINFO_WK
+  RTS
+
+FLASH_REALSEC:
+  ; リアルセクタ番号にクラスタ内セクタ番号を反映
+  loadreg16 (FWK_REAL_SEC)
+  JSR AX_DST
+  LDA FWK+FCTRL::CUR_SEC              ; クラスタ内セクタ番号取得
+  JSR L_ADD_BYT
   RTS
 
 ; -------------------------------------------------------------------

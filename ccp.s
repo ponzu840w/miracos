@@ -124,9 +124,10 @@ ICOM_NOTFOUND:
 ; 外部コマンド実行
   loadAY16 COMMAND_BUF            ; 元のコマンド行を（壊してないっけか？
   syscall FS_FPATH                ; フルパス取得
-  ;pushAY16
-  ;syscall CON_OUT_STR             ; 出力
-  ;pullAY16
+  pushAY16
+  syscall CON_OUT_STR             ; 出力
+  JSR PRT_LF
+  pullAY16
   syscall FS_OPEN                 ; コマンドファイルをオープン
   BCS COMMAND_NOTFOUND            ; オープンできなかったらあきらめる
   STA ZR1                         ; ファイル記述子をZR1に
@@ -160,6 +161,7 @@ ICOM_EXIT:
 ;                        ディレクトリ表示
 ; -------------------------------------------------------------------
 ICOM_DIR:
+ICOM_LS:
   storeAY16 ZR0                 ; 引数を格納
   LDA (ZR0)                     ; 最初の文字がnullか
   BNE @FIND                     ; nullなら特殊な*処理
@@ -207,6 +209,15 @@ ICOM_DIR:
   CPY #6
   BNE @ATTRLOOP
   JSR PRT_S                     ; 区切りスペース
+  ; [DEBUG] FINFO表示
+  LDY #FINFO::DIR_SEC           ; クラスタ内セクタ番号
+  LDA (ZR4),Y
+  JSR PRT_BYT
+  JSR PRT_S
+  LDY #FINFO::DIR_ENT           ; エントリ番号
+  LDA (ZR4),Y
+  JSR PRT_BYT
+  JSR PRT_S
   ; ファイル名
   mem2AY16 ZR4
   INC
@@ -488,6 +499,7 @@ ICOMNAMES:        .ASCIIZ "EXIT"        ; 0
                   .ASCIIZ "COLOR"       ; 3
                   .ASCIIZ "DIR"         ; 4
                   .ASCIIZ "TEST"        ; 5
+                  .ASCIIZ "LS"          ; 6
                   .BYT $0
 
 ICOMVECS:         .WORD ICOM_EXIT
@@ -496,4 +508,5 @@ ICOMVECS:         .WORD ICOM_EXIT
                   .WORD ICOM_COLOR
                   .WORD ICOM_DIR
                   .WORD ICOM_TEST
+                  .WORD ICOM_LS
 
