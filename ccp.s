@@ -106,10 +106,10 @@ LOOP:
   BNE @NEXT_ICOM                  ; Xが一周しないうちは周回
   JMP ICOM_NOTFOUND               ; このジャンプはおそらく呼ばれえない
 EXEC_ICOM:                        ; Xで渡された内部コマンド番号を実行する
-  TXA
-  ASL
-  TAX
-  PLY
+  TXA                             ; Xを作業のためAに
+  ASL                             ; Xをx2
+  TAX                             ; Xを戻す
+  PLY                             ; 引数をAYに渡す
   PLA
   JMP (ICOMVECS,X)
 
@@ -121,7 +121,7 @@ EXEC_ICOM:                        ; Xで渡された内部コマンド番号を�
 ;                          見つからない
 ; -------------------------------------------------------------------
 ICOM_NOTFOUND:
-; 外部コマンド実行
+; 外部コマンド実行（引数がプッシュされている
   loadAY16 COMMAND_BUF            ; 元のコマンド行を（壊してないっけか？
   ;syscall FS_FPATH                ; フルパス取得
   syscall FS_FIND_FST             ; 検索
@@ -142,12 +142,16 @@ ICOM_NOTFOUND:
   syscall FS_READ_BYTS            ; ロード
   PLA
   syscall FS_CLOSE                ; クローズ
+  PLY                             ; 引数をロード
+  PLA
   JSR $0700                       ; コマンドを呼ぶ
   JMP LOOP
 
 ICOM_REBOOT:
 COMMAND_NOTFOUND:
 ; いよいよもってコマンドが見つからなかった
+  PLY                             ; 引数を捨てる
+  PLA
   loadAY16 STR_COMNOTFOUND
   syscall CON_OUT_STR
   JMP LOOP
