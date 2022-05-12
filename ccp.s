@@ -123,17 +123,22 @@ EXEC_ICOM:                        ; Xで渡された内部コマンド番号を�
 ICOM_NOTFOUND:
 ; 外部コマンド実行
   loadAY16 COMMAND_BUF            ; 元のコマンド行を（壊してないっけか？
-  syscall FS_FPATH                ; フルパス取得
-  pushAY16
-  syscall CON_OUT_STR             ; 出力
-  JSR PRT_LF
-  pullAY16
+  ;syscall FS_FPATH                ; フルパス取得
+  syscall FS_FIND_FST             ; 検索
+  BCS COMMAND_NOTFOUND            ; 見つからなかったらあきらめる
+  storeAY16 ZR3                   ; FINFOをZR3に格納
   syscall FS_OPEN                 ; コマンドファイルをオープン
   BCS COMMAND_NOTFOUND            ; オープンできなかったらあきらめる
   STA ZR1                         ; ファイル記述子をZR1に
   PHX                             ; READ_BYTSに渡す用、CLOSEに渡す用で二回プッシュ
   loadmem16 ZR0,$0700             ; 書き込み先
-  loadAY16  256                   ; 長さ（仮
+  LDY #FINFO::SIZ                 ; FINFOから長さ（下位2桁のみ）を取得
+  LDA (ZR3),Y
+  PHA
+  INY
+  LDA (ZR3),Y
+  TAY
+  PLA
   syscall FS_READ_BYTS            ; ロード
   PLA
   syscall FS_CLOSE                ; クローズ
