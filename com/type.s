@@ -50,16 +50,20 @@ LOOP:
   loadmem16 ZR0,TEXT              ; 書き込み先
   loadAY16 256
   syscall FS_READ_BYTS            ; ロード
-  BCS @CLOSE
+  PHP                             ; 最終バイトがあるかの情報Cを退避
   ; 出力
   loadAY16 TEXT
   syscall CON_OUT_STR
-  BRA LOOP
+  PLP                             ; 最終バイトがあるか
+  BCC LOOP                        ; 最終バイトを含んでいなければ次へ
+  ; 最終バイトがあるとき
   ; クローズ
 @CLOSE:
   LDA FD_SAV
   syscall FS_CLOSE                ; クローズ
   BCS BCOS_ERROR
+  ;loadAY16 STR_EOF               ; debug EOF表示
+  ;syscall CON_OUT_STR
   RTS
 
 NOTFOUND:
@@ -116,10 +120,12 @@ NIB2ASC:
 @SKP_ADC:
   RTS
 
-STR_FILE:
-  .BYT "File:",$0
 STR_NOTFOUND:
   .BYT "Input File Not Found.",$A,$0
+;STR_FILE:
+;  .BYT "File:",$0
+;STR_EOF:
+;  .BYT "[EOF]",$0
 
 ; -------------------------------------------------------------------
 ;                             データ領域
