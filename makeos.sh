@@ -4,9 +4,19 @@ mkdir ./listing -p
 mkdir ./bin/MCOS -p
 mkdir ./bin/MCOS/COM -p
 
-# アセンブル
+# BCOSアセンブル
 cl65 -g -Wl -Ln,./listing/symbol-bcos.s  -l ./listing/list-bcos.s -m ./listing/map-bcos.s -vm -t none -C ./confcos.cfg -o ./bin/BCOS.SYS ./bcos.s
-cl65 -vm -t none -C ./conftpa.cfg -o ./bin/MCOS/COM/HELLO.COM ./com/hello.s
+
+# コマンドアセンブル
+com_srcs=$(find ./com/*.s)
+for comsrc in $com_srcs;            # com内の.sファイルすべてに対して
+do
+  echo $comsrc
+  bn=$(basename $comsrc .s)         # ファイル名を抽出
+  out="./bin/MCOS/COM/"${bn^^}.COM  # 出力ファイルは大文字に
+  #echo $out
+  cl65 -vm -t none -C ./conftpa.cfg -o $out $comsrc
+done
 
 # 不要なオブジェクトファイル削除
 rm ./bcos.o

@@ -15,6 +15,8 @@
 .ENDPROC
 .INCLUDE "syscall.mac"
 
+TPA = $0700
+
 ; -------------------------------------------------------------------
 ;                             変数領域
 ; -------------------------------------------------------------------
@@ -122,7 +124,7 @@ ICOM_NOTFOUND:
   BCS COMMAND_NOTFOUND            ; オープンできなかったらあきらめる
   STA ZR1                         ; ファイル記述子をZR1に
   PHX                             ; READ_BYTSに渡す用、CLOSEに渡す用で二回プッシュ
-  loadmem16 ZR0,$0700             ; 書き込み先
+  loadmem16 ZR0,TPA               ; 書き込み先
   LDY #FINFO::SIZ                 ; FINFOから長さ（下位2桁のみ）を取得
   LDA (ZR3),Y
   PHA
@@ -135,7 +137,7 @@ ICOM_NOTFOUND:
   syscall FS_CLOSE                ; クローズ
   PLY                             ; 引数をロード
   PLA
-  JSR $0700                       ; コマンドを呼ぶ
+  JSR TPA                         ; コマンドを呼ぶ
   JMP LOOP
 
 ICOM_REBOOT:
@@ -301,10 +303,7 @@ ICOM_COLOR:
   RTS
 
 ICOM_TEST:
-  syscall UPPER_STR
-  LDA ZR0
-  LDY ZR0+1
-  syscall CON_OUT_STR
+  JSR TPA
   JMP LOOP
 
 ; -------------------------------------------------------------------
