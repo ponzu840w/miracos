@@ -21,6 +21,6 @@ START:
   syscall CON_OUT_STR
   RTS                             ; BCOS0でも等価でありたいが現状そうでないのでリターン
 
-;STR_HELLO: .ASCIIZ "hello, world"
-STR_HELLO: .ASCIIZ "hell!!!!"
+STR_HELLO: .ASCIIZ "hello, world",$A
+;STR_HELLO: .ASCIIZ "hell!!!!"
 
