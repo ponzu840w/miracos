@@ -100,8 +100,8 @@ FUNC_FS_READ_BYTS:
   ; シークポインタの初期位置を計算
   LDA FWK+FCTRL::SEEK_PTR+1       ; 第1バイト
   LSR                             ; bit 0 をキャリーに
-  BCC @SKP_INCPAGE                ; C=0 上部
-  INC ZP_SDSEEK_VEC16+1           ; C=1 下部
+  BCC @SKP_INCPAGE                ; C=0 上部 $03 ？ 逆では
+  INC ZP_SDSEEK_VEC16+1           ; C=1 下部 $04
 @SKP_INCPAGE:
   LDA FWK+FCTRL::SEEK_PTR         ; 第0バイト
   CLC
@@ -239,14 +239,16 @@ FLASH_REALSEC:
 FUNC_FS_CLOSE:
   SEC
   SBC #NONSTD_FD            ; 標準ファイル分を減算
-  BVS @SKP_CLOSESTDF
-  RTS
+  BVC @SKP_CLOSESTDF
+  LDA #ERR::NOT_DIR
+  JMP ERR::REPORT
 @SKP_CLOSESTDF:
   ASL                       ; テーブル参照の為x2
   INC                       ; 上位を見るために+1
   TAX
   LDA #0
   STA FD_TABLE,X
+  CLC
   RTS
 
 ; -------------------------------------------------------------------
