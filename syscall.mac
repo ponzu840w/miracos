@@ -1,0 +1,5 @@
+.macro syscall func
+  LDX #(BCOS::func)*2
+  JSR BCOS::SYSCALL
+.endmac
+

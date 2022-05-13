@@ -6,27 +6,18 @@
 ; つまり特権的地位を持つかもしれないCOSアプリケーションである
 ; -------------------------------------------------------------------
 .INCLUDE "FXT65.inc"
-;.INCLUDE "generic.mac"
+;.INCLUDE "generic.mac"   ; BCOSと抱き合わせアセンブルするとダブる
 .INCLUDE "fs/structfs.s"
 .INCLUDE "fscons.inc"
+.INCLUDE "zr.inc"
 .PROC BCOS
   .INCLUDE "syscall.inc"  ; システムコール番号
 .ENDPROC
-
-.macro syscall func
-  LDX #(BCOS::func)*2
-  JSR BCOS::SYSCALL
-.endmac
+.INCLUDE "syscall.mac"
 
 ; -------------------------------------------------------------------
 ;                             変数領域
 ; -------------------------------------------------------------------
-ZR0 = $0000
-ZR1 = ZR0+2
-ZR2 = ZR1+2
-ZR3 = ZR2+2
-ZR4 = ZR3+2
-ZR5 = ZR4+2
 .ZEROPAGE
 ZP_ATTR:          .RES 1  ; 属性バイトをシフトして遊ぶ
 

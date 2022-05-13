@@ -10,11 +10,7 @@
 .PROC BCOS
   .INCLUDE "../syscall.inc"  ; システムコール番号
 .ENDPROC
-
-.macro syscall func
-  LDX #(BCOS::func)*2
-  JSR BCOS::SYSCALL
-.endmac
+.INCLUDE "../syscall.mac"
 
 ; -------------------------------------------------------------------
 ;                             実行領域
