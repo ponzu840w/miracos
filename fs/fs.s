@@ -94,7 +94,8 @@ FUNC_FS_READ_BYTS:
   JSR AX_DST                      ; 書き込み先に
   loadreg16 FWK+FCTRL::CUR_CLUS   ; 現在クラスタのポインタ
   JSR CLUS2SEC_AXS                ; ソースにしてクラスタセクタ変換
-  LDY FWK+FCTRL::CUR_SEC          ; 現在セクタ
+  ;LDY FWK+FCTRL::CUR_SEC          ; 現在セクタ
+  LDA FWK+FCTRL::CUR_SEC          ; 現在セクタ
   JSR L_ADD_BYT                   ; リアルセクタに現在セクタを加算
   JSR RDSEC                       ; セクタ読み取り、SDSEEKは起点
   ; シークポインタの初期位置を計算
@@ -149,6 +150,10 @@ FUNC_FS_READ_BYTS:
   JSR NEXTSEC                     ; 次のセクタに移行
   JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る
 @SKP_INCH:
+  loadreg16 FWK+FCTRL::SEEK_PTR   ; シークポインタ
+  JSR AX_DST                      ; 書き込み先に
+  LDA #1
+  JSR L_ADD_BYT                   ; SEEK_PTRをインクリメント
   INC ZR0                         ; ZR0下位をインクリメント -書き込み先
   BNE @SKP_INCH0
   INC ZR0+1                       ; ZR0上位をインクリメント
@@ -160,11 +165,8 @@ FUNC_FS_READ_BYTS:
   DEC ZR2                         ; ZR2下位をデクリメント   -len
   LDA ZR2
   CMP #$FF
-  BNE @SKP_DECH2
+  BNE @LOOP
   DEC ZR2+1                       ; ZR2上位をデクリメント
-@SKP_DECH2:
-  LDA #1
-  JSR L_ADD_BYT                   ; SEEK_PTRをインクリメント
   BRA @LOOP
 
 ; -------------------------------------------------------------------
