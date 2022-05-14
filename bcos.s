@@ -88,9 +88,6 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
   .PROC ERR
     .INCLUDE "error.s"
   .ENDPROC
-  .PROC BCOS_UART ; 単にUARTとするとアドレス宣言とかぶる
-    .INCLUDE "uart.s"
-  .ENDPROC
   .PROC SPI
     .INCLUDE "fs/spi.s"
   .ENDPROC
@@ -105,6 +102,9 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
   .ENDPROC
   .PROC GCON
     .INCLUDE "gcon/gcon.s"
+  .ENDPROC
+  .PROC BCOS_UART ; 単にUARTとするとアドレス宣言とかぶる
+    .INCLUDE "uart.s"
   .ENDPROC
 
 ; -------------------------------------------------------------------
