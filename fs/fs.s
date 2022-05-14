@@ -454,8 +454,10 @@ FUNC_FS_OPEN:
 FD_OPEN:
   ; FINFOからファイル記述子をオープン
   ; output A=FD, X=EC
+  ;LDA DIRATTR_DIRECTORY
+  ;BIT FINFO_WK+FINFO::ATTR  ; ディレクトリなら非ゼロ
   LDA FINFO_WK+FINFO::ATTR      ; 属性値を取得
-  AND #DIRATTR_DIRECTORY        ; ディレクトリかをチェック ディレクトリなら非ゼロ
+  AND #DIRATTR_DIRECTORY        ; ディレクトリかをチェック
   BEQ @SKP_DIRERR
   ;LDX #1                    ; EC1:DIR
   SEC
