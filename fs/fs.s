@@ -242,7 +242,7 @@ FUNC_FS_CLOSE:
   SEC
   SBC #NONSTD_FD            ; 標準ファイル分を減算
   BVC @SKP_CLOSESTDF
-  ;LDA #ERR::FAILED_CLOSE
+  LDA #ERR::DRV_NOT_FOUND   ; 本当はこのエラーではない
   JMP ERR::REPORT
 @SKP_CLOSESTDF:
   ASL                       ; テーブル参照の為x2
@@ -444,12 +444,13 @@ FUNC_FS_OPEN:
 @SKP_PATHERR:
 @FINFO:
   JSR FD_OPEN
-  ;BCC X0RTS                 ; エラーハンドル
-  BEQ X0RTS                 ; エラーハンドル
-  LDX #2                    ; EC2:OPENERR
-  RTS
+  BCC X0RTS                 ; エラーハンドル
+  ;BEQ X0RTS                 ; エラーハンドル
+  ;LDX #2                    ; EC2:OPENERR
+  ;RTS
   ;LDA #ERR::FAILED_OPEN
-  ;JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
+  LDA #ERR::DRV_NOT_FOUND   ; 本当は(ry
+  JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
 
 
 FD_OPEN:
@@ -460,8 +461,8 @@ FD_OPEN:
   LDA FINFO_WK+FINFO::ATTR      ; 属性値を取得
   AND #DIRATTR_DIRECTORY        ; ディレクトリかをチェック
   BEQ @SKP_DIRERR
-  LDX #1                    ; EC1:DIR
-  ;SEC
+  ;LDX #1                    ; EC1:DIR
+  SEC
   RTS
 @SKP_DIRERR:                ; 以下、ディレクトリではない
   JSR INTOPEN_FILE          ; FINFOからファイルを開く
@@ -474,8 +475,8 @@ FD_OPEN:
   JSR PUT_FWK               ; ワークエリアの内容を書き込む
   PLA
 X0RTS:
-  LDX #0
-  ;CLC
+  ;LDX #0
+  CLC
   RTS
 
 PATH2FINFO:
