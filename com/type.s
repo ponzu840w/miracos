@@ -34,6 +34,12 @@ START:
   ;syscall CON_OUT_STR
   ;JSR PRT_LF
   ;pullAY16
+  ; nullチェック
+  storeAY16 ZR0
+  TAX
+  LDA (ZR0)
+  BEQ NOTFOUND
+  TXA
   ; オープン
   syscall FS_FIND_FST             ; 検索
   BCS NOTFOUND                    ; 見つからなかったらあきらめる
@@ -77,11 +83,11 @@ BCOS_ERROR:
   syscall ERR_MES
   JMP LOOP
 
-PRT_BYT:
-  JSR BYT2ASC
-  PHY
-  JSR PRT_C_CALL
-  PLA
+;PRT_BYT:
+;  JSR BYT2ASC
+;  PHY
+;  JSR PRT_C_CALL
+;  PLA
 PRT_C_CALL:
   syscall CON_OUT_CHR
   RTS
@@ -90,35 +96,35 @@ PRT_LF:
   ; 改行
   LDA #$A
   JMP PRT_C_CALL
-
-PRT_S:
-  ; スペース
-  LDA #' '
-  JMP PRT_C_CALL
-
-BYT2ASC:
-  ; Aで与えられたバイト値をASCII値AYにする
-  ; Aから先に表示すると良い
-  PHA           ; 下位のために保存
-  AND #$0F
-  JSR NIB2ASC
-  TAY
-  PLA
-  LSR           ; 右シフトx4で上位を下位に持ってくる
-  LSR
-  LSR
-  LSR
-  JSR NIB2ASC
-  RTS
-
-NIB2ASC:
-  ; #$0?をアスキー一文字にする
-  ORA #$30
-  CMP #$3A
-  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
-  ADC #$06
-@SKP_ADC:
-  RTS
+;
+;PRT_S:
+;  ; スペース
+;  LDA #' '
+;  JMP PRT_C_CALL
+;
+;BYT2ASC:
+;  ; Aで与えられたバイト値をASCII値AYにする
+;  ; Aから先に表示すると良い
+;  PHA           ; 下位のために保存
+;  AND #$0F
+;  JSR NIB2ASC
+;  TAY
+;  PLA
+;  LSR           ; 右シフトx4で上位を下位に持ってくる
+;  LSR
+;  LSR
+;  LSR
+;  JSR NIB2ASC
+;  RTS
+;
+;NIB2ASC:
+;  ; #$0?をアスキー一文字にする
+;  ORA #$30
+;  CMP #$3A
+;  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
+;  ADC #$06
+;@SKP_ADC:
+;  RTS
 
 STR_NOTFOUND:
   .BYT "Input File Not Found.",$A,$0
