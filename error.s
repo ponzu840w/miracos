@@ -51,8 +51,8 @@ EM_DRV_NOT_FOUND:             .BYT "Drive Not Found.",$0
 EM_ILLEGAL_PATH:              .BYT "Illegal Path.",$0
 EM_FILE_NOT_FOUND:            .BYT "File Not Found.",$0
 EM_NOT_DIR:                   .BYT "Not Directory.",$0
-EM_FAILED_CLOSE:              .BYT "Failed to CLOSE.",$0
-EM_FAILED_OPEN:               .BYT "Failed to OPEN.",$0
+;EM_FAILED_CLOSE:              .BYT "Failed to CLOSE.",$0
+;EM_FAILED_OPEN:               .BYT "Failed to OPEN.",$0
 
 STR_ERROR:                    .BYT "[BCOSERR] ",$0
 
