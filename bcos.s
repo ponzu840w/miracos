@@ -46,6 +46,7 @@ SRECBUILD = TRUE  ; TRUEで、テスト用のUARTによるロードに適した�
   .INCLUDE "fs/varfs.s"
   .INCLUDE "varbcos.s"
   .INCLUDE "gcon/vargcon.s"
+  .INCLUDE "donki/vardonki.s"
 
 ; OS側変数領域
 .SEGMENT "COSVAR"
@@ -105,6 +106,9 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
   .ENDPROC
   .PROC BCOS_UART ; 単にUARTとするとアドレス宣言とかぶる
     .INCLUDE "uart.s"
+  .ENDPROC
+  .PROC DONKI
+    .INCLUDE "donki/donki.s"
   .ENDPROC
 
 ; -------------------------------------------------------------------
@@ -373,7 +377,7 @@ IRQ_BCOS:
 IRQ_DEBUG:
   PLA
   CLI
-  RTS
+  RTI
 
 ;; --- モニタに落ちる ---
 ;  PLA
