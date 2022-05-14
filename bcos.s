@@ -158,6 +158,8 @@ FUNC_RESET:
   STA ZP_CON_DEV_CFG              ; 有効なコンソールデバイスの設定
   JSR FS::INIT                    ; ファイルシステムの初期化処理
   JSR GCON::INIT                  ; コンソール画面の初期化処理
+  loadAY16 IRQ_BCOS
+  storeAY16 ROM::IRQ_VEC16        ; 割り込みベクタ変更
   .IF !SRECBUILD                  ; 分離部分の配置は、UARTロードの時は不要
     ; SYSCALL.SYSを配置する
     loadAY16 PATH_SYSCALL
@@ -356,4 +358,121 @@ FUNC_UPPER_STR:
   BRA @LOOP
 @END:
   RTS
+
+IRQ_BCOS:
+; --- BCOS独自の割り込みハンドラ ---
+; SEIだけされてここに飛んだ
+; --- 外部割込み判別 ---
+  PHA ; まだXY使用禁止
+; UART
+  LDA UART::STATUS
+  BIT #%00001000
+  BEQ IRQ_DEBUG ; bit3の論理積がゼロ、つまりフルじゃない
+  JMP BCOS_UART::IRQ
+
+IRQ_DEBUG:
+  PLA
+  CLI
+  RTS
+
+;; --- モニタに落ちる ---
+;  PLA
+;NMI:
+;  ; 押しボタン
+;  SEI
+;  STA A_SAVE
+;  STX X_SAVE
+;  STY Y_SAVE
+;  LDX #12-1
+;@STOREZRLOOP:     ; ゼロページレジスタを退避
+;  LDA ZR0,X
+;  STA ZR0_SAVE,X
+;  DEX
+;  BPL @STOREZRLOOP
+;  TSX
+;  STX SP_SAVE ; save targets stack poi
+;
+;; --- プログラムカウンタを減算 ---
+;  LDX SP_SAVE
+;  INX
+;  INX ; SP+2=PCL
+;  LDA #$1
+;  CMP $0100,X ; PCLと#$1の比較
+;  BCC SKIPHDEC
+;  BEQ SKIPHDEC
+;  INX
+;  DEC $0100,X ; PCH--
+;  DEX
+;SKIPHDEC:
+;  DEC $0100,X ; PCL--
+;  ; DEC $0100,X ; PCL--
+;  ; 二回引くとBRK命令そのものを指すが、また実行することを考えると一回でいいのかな
+;
+;; --- レジスタ情報を表示 ---
+;PRTREG:  ; print contents of stack
+;
+;; 表示中にさらにBRKされると分かりづらいので改行
+;  LDA #<STR_NEWLINE
+;  LDX #>STR_NEWLINE
+;  JSR PRT_STR
+;
+;; A
+;  JSR PRT_S
+;  LDA #'a'
+;  JSR PRT_CHAR_UART
+;
+;  LDA A_SAVE ; Acc reg
+;  JSR PRT_BYT
+;
+;; X
+;  JSR PRT_S
+;  LDA #'x'
+;  JSR PRT_CHAR_UART
+;
+;  LDA X_SAVE  ; X reg
+;  JSR PRT_BYT
+;
+;; Y
+;  JSR PRT_S
+;  LDA #'y'
+;  JSR PRT_CHAR_UART
+;
+;  LDA Y_SAVE  ; Y reg
+;  JSR PRT_BYT
+;
+;; Flag
+;  JSR PRT_S
+;  LDA #'f'
+;  JSR PRT_CHAR_UART
+;
+;  LDX SP_SAVE ; Flags
+;  INX ; SP+1=F
+;  LDA $0100,X
+;  JSR PRT_BYT
+;
+;; PC
+;  JSR PRT_S
+;  LDA #'p'
+;  JSR PRT_CHAR_UART
+;
+;  INX         ; SP+3=PCH
+;  INX
+;  LDA $0100,X
+;  JSR PRT_BYT
+;
+;  DEX         ; PCL
+;  LDA $0100,X
+;  JSR PRT_BYT
+;
+;  JSR PRT_S
+;  LDA #'s'
+;  JSR PRT_CHAR_UART
+;
+;; SP
+;  LDA SP_SAVE     ; stack pointer
+;  JSR PRT_BYT
+;  CLI
+;  JMP CTRL
+;
+;STR_NEWLINE: .BYT $A,"*",$00
 
