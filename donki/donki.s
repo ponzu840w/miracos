@@ -10,6 +10,19 @@ LOOP:
   loadAY16 STR_NEWLINE
   JSR FUNC_CON_OUT_STR
   JSR FUNC_CON_IN_STR
+  ; 復帰
+  LDA ROM::SP_SAVE
+  CLC
+  ADC #3                  ; SPを割り込み前の状態に戻す
+  TAX
+  TXS                     ; SP復帰
+  LDA ROM::A_SAVE
+  LDX ROM::X_SAVE
+  LDY ROM::Y_SAVE
+  LDA FLAG_SAVE           ; フラグをロード
+  PHA                     ; フラグをプッシュ
+  PLP                     ; フラグをフラグとしてプル
+  JMP (PC_SAVE)           ; 復帰ジャンプ
   JMP LOOP
 
 ENT_DONKI:
@@ -17,29 +30,35 @@ SAV_STAT:
 ; 状態を保存
 ; 割り込み直後のスタック状態を想定
   SEI
-  STA ROM::A_SAVE ; レジスタ保存
+  STA ROM::A_SAVE   ; レジスタ保存
   STX ROM::X_SAVE
   STY ROM::Y_SAVE
   LDX #12-1
-@STOREZRLOOP:     ; ゼロページレジスタを退避
+@STOREZRLOOP:       ; ゼロページレジスタを退避
   LDA ZR0,X
   STA ROM::ZR0_SAVE,X
   DEX
   BPL @STOREZRLOOP
   TSX
-  STX ROM::SP_SAVE ; save targets stack poi
-;  ; --- プログラムカウンタを減算 ---
-;  INX
-;  INX ; SP+2=PCL
-;  LDA #$1
-;  CMP $0100,X ; PCLと#$1の比較
-;  BCC SKIPHDEC
-;  BEQ SKIPHDEC
-;  INX
-;  DEC $0100,X ; PCH--
-;  DEX
-;SKIPHDEC:
-;  DEC $0100,X ; PCL--
+  STX ROM::SP_SAVE  ; save targets stack poi
+  ; --- FLAG、PC保存 ---
+  ; SP+1=FLAG、+2=PCL、+3=PCH
+  LDY #0
+@STACK_SAVE_LOOP:
+  INX
+  LDA $0100,X
+  STA FLAG_SAVE,Y
+  INY
+  CPY #3
+  BNE @STACK_SAVE_LOOP
+  ; --- プログラムカウンタを減算 ---
+  LDA #$1
+  CMP PC_SAVE   ; PCLと#$1の比較
+  BCC SKIPHDEC
+  BEQ SKIPHDEC
+  DEC PC_SAVE+1 ; PCH--
+SKIPHDEC:
+  DEC PC_SAVE   ; PCL--
 PRT_STAT:  ; print contents of stack
   ; --- レジスタ情報を表示 ---
   ; 表示中にさらにBRKされると分かりづらいので改行
@@ -64,27 +83,18 @@ PRT_STAT:  ; print contents of stack
   ; Flag
   LDA #'f'
   JSR FUNC_CON_OUT_CHR
-  LDX ROM::SP_SAVE      ; Flags
-  INX                   ; SP+1=F
-  PHX
-  LDA $0100,X
+  LDA FLAG_SAVE
   JSR PRT_BYT_S
   ; PC
   LDA #'p'
   JSR FUNC_CON_OUT_CHR
-  PLX
-  INX                   ; SP+3=PCH
-  INX
-  PHX
-  LDA $0100,X
+  LDA PC_SAVE+1
   JSR PRT_BYT
-  PLX
-  DEX                   ; PCL
-  LDA $0100,X
+  LDA PC_SAVE
   JSR PRT_BYT_S
+  ; SP
   LDA #'s'
   JSR FUNC_CON_OUT_CHR
-  ; SP
   LDA ROM::SP_SAVE      ; stack pointer
   JSR PRT_BYT
   CLI
