@@ -1,0 +1,3 @@
+FLAG_SAVE:  .RES 1
+PC_SAVE:    .RES 2
+
