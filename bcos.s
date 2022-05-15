@@ -166,11 +166,11 @@ FUNC_RESET:
   storeAY16 ROM::IRQ_VEC16        ; 割り込みベクタ変更
   ; 垂直同期割り込みを設定する
   LDA VIA::PCR                    ; ポート制御端子の設定
-  AND #%11111000                  ; 下位3bitがCA2
-  ORA #%00000001                  ; 001＝独立した負の割り込みエッジ入力
+  AND #%11110001                  ; 321がCA2
+  ORA #%00000010                  ; 001＝独立した負の割り込みエッジ入力
   STA VIA::PCR
   LDA VIA::IER                    ; 割り込み許可
-  ORA #%00000001                  ; bit 0はCA2
+  LDA #%10000001                  ; bit 0はCA2
   STA VIA::IER
   .IF !SRECBUILD                  ; 分離部分の配置は、UARTロードの時は不要
     ; SYSCALL.SYSを配置する
@@ -386,18 +386,22 @@ IRQ_BCOS:
   LDA VIA::IFR        ; 割り込みフラグレジスタ読み取り
   LSR                 ; C = bit 0 CA2
   BCC @SKP_CA2
-  BRK
-  NOP
   ; 垂直同期割り込みお試し
   DEC TEST_COUNTER
   BNE @CA2_END
   INC TEST_COUNTER+1
+  LDA TEST_COUNTER+1
   AND #%00001111
   ORA #$30
   JSR FUNC_CON_OUT_CHR
   LDA #' '
   JSR FUNC_CON_OUT_CHR
+  LDA #60
+  STA TEST_COUNTER
 @CA2_END:
+  LDA VIA::IFR
+  AND #%00000001      ; 割り込みフラグを折る
+  STA VIA::IFR
   PLA
   CLI
   RTI
