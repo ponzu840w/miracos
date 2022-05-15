@@ -47,6 +47,7 @@ SRECBUILD = TRUE  ; TRUEで、テスト用のUARTによるロードに適した�
   .INCLUDE "varbcos.s"
   .INCLUDE "gcon/vargcon.s"
   .INCLUDE "donki/vardonki.s"
+  .INCLUDE "ps2/varps2.s"
 
 ; OS側変数領域
 .SEGMENT "COSVAR"
@@ -110,6 +111,9 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
   .PROC DONKI
     .INCLUDE "donki/donki.s"
   .ENDPROC
+  .PROC IRQ
+    .INCLUDE "interrupt.s"
+  .ENDPROC
 
 ; -------------------------------------------------------------------
 ;                       システムコールテーブル
@@ -162,7 +166,7 @@ FUNC_RESET:
   STA ZP_CON_DEV_CFG              ; 有効なコンソールデバイスの設定
   JSR FS::INIT                    ; ファイルシステムの初期化処理
   JSR GCON::INIT                  ; コンソール画面の初期化処理
-  loadAY16 IRQ_BCOS
+  loadAY16 IRQ::IRQ_BCOS
   storeAY16 ROM::IRQ_VEC16        ; 割り込みベクタ変更
   ; 垂直同期割り込みを設定する
   LDA VIA::PCR                    ; ポート制御端子の設定
@@ -370,33 +374,4 @@ FUNC_UPPER_STR:
   BRA @LOOP
 @END:
   RTS
-
-IRQ_BCOS:
-; --- BCOS独自の割り込みハンドラ ---
-; SEIだけされてここに飛んだ
-; --- 外部割込み判別 ---
-  PHA ; まだXY使用禁止
-  ; UART判定
-  LDA UART::STATUS
-  BIT #%00001000
-  BEQ @SKP_UART       ; bit3の論理積がゼロ、つまりフルじゃない
-  JMP BCOS_UART::IRQ
-@SKP_UART:
-  ; VIA判定
-  LDA VIA::IFR        ; 割り込みフラグレジスタ読み取り
-  LSR                 ; C = bit 0 CA2
-  BCC @SKP_CA2
-  ; 垂直同期割り込み処理
-@CA2_END:
-  LDA VIA::IFR
-  AND #%00000001      ; 割り込みフラグを折る
-  STA VIA::IFR
-  PLA
-  CLI
-  RTI
-@SKP_CA2:
-
-IRQ_DEBUG:
-  PLA
-  JMP DONKI::ENT_DONKI
 
