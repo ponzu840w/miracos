@@ -155,9 +155,17 @@ COMMAND_NOTFOUND:
 ICOM_EXIT:
   loadAY16 STR_GOODBYE
   syscall CON_OUT_STR
-  LDA #01
-  LDX #02
-  LDY #03
+  BRK
+  NOP
+  JMP LOOP
+
+; -------------------------------------------------------------------
+;                        DONKIデバッガ起動
+; -------------------------------------------------------------------
+ICOM_DONKI:
+  LDA #$01
+  LDX #$23
+  LDY #$45            ; お飾り
   BRK
   NOP
   JMP LOOP
@@ -502,6 +510,7 @@ ICOMNAMES:        .ASCIIZ "EXIT"        ; 0
                   .ASCIIZ "DIR"         ; 4
                   .ASCIIZ "TEST"        ; 5
                   .ASCIIZ "LS"          ; 6
+                  .ASCIIZ "DONKI"       ; 7
                   .BYT $0
 
 ICOMVECS:         .WORD ICOM_EXIT
@@ -511,4 +520,5 @@ ICOMVECS:         .WORD ICOM_EXIT
                   .WORD ICOM_DIR
                   .WORD ICOM_TEST
                   .WORD ICOM_LS
+                  .WORD ICOM_DONKI
 
