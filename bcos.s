@@ -170,7 +170,7 @@ FUNC_RESET:
   ORA #%00000010                  ; 001＝独立した負の割り込みエッジ入力
   STA VIA::PCR
   LDA VIA::IER                    ; 割り込み許可
-  LDA #%10000001                  ; bit 0はCA2
+  ORA #%10000001                  ; bit 0はCA2
   STA VIA::IER
   .IF !SRECBUILD                  ; 分離部分の配置は、UARTロードの時は不要
     ; SYSCALL.SYSを配置する
@@ -376,28 +376,17 @@ IRQ_BCOS:
 ; SEIだけされてここに飛んだ
 ; --- 外部割込み判別 ---
   PHA ; まだXY使用禁止
-; UART
+  ; UART判定
   LDA UART::STATUS
   BIT #%00001000
   BEQ @SKP_UART       ; bit3の論理積がゼロ、つまりフルじゃない
   JMP BCOS_UART::IRQ
 @SKP_UART:
-; VIA
+  ; VIA判定
   LDA VIA::IFR        ; 割り込みフラグレジスタ読み取り
   LSR                 ; C = bit 0 CA2
   BCC @SKP_CA2
-  ; 垂直同期割り込みお試し
-  DEC TEST_COUNTER
-  BNE @CA2_END
-  INC TEST_COUNTER+1
-  LDA TEST_COUNTER+1
-  AND #%00001111
-  ORA #$30
-  JSR FUNC_CON_OUT_CHR
-  LDA #' '
-  JSR FUNC_CON_OUT_CHR
-  LDA #60
-  STA TEST_COUNTER
+  ; 垂直同期割り込み処理
 @CA2_END:
   LDA VIA::IFR
   AND #%00000001      ; 割り込みフラグを折る
@@ -410,7 +399,4 @@ IRQ_BCOS:
 IRQ_DEBUG:
   PLA
   JMP DONKI::ENT_DONKI
-
-TEST_COUNTER:
-  .RES 2
 
