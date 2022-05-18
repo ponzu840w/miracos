@@ -12,50 +12,58 @@
 .ENDPROC
 .INCLUDE "../syscall.mac"
 
+.BSS
+STACK:          .RES 16
+STACK_PTR:      .RES 1
+VB_STUB:        .RES 2
+
 .CODE
-  JMP TEST
+  JMP INIT          ; PS2スコープをコードの前で定義したいが、セグメントを増やしたくないためジャンプで横着
+                    ; まったくアセンブラの都合で増えた余計なジャンプ命令
 
 .PROC PS2
     .INCLUDE "../ps2/ps2drv.s"
-  .SEGMENT "BSS"
+  .BSS
     .INCLUDE "../ps2/varps2.s"
 .ENDPROC
 
 .CODE
-TEST:
-  ; テストアプリケーション
+INIT:
+  ; 初期化
   JSR PS2::INIT
+  STZ STACK_PTR
+  ; 割り込みハンドラの登録
+  SEI
+  loadAY16 VBLANK
+  syscall IRQ_SETHNDR_VB
+  storeAY16 VB_STUB
+  CLI
+
+; メインループ
 LOOP:
+  LDX STACK_PTR
+  BEQ LOOP        ; スタックが空ならやることなし
+  ; 排他的スタック操作
+  SEI
+  LDA STACK,X
+  DEC STACK_PTR
+  CLI
+  JSR PRT_BYT     ; バイト表示
   JSR PRT_LF      ; 改行
-  JSR PS2::GET
-  JSR PRT_BYT
   BRA LOOP
-;  JSR PS2::INIT    ; キーボード、LED、フラグの初期化
-;@LF:
-;  JSR PRT_LF      ; 改行
-;@IN:
-;  JSR PS2::IN     ; キー押下を待って、でコードされたアスキーをAに格納
-;  CMP #$0A        ; LFなら改行
-;  BEQ @LF
-;  CMP #$1B        ; ESC
-;  BEQ @ESC
-;  CMP #$20        ; Control
-;  BCC @HEX
-;  CMP #$80        ; 拡張キー
-;  BCS @HEX
-;  JSR PRT_CHR     ; 普通の文字を表示
-;  BRA @IN
-;@ESC:
-;  RTS
-;@HEX:
-;  PHA
-;  LDA #'<'
-;  JSR PRT_CHR
-;  PLA
-;  JSR PRT_BYT
-;  LDA #'>'
-;  JSR PRT_CHR
-;  BRA @IN
+
+; 垂直同期割り込み処理
+VBLANK:
+  JSR PS2::SCAN
+  CMP #0                  ; 念のため
+  BEQ @EXT                ; スキャンして0が返ったらデータなし
+  ; データが返った
+  ; スタックに積む
+  LDX STACK_PTR
+  STA STACK,X
+  INC STACK_PTR
+@EXT:
+  JMP (VB_STUB)           ; 片付けはBCOSにやらせる
 
 PRT_BYT:
   JSR BYT2ASC
