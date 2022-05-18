@@ -13,19 +13,19 @@ CPUCLK = 4                ; 一定時間の待機ルーチンに使うCPUクロ�
 ; -------------------------------------------------------------------
 ; ->KB コマンド
 ; -------------------------------------------------------------------
-KBCMD_ENABLE_SCAN:  = $F4 ; キースキャンを開始する。res:ACK
-KBCMD_RESEND_LAST:  = $FE ; 再送要求。res:DATA
-KBCMD_RESET:        = $FF ; リセット。res:ACK
-KBCMD_SETLED:       = $ED ; LEDの状態を設定。res:ACK
-  KBLED_CAPS:         = %100
-  KBLED_NUM:          = %010
-  KBLED_SCROLL:       = %001
+KBCMD_ENABLE_SCAN   = $F4 ; キースキャンを開始する。res:ACK
+KBCMD_RESEND_LAST   = $FE ; 再送要求。res:DATA
+KBCMD_RESET         = $FF ; リセット。res:ACK
+KBCMD_SETLED        = $ED ; LEDの状態を設定。res:ACK
+  KBLED_CAPS          = %100
+  KBLED_NUM           = %010
+  KBLED_SCROLL        = %001
 
 ; -------------------------------------------------------------------
 ; <-KB レスポンス
 ; -------------------------------------------------------------------
-KBRES_ACK:          = $FA ; 通常応答
-KBRES_BAT_COMPLET:  = $AA ; BATが成功
+KBRES_ACK           = $FA ; 通常応答
+KBRES_BAT_COMPLET   = $AA ; BATが成功
 
 ; -------------------------------------------------------------------
 ; PS2KBドライバルーチン群

@@ -148,6 +148,7 @@ SYSCALL_TABLE:
   .WORD FUNC_UPPER_STR            ; 16 文字列の小文字を大文字に
   .WORD FS::FUNC_FS_FIND_NXT      ; 17 次のエントリの検索
   .WORD FS::FUNC_FS_READ_BYTS     ; 18 バイト数指定ファイル読み取り
+  .WORD IRQ::FUNC_IRQ_SETHNDR_VB  ; 19 垂直同期割り込みハンドラ登録
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
@@ -172,6 +173,8 @@ FUNC_RESET:
   loadAY16 IRQ::IRQ_BCOS
   storeAY16 ROM::IRQ_VEC16        ; 割り込みベクタ変更
   ; 垂直同期割り込みを設定する
+  loadAY16 IRQ::VBLANK_STUB
+  storeAY16 VBLANK_USER_VEC16     ; 垂直同期ユーザベクタ変更
   LDA VIA::PCR                    ; ポート制御端子の設定
   AND #%11110001                  ; 321がCA2
   ORA #%00000010                  ; 001＝独立した負の割り込みエッジ入力
