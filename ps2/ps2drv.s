@@ -4,20 +4,70 @@
 ; アセンブル設定スイッチ
 TRUE = 1
 FALSE = 0
-PS2DEBUG = TRUE
+PS2DEBUG = FALSE
 
-CPUCLK = 4
+; -------------------------------------------------------------------
+;                             定数
+; -------------------------------------------------------------------
+CPUCLK = 4                ; 一定時間の待機ルーチンに使うCPUクロック[MHz]
+; -------------------------------------------------------------------
+; ->KB コマンド
+; -------------------------------------------------------------------
+KBCMD_ENABLE_SCAN:  = $F4 ; キースキャンを開始する。res:ACK
+KBCMD_RESEND_LAST:  = $FE ; 再送要求。res:DATA
+KBCMD_RESET:        = $FF ; リセット。res:ACK
+KBCMD_SETLED:       = $ED ; LEDの状態を設定。res:ACK
+  KBLED_CAPS:         = %100
+  KBLED_NUM:          = %010
+  KBLED_SCROLL:       = %001
+
+; -------------------------------------------------------------------
+; <-KB レスポンス
+; -------------------------------------------------------------------
+KBRES_ACK:          = $FA ; 通常応答
+KBRES_BAT_COMPLET:  = $AA ; BATが成功
+
+; -------------------------------------------------------------------
+; PS2KBドライバルーチン群
+; -------------------------------------------------------------------
+; INIT: ドライバソフトウェア及びキーボードデバイスの初期化
+; SCAN: データの有無を取得  データなしでA=0、あるとA=非ゼロもしくはGET
+; GET : A=スキャンコード
+; -------------------------------------------------------------------
+SCAN:
+  LDX #$05          ; タイマーX=(サイクル数-40)/13=(105-40)/13=5
+                    ; ええとつまり？
+  ; クロックを入力にセット（とあるが両方入力にしている
+  LDA VIA::PS2_DDR
+  AND #<~(VIA::PS2_CLK|VIA::PS2_DAT)
+  STA VIA::PS2_DDR
+@LOOP: ;kbscan1
+  LDA #VIA::PS2_CLK ; クロックの
+  BIT VIA::PS2_REG  ;     状態を取得
+  BEQ @READY        ; クロックの立下りつまりデータを検出
+  DEX               ; タイマー減少
+  BNE @LOOP
+  ; データが結局ない
+  JSR DIS           ; 無効化
+  LDA #0            ; データなしを示す0
+  RTS
+@READY: ;kbscan2
+  ; データがある
+  JSR DIS           ; 無効化
+  ; 選べる終わり方の選択肢
+; RTS               ; データの有無だけを返す
+  JMP GET           ; 直接スキャンコードを取得
 
 FLUSH:
-  ; バッファフラッシュ
-  LDA #$F4
+  ; バッファをフラッシュするらしいが実際にはスキャン開始コマンド？
+  LDA #KBCMD_ENABLE_SCAN
 SEND:
   ; --- バイトデータを送信する
   STA BYTSAV        ; 送信するデータを保存
   PHX               ; レジスタ退避
   PHY
   STA LASTBYT       ; 失敗に備える
-  .IF !PS2DEBUG
+  .IF PS2DEBUG
     LDA #'S'
     JSR PRT_CHR
     LDA BYTSAV
@@ -35,6 +85,7 @@ SEND:
   STA VIA::PS2_DDR
   ; CPUクロックに応じた遅延64us
   ; NOTE: 割り込み化できないか？
+  ;       もともと割込みで呼ばれるんだから無茶を言うな
   LDA #(CPUCLK*$10)
 @WAIT:
   DEC
@@ -109,8 +160,8 @@ DIS:
   RTS
 
 ERROR:
-  LDA #$FE
-  JSR SEND            ; 再送信
+  LDA #KBCMD_RESEND_LAST
+  JSR SEND            ; 再送信要求
 GET:
   PHX
   PHY
@@ -170,26 +221,32 @@ GET:
   LDA BYTSAV
   RTS
 
+; -------------------------------------------------------------------
+; INIT:キーボードの初期化
+; -------------------------------------------------------------------
 INIT:
-  LDA #$02            ; NUMLOCKのみがオン
+  ; スペシャルキー状態初期化
+  LDA #KBLED_NUM      ; NUMLOCKのみがオン
   STA SPECIAL
 @RESET:
-  LDA #$FF
+  ; リセットと自己診断
+  LDA #KBCMD_RESET
   JSR SEND            ; $FF リセットコマンド
   JSR GET
-  CMP #$FA
+  CMP #KBRES_ACK
   BNE @RESET          ; ACKが来るまででリセット
   JSR GET
-  CMP #$AA
-  BNE @RESET          ; reset ok が来るまでリセット
+  CMP #KBRES_BAT_COMPLET
+  BNE @RESET          ; BATが成功するまでリセット
+  ; LED状態更新
 SETLED:
-  LDA #$ED            ; 変数に従いLEDをセット
+  LDA #KBCMD_SETLED   ; 変数に従いLEDをセット
   JSR SEND
   JSR GET
-  CMP #$FA
+  CMP #KBRES_ACK
   BNE SETLED          ; ack待機
-  LDA SPECIAL
-  AND #$07            ; bits 3-7 を0に
+  LDA SPECIAL         ; スペシャルの下位3bitがLED状態に対応
+  AND #%00000111      ; bits 3-7 を0に 不要説あり
   JSR SEND
   RTS
 
