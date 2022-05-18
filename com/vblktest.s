@@ -24,6 +24,7 @@ COUNTER:          .RES 1  ; カウンタ
 ; -------------------------------------------------------------------
 .CODE
 START:
+  ;割り込みハンドラの登録
   SEI
   loadAY16 VBLANK
   syscall IRQ_SETHNDR_VB
