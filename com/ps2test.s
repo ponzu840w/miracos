@@ -16,6 +16,7 @@
 STACK:          .RES 16
 STACK_PTR:      .RES 1
 VB_STUB:        .RES 2
+COUNT:          .RES 1
 
 .CODE
   JMP INIT          ; PS2スコープをコードの前で定義したいが、セグメントを増やしたくないためジャンプで横着
@@ -31,6 +32,9 @@ VB_STUB:        .RES 2
 INIT:
   ; 初期化
   JSR PS2::INIT
+  JSR PS2::GET
+  JSR PRT_BYT     ; バイト表示
+  JSR PRT_LF      ; 改行
   STZ STACK_PTR
   ; 割り込みハンドラの登録
   SEI
@@ -43,7 +47,15 @@ INIT:
 LOOP:
   LDA #1          ; 待ちなしエコーなし
   syscall CON_RAWIN
-  BNE EXIT
+  CMP #'q'
+  BEQ EXIT        ; UART入力があれば終わる
+  LDA COUNT
+  BNE @SKP_COUNT
+  LDA #60
+  STA COUNT
+  LDA #'!'
+  syscall CON_OUT_CHR
+@SKP_COUNT:
   LDX STACK_PTR
   BEQ LOOP        ; スタックが空ならやることなし
   ; 排他的スタック操作
@@ -51,10 +63,11 @@ LOOP:
   LDA STACK,X
   DEC STACK_PTR
   CLI
+@GET:
   ;JSR PS2::GET
   JSR PRT_BYT     ; バイト表示
   JSR PRT_LF      ; 改行
-  BRA LOOP        ; UART入力があれば終わる
+  BRA LOOP
 
 EXIT:
   ; 割り込みハンドラの登録抹消
@@ -66,8 +79,11 @@ EXIT:
 
 ; 垂直同期割り込み処理
 VBLANK:
-  ;JSR PS2::SCAN
-  LDA #0
+  LDA COUNT
+  BEQ @SKP_COUNT
+  DEC COUNT
+@SKP_COUNT:
+  JSR PS2::SCAN
   CMP #0                  ; 念のため
   BEQ @EXT                ; スキャンして0が返ったらデータなし
   ; データが返った
