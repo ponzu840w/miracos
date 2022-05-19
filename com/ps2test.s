@@ -46,17 +46,14 @@ LOOP:
   syscall CON_RAWIN
   CMP #'q'
   BEQ EXIT        ; UART入力があれば終わる
-  ;BRA @GET
   LDX STACK_PTR
   BEQ LOOP        ; スタックが空ならやることなし
   ; 排他的スタック操作
-  ;SEI
-  ;LDA STACK,X
-  ;DEC STACK_PTR
-  STZ STACK_PTR
-  ;CLI
+  SEI
+  LDA STACK-1,X
+  DEC STACK_PTR
+  CLI
 @GET:
-  JSR PS2::GET
   JSR PRT_BYT     ; バイト表示
   JSR PRT_LF      ; 改行
   BRA LOOP
@@ -74,10 +71,9 @@ VBLANK:
   JSR PS2::SCAN
   BEQ @EXT                ; スキャンして0が返ったらデータなし
   ; データが返った
-  ;JSR PS2::ERROR
   ; スタックに積む
-  ;LDX STACK_PTR
-  ;STA STACK,X
+  LDX STACK_PTR
+  STA STACK,X
   INC STACK_PTR
 @EXT:
   JMP (VB_STUB)           ; 片付けはBCOSにやらせる

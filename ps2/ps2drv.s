@@ -53,10 +53,19 @@ SCAN:
   RTS
 @READY: ;kbscan2
   ; データがある
-  JSR DIS           ; 無効化
+  ;JSR DIS           ; 無効化
   ; 選べる終わり方の選択肢
-  RTS               ; データの有無だけを返す
+  ;RTS               ; データの有無だけを返す
   ;JMP GET           ; 直接スキャンコードを取得
+  PHX
+  PHY
+  ; バイトとパリティのクリア
+  LDA #$00
+  StA BYTSAV
+  STA PARITY
+  TAY
+  LDX #$08            ; ビットカウンタ
+  JMP GET_STARTBIT
 
 FLUSH:
   ; バッファをフラッシュするらしいが実際にはスキャン開始コマンド？
@@ -181,15 +190,16 @@ GET:
   LDA VIA::PS2_DDR
   AND #<~(VIA::PS2_CLK|VIA::PS2_DAT)
   STA VIA::PS2_DDR
-@WCLKH: ; kbget1
+WCLKH: ; kbget1
   ; クロックが高い間待つ
   LDA #VIA::PS2_CLK
   BIT VIA::PS2_REG
-  BNE @WCLKH
+  BNE WCLKH
   ; スタートビットを取得
+GET_STARTBIT:
   LDA VIA::PS2_REG
   AND #VIA::PS2_DAT
-  BNE @WCLKH          ; 1だとスタートビットとして不適格なのでやり直し
+  BNE WCLKH          ; 1だとスタートビットとして不適格なのでやり直し
 @NEXTBIT:  ; kbget2
   JSR HL              ; 次の立下りを待つ
   CLC
