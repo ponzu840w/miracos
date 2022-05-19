@@ -33,29 +33,41 @@ INIT:
   JSR PS2::INIT
   STZ STACK_PTR
   ; 割り込みハンドラの登録
-  ;SEI
-  ;loadAY16 VBLANK
-  ;syscall IRQ_SETHNDR_VB
-  ;storeAY16 VB_STUB
-  ;CLI
+  SEI
+  loadAY16 VBLANK
+  syscall IRQ_SETHNDR_VB
+  storeAY16 VB_STUB
+  CLI
 
 ; メインループ
 LOOP:
-  ;LDX STACK_PTR
-  ;BEQ LOOP        ; スタックが空ならやることなし
-  ;; 排他的スタック操作
-  ;SEI
-  ;LDA STACK,X
-  ;DEC STACK_PTR
-  ;CLI
-  JSR PS2::GET
+  LDA #1          ; 待ちなしエコーなし
+  syscall CON_RAWIN
+  BNE EXIT
+  LDX STACK_PTR
+  BEQ LOOP        ; スタックが空ならやることなし
+  ; 排他的スタック操作
+  SEI
+  LDA STACK,X
+  DEC STACK_PTR
+  CLI
+  ;JSR PS2::GET
   JSR PRT_BYT     ; バイト表示
   JSR PRT_LF      ; 改行
-  BRA LOOP
+  BRA LOOP        ; UART入力があれば終わる
+
+EXIT:
+  ; 割り込みハンドラの登録抹消
+  SEI
+  mem2AY16 VB_STUB
+  syscall IRQ_SETHNDR_VB
+  CLI
+  RTS
 
 ; 垂直同期割り込み処理
 VBLANK:
-  JSR PS2::SCAN
+  ;JSR PS2::SCAN
+  LDA #0
   CMP #0                  ; 念のため
   BEQ @EXT                ; スキャンして0が返ったらデータなし
   ; データが返った
