@@ -32,9 +32,6 @@ COUNT:          .RES 1
 INIT:
   ; 初期化
   JSR PS2::INIT
-  JSR PS2::GET
-  JSR PRT_BYT     ; バイト表示
-  JSR PRT_LF      ; 改行
   STZ STACK_PTR
   ; 割り込みハンドラの登録
   SEI
@@ -49,22 +46,17 @@ LOOP:
   syscall CON_RAWIN
   CMP #'q'
   BEQ EXIT        ; UART入力があれば終わる
-  LDA COUNT
-  BNE @SKP_COUNT
-  LDA #60
-  STA COUNT
-  LDA #'!'
-  syscall CON_OUT_CHR
-@SKP_COUNT:
+  ;BRA @GET
   LDX STACK_PTR
   BEQ LOOP        ; スタックが空ならやることなし
   ; 排他的スタック操作
-  SEI
-  LDA STACK,X
-  DEC STACK_PTR
-  CLI
+  ;SEI
+  ;LDA STACK,X
+  ;DEC STACK_PTR
+  STZ STACK_PTR
+  ;CLI
 @GET:
-  ;JSR PS2::GET
+  JSR PS2::GET
   JSR PRT_BYT     ; バイト表示
   JSR PRT_LF      ; 改行
   BRA LOOP
@@ -79,17 +71,13 @@ EXIT:
 
 ; 垂直同期割り込み処理
 VBLANK:
-  LDA COUNT
-  BEQ @SKP_COUNT
-  DEC COUNT
-@SKP_COUNT:
   JSR PS2::SCAN
-  CMP #0                  ; 念のため
   BEQ @EXT                ; スキャンして0が返ったらデータなし
   ; データが返った
+  ;JSR PS2::ERROR
   ; スタックに積む
-  LDX STACK_PTR
-  STA STACK,X
+  ;LDX STACK_PTR
+  ;STA STACK,X
   INC STACK_PTR
 @EXT:
   JMP (VB_STUB)           ; 片付けはBCOSにやらせる
