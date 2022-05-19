@@ -55,7 +55,7 @@ SCAN:
   ; データがある
   JSR DIS           ; 無効化
   ; 選べる終わり方の選択肢
- RTS               ; データの有無だけを返す
+  RTS               ; データの有無だけを返す
   ;JMP GET           ; 直接スキャンコードを取得
 
 FLUSH:
@@ -152,8 +152,9 @@ DIS:
   ; クロックを下げる
   LDA VIA::PS2_REG
   AND #<~VIA::PS2_CLK
+  STA VIA::PS2_REG
   ; データを入力に、クロックを出力に
-  STA VIA::PS2_DDR
+  LDA VIA::PS2_DDR
   AND #<~(VIA::PS2_CLK|VIA::PS2_DAT)
   ORA #VIA::PS2_CLK
   STA VIA::PS2_DDR
