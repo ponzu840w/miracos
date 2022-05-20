@@ -24,14 +24,13 @@ VB_COUNT:       .RES 1        ; 垂直同期をこれで分周した周期でス
 STACK:          .RES 16
 STACK_PTR:      .RES 1
 VB_STUB:        .RES 2
-COUNT:          .RES 1
 
 .CODE
   JMP INIT          ; PS2スコープをコードの前で定義したいが、セグメントを増やしたくないためジャンプで横着
                     ; まったくアセンブラの都合で増えた余計なジャンプ命令
 
 .PROC PS2
-    .INCLUDE "../ps2/ps2drv.s"
+    .INCLUDE "../ps2/serial_ps2.s"
   .BSS
     .INCLUDE "../ps2/varps2.s"
 .ENDPROC
