@@ -112,7 +112,7 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
     .INCLUDE "donki/donki.s"
   .ENDPROC
   .PROC PS2
-    .INCLUDE "ps2/ps2drv.s"
+    .INCLUDE "ps2/serial_ps2.s"
   .ENDPROC
   .PROC IRQ
     .INCLUDE "interrupt.s"
