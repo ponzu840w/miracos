@@ -12,6 +12,14 @@
 .ENDPROC
 .INCLUDE "../syscall.mac"
 
+; 定数
+VB_DEV  = 2
+
+; ゼロページ変数
+.ZEROPAGE
+VB_COUNT:       .RES 1        ; 垂直同期をこれで分周した周期でスキャンする
+
+; 変数
 .BSS
 STACK:          .RES 16
 STACK_PTR:      .RES 1
@@ -33,6 +41,7 @@ INIT:
   ; 初期化
   JSR PS2::INIT
   STZ STACK_PTR
+  STZ VB_COUNT
   ; 割り込みハンドラの登録
   SEI
   loadAY16 VBLANK
@@ -55,7 +64,7 @@ LOOP:
   CLI
 @GET:
   JSR PRT_BYT     ; バイト表示
-  JSR PRT_LF      ; 改行
+  ;JSR PRT_LF      ; 改行
   BRA LOOP
 
 EXIT:
@@ -68,6 +77,12 @@ EXIT:
 
 ; 垂直同期割り込み処理
 VBLANK:
+  ; 分周
+  DEC VB_COUNT
+  BNE @EXT
+  LDA #VB_DEV
+  STA VB_COUNT
+  ; スキャン
   JSR PS2::SCAN
   BEQ @EXT                ; スキャンして0が返ったらデータなし
   ; データが返った
