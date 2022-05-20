@@ -35,8 +35,7 @@ KBRES_BAT_COMPLET   = $AA ; BATが成功
 ; GET : A=スキャンコード
 ; -------------------------------------------------------------------
 SCAN:
-  LDX #$20          ; タイマーX=(サイクル数-40)/13=(105-40)/13=5
-                    ; ええとつまり？
+  LDX #(CPUCLK*$20) ; 実測で420usの受信待ち
   ; クロックを入力にセット（とあるが両方入力にしている
   LDA VIA::PS2_DDR
   AND #<~(VIA::PS2_CLK|VIA::PS2_DAT)
@@ -57,12 +56,11 @@ SCAN:
   ; 選べる終わり方の選択肢
   ;RTS               ; データの有無だけを返す
   ;JMP GET           ; 直接スキャンコードを取得
-  PHX
+  PHX                ; 直接GETの途中に突入する
   PHY
   ; バイトとパリティのクリア
-  LDA #$00
-  StA BYTSAV
-  STA PARITY
+  STZ BYTSAV
+  STZ PARITY
   TAY
   LDX #$08            ; ビットカウンタ
   JMP GET_STARTBIT
@@ -76,13 +74,6 @@ SEND:
   PHX               ; レジスタ退避
   PHY
   STA LASTBYT       ; 失敗に備える
-  .IF PS2DEBUG
-    LDA #'S'
-    JSR PRT_CHR
-    LDA BYTSAV
-    JSR PRT_BYT
-    JSR PRT_S
-  .ENDIF
   ; クロックを下げ、データを上げる
   LDA VIA::PS2_REG
   AND #<~VIA::PS2_CLK
@@ -175,15 +166,10 @@ ERROR:
 GET:
   PHX
   PHY
-  .IFDEF DBG
-    LDA #'G'
-    JSR PRT_CHR
-    JSR PRT_S
-  .ENDIF
   ; バイトとパリティのクリア
   LDA #$00
-  StA BYTSAV
-  STA PARITY
+  STZ BYTSAV
+  STZ PARITY
   TAY
   LDX #$08            ; ビットカウンタ
   ; 両ピンを入力に
