@@ -114,6 +114,7 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
   .ENDPROC
   .PROC PS2
     .INCLUDE "ps2/serial_ps2.s"
+    .INCLUDE "ps2/decode_ps2.s"
   .ENDPROC
   .PROC IRQ
     .INCLUDE "interrupt.s"

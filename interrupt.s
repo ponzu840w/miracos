@@ -30,17 +30,27 @@ IRQ_BCOS:
   ; UART判定
   LDA UART::STATUS
   BIT #%00001000
-  BEQ @SKP_UART       ; bit3の論理積がゼロ、つまりフルじゃない
+  BEQ SKP_UART       ; bit3の論理積がゼロ、つまりフルじゃない
   ; すなわち受信割り込み
   LDA UART::RX        ; UARTから読み取り
-  BRA TRAP            ; 制御トラップおよびエンキュー
-@SKP_UART:
+  JSR TRAP            ; 制御トラップおよびエンキュー
+PL_CLI_RTI:
+  PLY
+  PLX
+  PLA
+  CLI
+  RTI
+SKP_UART:
   ; VIA判定
   LDA VIA::IFR        ; 割り込みフラグレジスタ読み取り
   LSR                 ; C = bit 0 CA2
   BCC @SKP_CA2
   ; 垂直同期割り込み処理
   ; NOTE:ここにキーボード処理など
+  JSR PS2::VBLANK
+  BEQ @SKP_PS2TRAP
+  JSR TRAP
+@SKP_PS2TRAP:
   JMP (VBLANK_USER_VEC16)
 @SKP_CA2:
 
@@ -104,10 +114,5 @@ SKIP_RTSOFF:
   ; ポインタ増加
   INC ZP_CONINBF_WR_P
   INC ZP_CONINBF_LEN
-PL_CLI_RTI:
-  PLY
-  PLX
-  PLA
-  CLI
-  RTI
+  RTS
 
