@@ -230,7 +230,7 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
                .byte $00               ; 57
                .byte $00               ; 58 caps
                .byte $00               ; 59 r shift
-               .byte $0D               ; 5A <Enter>
+               .byte $0A               ; 5A <Enter>
                .byte $5D               ; 5B ]}
                .byte $00               ; 5C
                .byte $5C               ; 5D \|

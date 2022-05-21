@@ -36,6 +36,7 @@ SRECBUILD = TRUE  ; TRUEで、テスト用のUARTによるロードに適した�
   .INCLUDE "gcon/zpgcon.s"
   .INCLUDE "fs/zpfs.s"
   .INCLUDE "zpbcos.s"
+  .INCLUDE "ps2/zpps2.s"
 
 ; 変数領域定義
 .SEGMENT "MONVAR"
