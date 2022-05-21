@@ -206,6 +206,9 @@ FUNC_RESET:
     PLA
     JSR FS::FUNC_FS_CLOSE           ; クローズ
   .ENDIF
+  SEI
+  JSR PS2::INIT
+  CLI
   JMP $5000                       ; CCP（仮）へ飛ぶ
   ;RTS
 

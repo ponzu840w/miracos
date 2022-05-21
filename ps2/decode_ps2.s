@@ -121,7 +121,7 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
                .byte $38               ; 3E 8*
                .byte $00               ; 3F
                .byte $00               ; 40
-               .byte $2C               ; 41 ,<
+               .byte ','               ; 41 ,<
                .byte $6B               ; 42 kK
                .byte $69               ; 43 iI
                .byte $6F               ; 44 oO
@@ -129,27 +129,27 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
                .byte $39               ; 46 9(
                .byte $00               ; 47
                .byte $00               ; 48
-               .byte $2E               ; 49 .>
+               .byte '.'               ; 49 .>
                .byte $2F               ; 4A /?
                .byte $6C               ; 4B lL
-               .byte $3B               ; 4C ;:
+               .byte ';'               ; 4C ;+
                .byte $70               ; 4D pP
-               .byte $2D               ; 4E -_
+               .byte '-'               ; 4E -=
                .byte $00               ; 4F
                .byte $00               ; 50
-               .byte $00               ; 51
-               .byte $27               ; 52 '"
+               .byte '\'               ; 51 \_
+               .byte ':'               ; 52 :*
                .byte $00               ; 53
-               .byte $5B               ; 54 [{
-               .byte $3D               ; 55 =+
+               .byte '@'               ; 54 @`
+               .byte '^'               ; 55 ^~
                .byte $00               ; 56
                .byte $00               ; 57
                .byte $00               ; 58 caps
                .byte $00               ; 59 r shift
                .byte $0A               ; 5A <Enter>
-               .byte $5D               ; 5B ]}
+               .byte '['               ; 5B [{
                .byte $00               ; 5C
-               .byte $5C               ; 5D \|
+               .byte ']'               ; 5D ]}
                .byte $00               ; 5E
                .byte $00               ; 5F
                .byte $00               ; 60
@@ -162,7 +162,7 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
                .byte $00               ; 67
                .byte $00               ; 68
                .byte $31               ; 69 kp 1
-               .byte $2f               ; 6A kp / converted from E04A in code
+               .byte '\'               ; 6A \|
                .byte $34               ; 6B kp 4
                .byte $37               ; 6C kp 7
                .byte $00               ; 6D
