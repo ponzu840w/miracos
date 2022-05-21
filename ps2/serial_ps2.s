@@ -38,7 +38,8 @@ KBRES_BAT_COMPLET   = $AA ; BATが成功
 ; GET : A=スキャンコード
 ; -------------------------------------------------------------------
 SCAN:
-  LDX #(CPUCLK*$20) ; 実測で420usの受信待ち
+  ;LDX #(CPUCLK*$50) ; 実測で420usの受信待ち
+  LDX #$FF
   ; クロックを入力にセット（とあるが両方入力にしている
   LDA VIA::PS2_DDR
   AND #<~(VIA::PS2_CLK|VIA::PS2_DAT)
