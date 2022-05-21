@@ -78,6 +78,16 @@ FUNC_IRQ_SETHNDR_VB:
 ; ASCIIを受け取り、制御キーをトラップし、キューに淹れる
 ; -------------------------------------------------------------------
 TRAP:
+  CMP #$03
+  BNE @SKP_C
+  LDX #6
+@LOOP:
+  PLA
+  DEX
+  BNE @LOOP
+  CLI
+  JMP FUNC_RESET
+@SKP_C:
 ENQ:
   LDX ZP_CONINBF_WR_P     ; バッファの書き込み位置インデックス
   STA CONINBF_BASE,X      ; バッファへ書き込み
