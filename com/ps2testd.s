@@ -15,13 +15,16 @@
 ; -------------------------------------------------------------------
 ;                              定数
 ; -------------------------------------------------------------------
-VB_DEV  = 1        ; 垂直同期をこれで分周した周期でスキャンする
+VB_DEV  = 2        ; 垂直同期をこれで分周した周期でスキャンする
+_VB_DEV_ENABLE = VB_DEV-1
 
 ; -------------------------------------------------------------------
 ;                        ゼロページ変数領域
 ; -------------------------------------------------------------------
 .ZEROPAGE
-VB_COUNT:           .RES 1
+.IF _VB_DEV_ENABLE
+  VB_COUNT:           .RES 1
+.ENDIF
 ZP_PS2SCAN_Q_WR_P:  .RES 1
 ZP_PS2SCAN_Q_RD_P:  .RES 1
 ZP_PS2SCAN_Q_LEN:   .RES 1
@@ -59,8 +62,10 @@ PS2SCAN_Q32:      .RES 32
 INIT:
   ; 初期化
   JSR PS2::INIT
-  LDA #VB_DEV
-  STA VB_COUNT
+  .IF _VB_DEV_ENABLE
+    LDA #VB_DEV
+    STA VB_COUNT
+  .ENDIF
   STZ ZP_PS2SCAN_Q_WR_P
   STZ ZP_PS2SCAN_Q_RD_P
   STZ ZP_PS2SCAN_Q_LEN
@@ -401,10 +406,12 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
 ; -------------------------------------------------------------------
 VBLANK:
   ; 分周
-  DEC VB_COUNT
-  BNE @EXT
-  LDA #VB_DEV
-  STA VB_COUNT
+  .IF _VB_DEV_ENABLE
+    DEC VB_COUNT
+    BNE @EXT
+    LDA #VB_DEV
+    STA VB_COUNT
+  .ENDIF
   ; スキャン
   JSR PS2::SCAN
   BEQ @EXT                    ; スキャンして0が返ったらデータなし
