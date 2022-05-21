@@ -228,7 +228,7 @@ GET_STARTBIT:
 INIT:
   ; スペシャルキー状態初期化
   LDA #KBLED_NUM      ; NUMLOCKのみがオン
-  STA SPECIAL
+  STA ZP_DECODE_STATE
 @RESET:
   ; リセットと自己診断
   LDA #KBCMD_RESET
@@ -246,7 +246,7 @@ SETLED:
   JSR GET
   CMP #KBRES_ACK
   BNE SETLED          ; ack待機
-  LDA SPECIAL         ; スペシャルの下位3bitがLED状態に対応
+  LDA ZP_DECODE_STATE         ; スペシャルの下位3bitがLED状態に対応
   AND #%00000111      ; bits 3-7 を0に 不要説あり
   JSR SEND
   JSR GET
