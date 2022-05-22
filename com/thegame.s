@@ -53,6 +53,7 @@ START:
   loadAY16 STR_INTRO
   syscall CON_OUT_STR
   JSR PRT_MAP                 ; イントロ専用マップ
+GAME:
 @GAME:
   ; 区切り線
   loadAY16 STR_DOUBLE_LINE
@@ -71,13 +72,7 @@ START:
   CMP HKL_Y
   BNE @NE
   ; 正解
-  loadAY16 STR_YOUFOUNDHIMIN
-  syscall CON_OUT_STR
-  LDA TIMES
-  JSR PRT_NUM
-  loadAY16 STR_GUESSES
-  syscall CON_OUT_STR
-  BRA @GAME
+  JMP GAMECLEAR
 @NE:
   ; 不正解
   loadAY16 STR_GO
@@ -112,7 +107,13 @@ START:
 @SKP_ADVX:
   JSR PRT_LF
   ; 更新
-  INC TIMES
+  LDA TIMES
+  CMP #5
+  BNE @SKP_GAMEOVER
+  JMP GAMEOVER
+@SKP_GAMEOVER:
+  INC
+  STA TIMES
   ; 区切り線
   loadAY16 STR_SINGLE_LINE
   syscall CON_OUT_STR
@@ -125,7 +126,7 @@ STR_INTRO:
 .BYT "========THE HURKLE GAME=========",$A
 .BYT "   A HURKLE is hiding on",$A
 .BYT "  a 10x10 grid.",$A
-.BYT "   Gridpoint is (0,0)...(9,9)",$A
+.BYT "   Gridpoint is (0,0)...(9,9).",$A
 .BYT "   Homebase is (0,0).",$A
 .BYT "   Try to guess the HURKLE's",$A
 .BYT "  gridpoint.",$A
@@ -142,10 +143,51 @@ STR_WEST:
 STR_EAST:
 .BYT "East",$0
 
-STR_YOUFOUNDHIMIN:
-.BYT "You found him in ",$0
-STR_GUESSES:
-.BYT " guesses.",$A,$0
+; -------------------------------------------------------------------
+;                          ゲームクリア
+; -------------------------------------------------------------------
+GAMECLEAR:
+  loadAY16 STR_GAMECLEAR1
+  syscall CON_OUT_STR
+  LDA TIMES
+  JSR PRT_NUM
+  loadAY16 STR_GAMECLEAR2
+  syscall CON_OUT_STR
+  JMP GAME
+
+STR_GAMECLEAR1:
+.BYT $A
+.BYT "********************************"
+.BYT "*                              *"
+.BYT "*          GAME CLEAR!         *"
+.BYT "*  YOU FOUND HIM IN ",$0
+
+STR_GAMECLEAR2:
+.BYT " GUESSES. *"
+.BYT "*                              *"
+.BYT "********************************",$A,$0
+
+; -------------------------------------------------------------------
+;                          ゲームオーバー
+; -------------------------------------------------------------------
+GAMEOVER:
+  loadAY16 STR_GAMEOVER
+  syscall CON_OUT_STR
+  LDA HKL_X
+  STA HOME_X
+  LDA HKL_Y
+  STA HOME_Y
+  JSR PRT_MAP
+  JMP GAME
+
+STR_GAMEOVER:
+.BYT $A
+.BYT "********************************"
+.BYT "*                              *"
+.BYT "* GAME OVER! 5 GUESSES FAILED. *"
+.BYT "*                              *"
+.BYT "********************************",$A
+.BYT "The HURKLE is at",$A,$0
 
 ; -------------------------------------------------------------------
 ;                           コンチヌー
