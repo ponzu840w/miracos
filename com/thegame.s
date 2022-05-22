@@ -15,18 +15,21 @@
 ; -------------------------------------------------------------------
 ;                             定数宣言
 ; -------------------------------------------------------------------
-MAP_OFST = 8
+MAP_OFST = 10
 
 ; -------------------------------------------------------------------
 ;                            ZP変数領域
 ; -------------------------------------------------------------------
 .ZEROPAGE
-ZX: .RES 1  ; スペクトラム？
-ZY: .RES 1
-HOME_X: .RES 1
-HOME_Y: .RES 1
-INPUT_X: .RES 1
-INPUT_Y: .RES 1
+ZX:       .RES 1  ; スペクトラム？
+ZY:       .RES 1
+HOME_X:   .RES 1
+HOME_Y:   .RES 1
+INPUT_X:  .RES 1
+INPUT_Y:  .RES 1
+HKL_X:    .RES 1
+HKL_Y:    .RES 1
+TIMES:    .RES 1
 
 ; -------------------------------------------------------------------
 ;                             変数領域
@@ -38,17 +41,85 @@ INPUT_Y: .RES 1
 ; -------------------------------------------------------------------
 .CODE
 START:
+  ; 変数初期化
   STZ HOME_X
   STZ HOME_Y
+  LDA #4
+  STA HKL_X
+  STA HKL_Y
+  LDA #1
+  STA TIMES
+  ; イントロ
   loadAY16 STR_INTRO
   syscall CON_OUT_STR
-  JSR PRT_MAP
+  JSR PRT_MAP                 ; イントロ専用マップ
+  ; 区切り線
+  loadAY16 STR_DOUBLE_LINE
+  syscall CON_OUT_STR
+@NEXT:
+  ; 入力
   JSR INPUT
+  JSR PRT_MAP
+  ; 正解判定
+  LDA HOME_X
+  CMP HKL_X
+  BNE @NE
+  LDA HOME_Y
+  CMP HKL_Y
+  BNE @NE
+  ; 正解
+  loadAY16 STR_YOUFOUNDHIMIN
+  syscall CON_OUT_STR
+  LDA TIMES
+  JSR PRT_NUM
+  loadAY16 STR_GUESSES
+  syscall CON_OUT_STR
+@NE:
+  ; 不正解
+  loadAY16 STR_GO
+  syscall CON_OUT_STR         ; "Go "まで表示
+  ; North/South
+  LDA HOME_Y
+  CMP HKL_Y                   ; INPUT-HKL
+  BEQ @SKP_ADVY
+  ; Yが不正解
+  BCC @GO_NORTH               ; ボロー発生つまりHKLのほうがNにいる
+@GO_SOUTH:
+  loadAY16 STR_SOUTH
+  BRA @PRT_N_S
+@GO_NORTH:
+  loadAY16 STR_NORTH
+@PRT_N_S:
+  syscall CON_OUT_STR         ; "North"か"South"を出力
+@SKP_ADVY:
+  ; West/East
+  LDA HOME_X
+  CMP HKL_X                   ; INPUT-HKL
+  BEQ @SKP_ADVX
+  ; Xが不正解
+  BCC @GO_EAST               ; ボロー発生つまりHKLのほうがNにいる
+@GO_WEST:
+  loadAY16 STR_WEST
+  BRA @PRT_W_E
+@GO_EAST:
+  loadAY16 STR_EAST
+@PRT_W_E:
+  syscall CON_OUT_STR         ; "North"か"South"を出力
+@SKP_ADVX:
+  JSR PRT_LF
+  ; 更新
+  INC TIMES
+  ; 区切り線
+  loadAY16 STR_SINGLE_LINE
+  syscall CON_OUT_STR
+  BRA @NEXT
   RTS
+
+CONTINUE:
 
 STR_INTRO:
 .BYT $A
-.BYT "========THE HURKLE GAME=========",$A
+.BYT "========THE HURKLE GAME========="
 .BYT "   A HURKLE is hiding on",$A
 .BYT "  a 10x10 grid.",$A
 .BYT "   Gridpoint is (0,0)...(9,9)",$A
@@ -56,6 +127,22 @@ STR_INTRO:
 .BYT "   Try to guess the HURKLE's",$A
 .BYT "  gridpoint.",$A
 .BYT "   You can only try 5 times!",$A,$0
+
+STR_GO:
+.BYT "Go ",$0
+STR_NORTH:
+.BYT "North",$0
+STR_SOUTH:
+.BYT "South",$0
+STR_WEST:
+.BYT "West",$0
+STR_EAST:
+.BYT "East",$0
+
+STR_YOUFOUNDHIMIN:
+.BYT "You found him in ",$0
+STR_GUESSES:
+.BYT " guesses.",$A,$0
 
 ; -------------------------------------------------------------------
 ;                              入力
@@ -73,6 +160,12 @@ INPUT:
   STA INPUT_Y
   LDA #')'
   JSR PRT_CHR
+  JSR PRT_LF
+  ; 入力を現在地に
+  LDA INPUT_X
+  STA HOME_X
+  LDA INPUT_Y
+  STA HOME_Y
   RTS
 
 LF_INPUT:
@@ -180,6 +273,11 @@ STR_W:
 .BYT $8,$8,$8,"(W)",$0
 STR_E:
 .BYT "(E)",$0
+
+STR_SINGLE_LINE:
+.BYT "--------------------------------",$0
+STR_DOUBLE_LINE:
+.BYT "================================",$0
 
 ; -------------------------------------------------------------------
 ;                     グリッド左オフセットの表示
