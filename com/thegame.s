@@ -30,6 +30,7 @@ INPUT_Y:  .RES 1
 HKL_X:    .RES 1
 HKL_Y:    .RES 1
 TIMES:    .RES 1
+ZP_RND_ADDR16:         .RES 2
 
 ; -------------------------------------------------------------------
 ;                             変数領域
@@ -41,6 +42,8 @@ TIMES:    .RES 1
 ; -------------------------------------------------------------------
 .CODE
 START:
+  syscall RND16
+  storeAY16 ZP_RND_ADDR16
   ; 変数初期化
   STZ HOME_X
   STZ HOME_Y
@@ -50,17 +53,21 @@ START:
   JSR PRT_MAP                 ; イントロ専用マップ
 GAME:
 @GAME:
-  ; 変数初期化
-  LDA #4
-  STA HKL_X
-  STA HKL_Y
-  LDA #1
-  STA TIMES
   ; 区切り線
   loadAY16 STR_DOUBLE_LINE
   syscall CON_OUT_STR
+  ; コンティニュー選択
   JSR CONTINUE
-  BCS @EXT
+  BCC @SKP_EXT
+  RTS
+@SKP_EXT:
+  ; 変数初期化
+  JSR GET_RND_D
+  STA HKL_X
+  JSR GET_RND_D
+  STA HKL_Y
+  LDA #1
+  STA TIMES
 @NEXT:
   ; 回数表示
   LDA #'#'
@@ -393,6 +400,38 @@ PRT_LF:
 PRT_S:
   LDA #' '
   BRA PRT_CHR
+
+; -------------------------------------------------------------------
+;                           10進1桁乱数取得
+; -------------------------------------------------------------------
+GET_RND_D:
+X5PLUS1RETRY:
+  LDA (ZP_RND_ADDR16)
+  ASL
+  ASL
+  SEC ;+1
+  ADC (ZP_RND_ADDR16)
+  STA (ZP_RND_ADDR16)
+  AND #$0F
+  CMP #$0F
+  BEQ X5PLUS1RETRY    ;ハイ次！
+  CMP #$0A
+  BMI SKIP_DECIMALIZE ;Aが比較する値よりも小さい場合はNが立ち
+  ASL
+  PHA
+  LDA (ZP_RND_ADDR16)
+  ASL
+  STA (ZP_RND_ADDR16)
+  PLA
+  SBC #$13            ;深遠なる理由で$13of$14を引くとよい
+  PHA
+  LDA (ZP_RND_ADDR16)
+  ROR
+  STA (ZP_RND_ADDR16)
+  PLA
+SKIP_DECIMALIZE:
+  AND #$0F
+  RTS
 
 ; -------------------------------------------------------------------
 ;                             データ領域
