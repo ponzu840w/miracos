@@ -172,8 +172,16 @@ FUNC_RESET:
   STA ZP_CON_DEV_CFG              ; 有効なコンソールデバイスの設定
   JSR FS::INIT                    ; ファイルシステムの初期化処理
   JSR GCON::INIT                  ; コンソール画面の初期化処理
+  SEI                             ; --- 割込みに関連する初期化
+  JSR PS2::INIT                   ; PS/2キーボードの初期化処理
+  JSR BCOS_UART::INIT             ; UARTの初期化処理
+  ; コンソール入力バッファの初期化
+  STZ ZP_CONINBF_RD_P
+  STZ ZP_CONINBF_WR_P
+  STZ ZP_CONINBF_LEN
+  ; 割り込みベクタ変更
   loadAY16 IRQ::IRQ_BCOS
-  storeAY16 ROM::IRQ_VEC16        ; 割り込みベクタ変更
+  storeAY16 ROM::IRQ_VEC16
   ; 垂直同期割り込みを設定する
   loadAY16 IRQ::VBLANK_STUB
   storeAY16 VBLANK_USER_VEC16     ; 垂直同期ユーザベクタ変更
@@ -184,6 +192,7 @@ FUNC_RESET:
   LDA VIA::IER                    ; 割り込み許可
   ORA #%10000001                  ; bit 0はCA2
   STA VIA::IER
+  CLI                             ; --- 割込みに関連する初期化終わり
   .IF !SRECBUILD                  ; 分離部分の配置は、UARTロードの時は不要
     ; SYSCALL.SYSを配置する
     loadAY16 PATH_SYSCALL
@@ -206,9 +215,6 @@ FUNC_RESET:
     PLA
     JSR FS::FUNC_FS_CLOSE           ; クローズ
   .ENDIF
-  SEI
-  JSR PS2::INIT
-  CLI
   JMP $5000                       ; CCP（仮）へ飛ぶ
   ;RTS
 

@@ -249,9 +249,9 @@ SETLED:
   LDA ZP_DECODE_STATE         ; スペシャルの下位3bitがLED状態に対応
   AND #%00000111      ; bits 3-7 を0に 不要説あり
   JSR SEND
-  JSR GET
-  CMP #KBRES_ACK
-  BNE SETLED          ; ack待機
+  ;JSR GET
+  ;CMP #KBRES_ACK
+  ;BNE SETLED          ; ack待機
   RTS
 
 HL:
