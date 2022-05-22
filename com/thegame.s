@@ -44,23 +44,30 @@ START:
   ; 変数初期化
   STZ HOME_X
   STZ HOME_Y
-  LDA #4
-  STA HKL_X
-  STA HKL_Y
-  LDA #1
-  STA TIMES
   ; イントロ
   loadAY16 STR_INTRO
   syscall CON_OUT_STR
   JSR PRT_MAP                 ; イントロ専用マップ
 GAME:
 @GAME:
+  ; 変数初期化
+  LDA #4
+  STA HKL_X
+  STA HKL_Y
+  LDA #1
+  STA TIMES
   ; 区切り線
   loadAY16 STR_DOUBLE_LINE
   syscall CON_OUT_STR
   JSR CONTINUE
   BCS @EXT
 @NEXT:
+  ; 回数表示
+  LDA #'#'
+  JSR PRT_CHR
+  LDA TIMES
+  JSR PRT_NUM
+  JSR PRT_S
   ; 入力
   JSR INPUT
   JSR PRT_MAP
