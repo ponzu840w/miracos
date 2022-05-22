@@ -135,8 +135,8 @@ PRT_MAP:
   LDA ZY                  ; Yの値を取得
   CMP #4                  ; 中心であるところの4か
   BNE @SKP_E
-  LDA #'E'
-  JSR PRT_CHR
+  loadAY16 STR_E
+  syscall CON_OUT_STR
 @SKP_E:
   JSR PRT_LF              ; 改行
   DEC ZY
@@ -160,11 +160,13 @@ PRT_MAP:
   RTS
 
 STR_N:
-.BYT "     N",$A,$0
+.BYT "    (N)",$A,$0
 STR_S:
-.BYT "     S",$A,$0
+.BYT "    (S)",$A,$0
 STR_W:
-.BYT $8,"W",$0
+.BYT $8,$8,$8,"(W)",$0
+STR_E:
+.BYT "(E)",$0
 
 ; -------------------------------------------------------------------
 ;                     グリッド左オフセットの表示
