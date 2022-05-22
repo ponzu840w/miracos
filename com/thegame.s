@@ -53,9 +53,12 @@ START:
   loadAY16 STR_INTRO
   syscall CON_OUT_STR
   JSR PRT_MAP                 ; イントロ専用マップ
+@GAME:
   ; 区切り線
   loadAY16 STR_DOUBLE_LINE
   syscall CON_OUT_STR
+  JSR CONTINUE
+  BCS @EXT
 @NEXT:
   ; 入力
   JSR INPUT
@@ -74,6 +77,7 @@ START:
   JSR PRT_NUM
   loadAY16 STR_GUESSES
   syscall CON_OUT_STR
+  BRA @GAME
 @NE:
   ; 不正解
   loadAY16 STR_GO
@@ -113,17 +117,16 @@ START:
   loadAY16 STR_SINGLE_LINE
   syscall CON_OUT_STR
   BRA @NEXT
+@EXT:
   RTS
-
-CONTINUE:
 
 STR_INTRO:
 .BYT $A
-.BYT "========THE HURKLE GAME========="
+.BYT "========THE HURKLE GAME=========",$A
 .BYT "   A HURKLE is hiding on",$A
 .BYT "  a 10x10 grid.",$A
 .BYT "   Gridpoint is (0,0)...(9,9)",$A
-;.BYT "   Homebase is (0,0).",$A
+.BYT "   Homebase is (0,0).",$A
 .BYT "   Try to guess the HURKLE's",$A
 .BYT "  gridpoint.",$A
 .BYT "   You can only try 5 times!",$A,$0
@@ -143,6 +146,31 @@ STR_YOUFOUNDHIMIN:
 .BYT "You found him in ",$0
 STR_GUESSES:
 .BYT " guesses.",$A,$0
+
+; -------------------------------------------------------------------
+;                           コンチヌー
+; -------------------------------------------------------------------
+; ESCならC=1
+; -------------------------------------------------------------------
+CONTINUE:
+  loadAY16 STR_CONTINUE
+  syscall CON_OUT_STR
+@CONTINUE_IN:
+  LDA #$1                   ; エコーなし入力
+  syscall CON_RAWIN
+  CMP #$1B                  ; ESC
+  BNE @SKP_ESC
+  SEC
+  RTS
+@SKP_ESC:
+  CMP #$A                   ; Enter
+  BNE @CONTINUE_IN
+  JSR PRT_LF
+  CLC
+  RTS
+
+STR_CONTINUE:
+.BYT ">Continue or Quit? (Enter/ESC)",$0
 
 ; -------------------------------------------------------------------
 ;                              入力
@@ -195,7 +223,7 @@ INPUT_NUM:
   RTS
 
 STR_INPUT:
-.BYT "What is your guess? (",$0
+.BYT ">What is your guess? (",$0
 
 ; -------------------------------------------------------------------
 ;                          グリッドの表示
