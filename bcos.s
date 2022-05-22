@@ -151,6 +151,7 @@ SYSCALL_TABLE:
   .WORD FS::FUNC_FS_FIND_NXT      ; 17 次のエントリの検索
   .WORD FS::FUNC_FS_READ_BYTS     ; 18 バイト数指定ファイル読み取り
   .WORD IRQ::FUNC_IRQ_SETHNDR_VB  ; 19 垂直同期割り込みハンドラ登録
+  .WORD FUNC_RND16                ; 20 16bit乱数のアドレスを取得
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
@@ -275,6 +276,11 @@ FUNC_CON_RAWIN:
   ROR
   BCS @SKP_WAIT         ; FDでなければ（FFなら）待機はしない
 @WAIT:
+  ; 乱数の更新
+  INC ZP_RND16
+  BNE @SKP_RNDH
+  INC ZP_RND16+1
+@SKP_RNDH:
   LDA ZP_CONINBF_LEN
   BEQ @WAIT             ; バッファに何もないなら待つ
 @SKP_WAIT:
@@ -390,5 +396,14 @@ FUNC_UPPER_STR:
   STA (ZR0),Y
   BRA @LOOP
 @END:
+  RTS
+
+; -------------------------------------------------------------------
+; BCOS 20                16bit乱数アドレス取得
+; -------------------------------------------------------------------
+; output    : AY = rand_ptr
+; -------------------------------------------------------------------
+FUNC_RND16:
+  loadAY16 ZP_RND16
   RTS
 
