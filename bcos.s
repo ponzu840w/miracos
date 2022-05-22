@@ -8,7 +8,7 @@
 ; アセンブル設定スイッチ
 TRUE = 1
 FALSE = 0
-SRECBUILD = TRUE  ; TRUEで、テスト用のUARTによるロードに適した形にする
+SRECBUILD = FALSE  ; TRUEで、テスト用のUARTによるロードに適した形にする
 
 .INCLUDE "FXT65.inc"
 .INCLUDE "generic.mac"
