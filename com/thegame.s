@@ -64,14 +64,20 @@ INPUT:
   loadAY16 STR_INPUT
   syscall CON_OUT_STR       ; 入力プロンプト
   JSR INPUT_NUM             ; 数字のみ受け付け
+  BCS LF_INPUT
   STA INPUT_X
   LDA #','
   JSR PRT_CHR
   JSR INPUT_NUM             ; 数字のみ受け付け
+  BCS LF_INPUT
   STA INPUT_Y
   LDA #')'
   JSR PRT_CHR
   RTS
+
+LF_INPUT:
+  JSR PRT_LF
+  BRA INPUT
 
 ; -------------------------------------------------------------------
 ;                         10進一桁の入力
@@ -79,6 +85,11 @@ INPUT:
 INPUT_NUM:
   LDA #$1                   ; エコーなし入力
   syscall CON_RAWIN
+  CMP #$1B                  ; ESC
+  BNE @SKP_ESC
+  SEC
+  RTS
+@SKP_ESC:
   CMP #'0'
   BCC INPUT_NUM             ; A<'0'
   CMP #'9'+1
@@ -86,6 +97,8 @@ INPUT_NUM:
   PHA
   syscall CON_OUT_CHR
   PLA
+  AND #$0F                  ; 内部表現に
+  CLC
   RTS
 
 STR_INPUT:
