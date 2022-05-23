@@ -143,7 +143,7 @@ SP_BRK:
   RTS
 
 CHK_SPCODES: ; kbcsrch            ; 14種類の特殊コードがあればベクタテーブルで処理する
-  LDX #$0E                        ; ループ回数
+  LDX #(SP_VECLST-SP_LST-1)         ; ループ回数
 @LOOP_CHK:
   CMP SP_LST,X                    ; チェック対象リストに対照
   BEQ @JUMP                       ; マッチしたらベクタに跳ぶ
@@ -162,12 +162,12 @@ SP_LST:
 .BYT $59               ; Rshift
 .BYT $14               ; ctrl
 .BYT $E1               ; Extended pause break 
-
+;
 .BYT $E0               ; Extended key handler
 .BYT $F0               ; Release 1 BYT key code
 .BYT $FA               ; Ack
 .BYT $AA               ; POST passed
-
+;
 .BYT $EE               ; Echo
 .BYT $FE               ; resend
 .BYT $FF               ; overflow/error
@@ -180,12 +180,12 @@ SP_VECLST:
 .WORD SP_SET_SHIFT      ; Rshift
 .WORD SP_SET_CTRL       ; ctrl
 .WORD SP_BRK            ; Extended pause break
-
+;
 .WORD SP_E0EXT          ; Extended key handler
 .WORD SP_RLS            ; Release 1 BYT key code
 .WORD SP_NULL           ; Ack
 .WORD SP_NULL           ; POST passed
-
+;
 .WORD SP_NULL           ; Echo
 .WORD SP_RESEND         ; resend
 .WORD FLUSH             ; overflow/error
