@@ -10,11 +10,14 @@
 ; -------------------------------------------------------------------
 ;                              定数
 ; -------------------------------------------------------------------
-VB_DEV  = 1        ; 垂直同期をこれで分周した周期でスキャンする
-_VB_DEV_ENABLE = VB_DEV-1
+VB_DEV  = 1                 ; 垂直同期をこれで分周した周期でスキャンする
+_VB_DEV_ENABLE = VB_DEV-1   ; VB_DEVが1だとこれが偽になり、分周コード省略
 
 ; -------------------------------------------------------------------
 ;                          垂直同期割り込み
+; -------------------------------------------------------------------
+; （場合によっては分周した周期の）垂直同期のタイミングでスキャンし、
+; あれば多バイト分処理する
 ; -------------------------------------------------------------------
 VBLANK:
   ; 分周
@@ -30,25 +33,163 @@ VBLANK:
   ; データが返った
   ; スキャンコードのASCIIデコード
 @PROCESSING_SCAN_CODE:
-  ; ブレイクコード状態をチェック
-  BBR5 ZP_DECODE_STATE,@PLAIN     ; ブレイク状態ビットが立っていなかったら普通
-  ; ブレイクコード
-@BREAK:
-  RMB5 ZP_DECODE_STATE
-  LDA #0
-  BRA @EXT
-  ; 曇りなき目
-@PLAIN:
-  CMP #$F0
-  BNE @SKP_SETBREAK
-  SMB5 ZP_DECODE_STATE            ; ブレイク状態ビットセット
-  BRA @EXT
-@SKP_SETBREAK:
-  ; $F0ではない
+  JSR CHK_SPCODES                 ; 特殊処理
+@kbvnvt:
+  BEQ @EXT                        ; 0なら無視
+  TAX                             ; 処理されたスキャンコードをテーブルインデックスに
+  ; NOTE:ここに78,69,7E,02,numpad
+@TEST_SHIFT:
+  LDA ZP_DECODE_STATE
+  BIT #STATE_SHIFT                ; シフトが押されてるか
+  BEQ @NOSHIFT
+@SHIFT:     ; kbcnvt2
+  TXA
+  ORA #%10000000
   TAX
-  LDA ASCIITBL,X                  ; ASCII変換
+@NOSHIFT:   ; kbcnvt3
+  LDA ZP_DECODE_STATE
+  BIT #STATE_CTRL                 ; コントロールが押されているか
+  BEQ @NOCTRL
+@CTRL:
+  LDA ASCIITBL,X
+  CMP #$8F
+  ;BEQ REINIT
+  AND #$1F
+  BRA @EXT
+  ;TAX
+  BRA @DONE
+@NOCTRL:    ; kbcnvt4
+  LDA ASCIITBL,X
+  BEQ @EXT
+  ; NOTE:CAPS処理
+@DONE:
+  ; Aにアスキーコードが
 @EXT:
+  RTS                             ; 0以外はトラップされる
+
+; -------------------------------------------------------------------
+;                    スキャンコード処理ルーチン群
+; -------------------------------------------------------------------
+; シフトキー押下
+SP_SET_SHIFT:
+  LDA #STATE_SHIFT
+  .BYT $2C
+; コントロールキー押下
+SP_SET_CTRL:
+  LDA #STATE_CTRL
+  ORA ZP_DECODE_STATE
+  STA ZP_DECODE_STATE
+  BRA SP_NULL
+
+; 再送要求をくらった
+SP_RESEND:
+  LDA LASTBYT
+  JSR SEND
+  ;BRA SP_NULL          ; NULLまでの間のコードを省いたので直通
+
+; なにもしない
+SP_NULL:
+  LDA #0
   RTS
+
+; E0拡張
+SP_E0EXT:
+  JSR GET         ; 次のコードを取得する
+  CMP #$F0        ; 拡張リリースか？
+  BEQ @RLS        ; 拡張リリース
+  CMP #$14        ; 右CTRL
+  BEQ SP_SET_CTRL
+  ; NOTE:ここに4つの置換コード
+  CMP #$03
+; E0リリース
+@RLS:
+  CMP #$12            ; E0F012
+  BNE SP_RLS_CHKCTRL  ; でなければふつうのリリース
+  BRA SP_NULL
+
+; リリース
+SP_RLS:
+  JSR GET
+  CMP #$12      ; 左シフト
+  BEQ SP_RLS_SHIFT
+  CMP #$59      ; 右シフト
+  BEQ SP_RLS_SHIFT
+SP_RLS_CHKCTRL:
+  CMP #$14      ; CTRL
+  BEQ SP_RLS_CTRL
+  CMP #$11      ; ALT
+  BNE SP_NULL   ; シフト、コントロール、オルト以外のリリースは無視
+                ; では困るのだが
+@ALT:
+  LDA #$13      ; ALTリリースで13を返す真意はわからない
+  RTS
+SP_RLS_CTRL:
+  LDA #<~STATE_CTRL
+  .BYT $2C
+SP_RLS_SHIFT:
+  LDA #<~STATE_SHIFT
+  AND ZP_DECODE_STATE
+  STA ZP_DECODE_STATE
+  BRA SP_NULL
+
+; ブレイク
+SP_BRK:
+  LDX #$07
+@LOOP:
+  JSR GET
+  DEX
+  BNE @LOOP
+  LDA #$10
+  RTS
+
+CHK_SPCODES: ; kbcsrch            ; 14種類の特殊コードがあればベクタテーブルで処理する
+  LDX #$0E                        ; ループ回数
+@LOOP_CHK:
+  CMP SP_LST,X                    ; チェック対象リストに対照
+  BEQ @JUMP                       ; マッチしたらベクタに跳ぶ
+  DEX
+  BPL @LOOP_CHK
+  RTS                             ; マッチしない
+@JUMP:
+  TXA                             ; マッチしたインデックスをAに
+  ASL                             ; 16bit幅ベクタに適合するようにx2
+  TAX                             ; Xに
+  LDA BYTSAV                      ; 元のスキャンコードをAに復帰
+  JMP (SP_VECLST,X)               ; 各ベクタにジャンプ
+
+SP_LST:
+.BYT $12               ; Lshift
+.BYT $59               ; Rshift
+.BYT $14               ; ctrl
+.BYT $E1               ; Extended pause break 
+
+.BYT $E0               ; Extended key handler
+.BYT $F0               ; Release 1 BYT key code
+.BYT $FA               ; Ack
+.BYT $AA               ; POST passed
+
+.BYT $EE               ; Echo
+.BYT $FE               ; resend
+.BYT $FF               ; overflow/error
+.BYT $00               ; underflow/error
+;
+; command/scancode jump table
+; 
+SP_VECLST:
+.WORD SP_SET_SHIFT      ; Lshift
+.WORD SP_SET_SHIFT      ; Rshift
+.WORD SP_SET_CTRL       ; ctrl
+.WORD SP_BRK            ; Extended pause break
+
+.WORD SP_E0EXT          ; Extended key handler
+.WORD SP_RLS            ; Release 1 BYT key code
+.WORD SP_NULL           ; Ack
+.WORD SP_NULL           ; POST passed
+
+.WORD SP_NULL           ; Echo
+.WORD SP_RESEND         ; resend
+.WORD FLUSH             ; overflow/error
+.WORD FLUSH             ; underflow/error
 
 ;*************************************************************
 ;
