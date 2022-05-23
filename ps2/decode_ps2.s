@@ -404,24 +404,24 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
                .byte $3E               ; C9 .>
                .byte $3F               ; CA /?
                .byte $4C               ; CB lL
-               .byte $3A               ; CC ;:
+               .byte '+'               ; CC ;+
                .byte $50               ; CD pP
-               .byte $5F               ; CE -_
+               .byte '='               ; CE -=
                .byte $00               ; CF
                .byte $00               ; D0
-               .byte $00               ; D1
-               .byte $22               ; D2 '"
+               .byte '_'               ; D1 \_
+               .byte '*'               ; D2 :*
                .byte $00               ; D3
-               .byte $7B               ; D4 [{
-               .byte $2B               ; D5 =+
+               .byte '`'               ; D4 @`
+               .byte '~'               ; D5 ^~
                .byte $00               ; D6
                .byte $00               ; D7
                .byte $00               ; D8 caps
                .byte $00               ; D9 r shift
-               .byte $0D               ; DA <Enter>
-               .byte $7D               ; DB ]}
+               .byte $0A               ; DA <Enter>
+               .byte '{'               ; DB [{
                .byte $00               ; DC
-               .byte $7C               ; DD \|
+               .byte '}'               ; DD ]}
                .byte $00               ; DE
                .byte $00               ; DF
                .byte $00               ; E0
@@ -434,7 +434,7 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
                .byte $00               ; E7
                .byte $00               ; E8
                .byte $91               ; E9 kp 1
-               .byte $2f               ; EA kp / converted from E04A in code
+               .byte '|'               ; EA \|
                .byte $94               ; EB kp 4
                .byte $97               ; EC kp 7
                .byte $00               ; ED
