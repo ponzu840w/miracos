@@ -51,9 +51,11 @@ SET_TCP:
 
 INIT:
   ; 2色モードの色を白黒に初期化
-  LDA #$00                  ; 黒
+  ;LDA #$00                  ; 黒
+  LDA #$44                  ; 青
   STA COL_BACK              ; 背景色に設定
-  LDA #$03                  ; 緑
+  ;LDA #$03                  ; 緑
+  LDA #$FF                  ; 緑
   STA COL_MAIN              ; 文字色に設定
   JSR CLEAR_TXTVRAM         ; TRAMの空白埋め
 ENTER_TXTMODE:
