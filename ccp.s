@@ -140,23 +140,12 @@ ICOM_NOTFOUND:
   JSR TPA                         ; コマンドを呼ぶ
   JMP LOOP
 
-ICOM_REBOOT:
 COMMAND_NOTFOUND:
 ; いよいよもってコマンドが見つからなかった
   PLY                             ; 引数を捨てる
   PLA
   loadAY16 STR_COMNOTFOUND
   syscall CON_OUT_STR
-  JMP LOOP
-
-; -------------------------------------------------------------------
-;                        ROMモニタに落ちる
-; -------------------------------------------------------------------
-ICOM_EXIT:
-  loadAY16 STR_GOODBYE
-  syscall CON_OUT_STR
-  BRK
-  NOP
   JMP LOOP
 
 ; -------------------------------------------------------------------
@@ -255,63 +244,6 @@ ICOM_CD:
   JMP BCOS_ERROR
 @SKP_ERR:
   JMP LOOP
-
-; -------------------------------------------------------------------
-;                        画面の色を変える
-; -------------------------------------------------------------------
-ICOM_COLOR:
-  loadAY16 STR_ICOM_COLOR_START
-  syscall CON_OUT_STR                 ; 説明文
-@LOOP:
-  LDA #2
-  syscall CON_RAWIN                   ; コマンド入力
-@J:
-  CMP #'j'
-  BNE @K
-  LDA #0
-  JSR @GET
-  DEY
-  LDA #2
-  JSR @PUT
-  BRA @LOOP
-@K:
-  CMP #'k'
-  BNE @H
-  LDA #0
-  JSR @GET
-  INY
-  LDA #2
-  JSR @PUT
-  BRA @LOOP
-@H:
-  CMP #'h'
-  BNE @L
-  LDA #1
-  JSR @GET
-  DEY
-  LDA #3
-  JSR @PUT
-  BRA @LOOP
-@L:
-  CMP #'l'
-  BNE @ENT
-  LDA #1
-  JSR @GET
-  INY
-  LDA #3
-  JSR @PUT
-@ENT:
-  CMP #$A
-  BNE @LOOP
-  JSR PRT_LF
-  JMP LOOP
-@GET:
-  syscall GCHR_COL
-  TAY
-  RTS
-@PUT:
-  syscall GCHR_COL
-  RTS
 
 ICOM_TEST:
   JSR TPA
@@ -496,27 +428,26 @@ ANALYZE_PATH:
 ; -------------------------------------------------------------------
 STR_INITMESSAGE:  .BYT "MIRACOS 0.03 for FxT-65",$A,$0 ; 起動時メッセージ
 STR_COMNOTFOUND:  .BYT "Unknown Command.",$A,$0
-STR_ICOM_COLOR_START:  .BYT "Console Color Setting.",$A,"j,k  : Character",$A,"h,l  : Background",$A,"ENTER: Complete",$0
 STR_GOODBYE:      .BYT "Good Bye.",$A,$0
 STR_DOT:          .BYT ".",$0                             ; これの絶対パスを得ると、それはカレントディレクトリ
 
 ; -------------------------------------------------------------------
 ;                        内部コマンドテーブル
 ; -------------------------------------------------------------------
-ICOMNAMES:        .ASCIIZ "EXIT"        ; 0
+ICOMNAMES:        ;.ASCIIZ "EXIT"        ; 0
                   .ASCIIZ "CD"          ; 1
-                  .ASCIIZ "REBOOT"      ; 2
-                  .ASCIIZ "COLOR"       ; 3
+                  ;.ASCIIZ "REBOOT"      ; 2
+                  ;.ASCIIZ "COLOR"       ; 3
                   .ASCIIZ "DIR"         ; 4
                   .ASCIIZ "TEST"        ; 5
                   .ASCIIZ "LS"          ; 6
                   .ASCIIZ "DONKI"       ; 7
                   .BYT $0
 
-ICOMVECS:         .WORD ICOM_EXIT
+ICOMVECS:         ;.WORD ICOM_EXIT
                   .WORD ICOM_CD
-                  .WORD ICOM_REBOOT
-                  .WORD ICOM_COLOR
+                  ;.WORD ICOM_REBOOT
+                  ;.WORD ICOM_COLOR
                   .WORD ICOM_DIR
                   .WORD ICOM_TEST
                   .WORD ICOM_LS
