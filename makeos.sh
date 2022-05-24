@@ -8,6 +8,7 @@ mkdir ./bin/MCOS/COM -p
 cl65 -g -Wl -Ln,./listing/symbol-bcos.s  -l ./listing/list-bcos.s -m ./listing/map-bcos.s -vm -t none -C ./confcos.cfg -o ./bin/BCOS.SYS ./bcos.s
 
 # コマンドアセンブル
+rm ./bin/MCOS/COM/*                 # 古いバイナリを廃棄
 com_srcs=$(find ./com/*.s)
 for comsrc in $com_srcs;            # com内の.sファイルすべてに対して
 do
