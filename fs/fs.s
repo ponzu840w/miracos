@@ -75,10 +75,40 @@ INIT:
 ; BCOS 21             ファイルセクタ読み取り
 ; -------------------------------------------------------------------
 ; ディスクファイルが前提（チェックを入れる？）
-; input :ZR0=fd, AY=bfptr
+; input :A=fd, Y=>bfptr
 ; output:C=EOF
 ; -------------------------------------------------------------------
-FUNC_FS_READ_SEC:
+FUNC_FS_READ_SEC_FST:
+  PHY                             ; bfptr上位を対比
+  JSR LOAD_FWK_MAKEREALSEC
+  PLA                             ; bfptr上位を復帰
+; -------------------------------------------------------------------
+; BCOS 22            ファイルセクタ読み取り次
+; -------------------------------------------------------------------
+; input :A=>bfptr
+; output:C=EOF
+; -------------------------------------------------------------------
+FUNC_FS_READ_SEC_NXT:
+  JSR RDSEC_A_DST                 ; ディスティネーションを任意設定してセクタ読み取り
+  ; 後片付け
+  LDA #2
+  JSR L_ADD_BYT
+  RTS
+
+; -------------------------------------------------------------------
+;                         リアルセクタ作成
+; -------------------------------------------------------------------
+; input   :A=fd
+; output  :FWKがREAL_SECが展開された状態で作成される
+; -------------------------------------------------------------------
+LOAD_FWK_MAKEREALSEC:
+  JSR LOAD_FWK                    ; AのFDからFCTRL構造体をロード
+  loadreg16 FWK_REAL_SEC          ; FWKのリアルセクタのポインタを
+  JSR AX_DST                      ;   書き込み先にして
+  loadreg16 FWK+FCTRL::CUR_CLUS   ; 現在クラスタのポインタを
+  JSR CLUS2SEC_AXS                ;   ソースにしてクラスタtoセクタ変換
+  LDA FWK+FCTRL::CUR_SEC          ; 現在セクタ
+  JSR L_ADD_BYT                   ; リアルセクタに現在セクタを加算
   RTS
 
 ; -------------------------------------------------------------------
@@ -99,14 +129,7 @@ FUNC_FS_READ_BYTS:
   STZ ZR3
   STZ ZR3+1                       ; ZR3を実際に読み取ったバイト数のカウンタとして初期化
   LDA ZR1                         ; FDをAに
-  JSR LOAD_FWK                    ; FDからFCTRL構造体をロード
-  loadreg16 FWK_REAL_SEC          ; リアルセクタ
-  JSR AX_DST                      ; 書き込み先に
-  loadreg16 FWK+FCTRL::CUR_CLUS   ; 現在クラスタのポインタ
-  JSR CLUS2SEC_AXS                ; ソースにしてクラスタセクタ変換
-  ;LDY FWK+FCTRL::CUR_SEC          ; 現在セクタ
-  LDA FWK+FCTRL::CUR_SEC          ; 現在セクタ
-  JSR L_ADD_BYT                   ; リアルセクタに現在セクタを加算
+  JSR LOAD_FWK_MAKEREALSEC        ; FDからFCTRL構造体をロード、リアルセクタ作成
   JSR RDSEC                       ; セクタ読み取り、SDSEEKは起点
   ; シークポインタの初期位置を計算
   LDA FWK+FCTRL::SEEK_PTR+1       ; 第1バイト
@@ -742,7 +765,13 @@ LOAD_DWK:
   RTS
 
 RDSEC:
-  loadmem16 ZP_SDSEEK_VEC16,SECBF512
+  ;loadmem16 ZP_SDSEEK_VEC16,SECBF512         ; SECBFに縛るのは面白くない
+  ;loadAY16 SECBF512                          ; 分割するとき、どうせ下位はゼロなのだからloadAYはナンセンス
+  LDA #>SECBF512
+RDSEC_A_DST:                                  ; Aが読み取り先ページを示す
+  ;storeAY16 ZP_SDSEEK_VEC16                  ; ナンセンス
+  STA ZP_SDSEEK_VEC16+1
+  STZ ZP_SDSEEK_VEC16
   loadmem16 ZP_SDCMDPRM_VEC16,(FWK_REAL_SEC)  ; NOTE:FWK_REAL_SECを読んで監視するBP
   JSR SD::RDSEC
   SEC
