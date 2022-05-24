@@ -22,4 +22,5 @@ FS_FIND_NXT         = 17
 FS_READ_BYTS        = 18
 IRQ_SETHNDR_VB      = 19
 RND16               = 20
+FS_READ_SEC         = 21
 
