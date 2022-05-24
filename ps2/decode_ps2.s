@@ -358,7 +358,7 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
                .byte $53               ; 9B sS
                .byte $41               ; 9C aA
                .byte $57               ; 9D wW
-               .byte $40               ; 9E 2@
+               .byte '"'               ; 9E 2'"'
                .byte $E1               ; 9F Windows 98 menu key (left side)
                .byte $02               ; A0 relocated ctrl-break key
                .byte $43               ; A1 cC
@@ -382,23 +382,23 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
                .byte $48               ; B3 hH
                .byte $47               ; B4 gG
                .byte $59               ; B5 yY
-               .byte $5E               ; B6 6^
+               .byte '&'               ; B6 6&
                .byte $00               ; B7
                .byte $00               ; B8
                .byte $00               ; B9
                .byte $4D               ; BA mM
                .byte $4A               ; BB jJ
                .byte $55               ; BC uU
-               .byte $26               ; BD 7&
-               .byte $2A               ; BE 8*
+               .byte '''               ; BD 7'
+               .byte '('               ; BE 8(
                .byte $00               ; BF
                .byte $00               ; C0
                .byte $3C               ; C1 ,<
                .byte $4B               ; C2 kK
                .byte $49               ; C3 iI
                .byte $4F               ; C4 oO
-               .byte $29               ; C5 0)
-               .byte $28               ; C6 9(
+               .byte $00               ; C5 0
+               .byte ')'               ; C6 9)
                .byte $00               ; C7
                .byte $00               ; C8
                .byte $3E               ; C9 .>
