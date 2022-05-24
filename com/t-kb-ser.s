@@ -30,11 +30,12 @@ VB_STUB:        .RES 2
                     ; まったくアセンブラの都合で増えた余計なジャンプ命令
 
 .PROC PS2
+  .ZEROPAGE
+    .INCLUDE "../ps2/zpps2.s"
+  .CODE
     .INCLUDE "../ps2/serial_ps2.s"
   .BSS
     .INCLUDE "../ps2/varps2.s"
-  .ZEROPAGE
-    .INCLUDE "../ps2/zpps2.s"
 .ENDPROC
 
 .CODE
