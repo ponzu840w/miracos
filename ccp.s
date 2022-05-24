@@ -111,14 +111,45 @@ EXEC_ICOM:                        ; Xで渡された内部コマンド番号を�
 ; -------------------------------------------------------------------
 
 ; -------------------------------------------------------------------
-;                          見つからない
+;                    内部コマンドが見つからない
 ; -------------------------------------------------------------------
 ICOM_NOTFOUND:
-; 外部コマンド実行（引数がプッシュされている
+  ; 外部コマンド実行（引数がプッシュされている
+FIND_CURDIRCOM:
+  ; カレントディレクトリでの検索
   loadAY16 COMMAND_BUF            ; 元のコマンド行を（壊してないっけか？
-  ;syscall FS_FPATH                ; フルパス取得
+  syscall FS_FIND_FST             ; 検索
+  BCC OCOM_FOUND                  ; 見つかったらパス検索しない
+FIND_INSTALLEDCOM:
+  ; パスの通った部分での検索
+  ; /チェック
+  loadAY16 COMMAND_BUF            ; 元のコマンド行を
+  syscall FS_PURSE                ; パース
+  BBS4 ZR1,COMMAND_NOTFOUND       ; /を含むパスならあきらめる
+  ; 長さチェック
+  loadAY16 COMMAND_BUF            ; 元のコマンド行を
+  JSR M_LEN                       ; 長さ取得
+  CPY #$9
+  BCS COMMAND_NOTFOUND            ; 8文字を超える（A>=9）ならあきらめる
+  ; 検索に着手
+  loadmem16 ZR1,PATH_COM_DIREND   ; 固定パスの最後に
+  loadAY16 COMMAND_BUF            ; 元のコマンド行を
+  JSR M_CP_AYS                    ; コピーして
+  ; .COMを付ける
+  LDX #0  ; ロード側インデックス
+@LOOP:
+  LDA PATH_DOTCOM,X
+  STA PATH_COM_DIREND,Y
+  INY     ; ストア側インデックス
+  INX
+  CPX #5
+  BNE @LOOP
+  loadAY16 PATH_COM               ; 合体したパスを
+  ; [DEBUG]
+  ;syscall CON_OUT_STR             ; ひょうじ
   syscall FS_FIND_FST             ; 検索
   BCS COMMAND_NOTFOUND            ; 見つからなかったらあきらめる
+OCOM_FOUND:
   storeAY16 ZR3                   ; FINFOをZR3に格納
   syscall FS_OPEN                 ; コマンドファイルをオープン
   BCS COMMAND_NOTFOUND            ; オープンできなかったらあきらめる
@@ -245,6 +276,11 @@ ICOM_CD:
 @SKP_ERR:
   JMP LOOP
 
+; -------------------------------------------------------------------
+;                    ロードを省略してTPAを実行
+; -------------------------------------------------------------------
+; SREC読み込みでテスト実行するのに便利
+; -------------------------------------------------------------------
 ICOM_TEST:
   JSR TPA
   JMP LOOP
@@ -260,32 +296,32 @@ BCOS_ERROR:
   syscall ERR_MES
   JMP LOOP
 
-PRT_BIN:
-  LDX #8
-@LOOP:
-  ASL
-  PHA
-  LDA #'0'    ; キャリーが立ってなければ'0'
-  BCC @SKP_ADD1
-  INC         ; キャリーが立ってたら'1'
-@SKP_ADD1:
-  PHX
-  syscall CON_OUT_CHR
-  PLX
-  PLA
-  DEX
-  BNE @LOOP
-  RTS
+;PRT_BIN:
+;  LDX #8
+;@LOOP:
+;  ASL
+;  PHA
+;  LDA #'0'    ; キャリーが立ってなければ'0'
+;  BCC @SKP_ADD1
+;  INC         ; キャリーが立ってたら'1'
+;@SKP_ADD1:
+;  PHX
+;  syscall CON_OUT_CHR
+;  PLX
+;  PLA
+;  DEX
+;  BNE @LOOP
+;  RTS
 
-PRT_BYT:
-  JSR BYT2ASC
-  PHY
-  JSR PRT_C_CALL
-  PLA
-PRT_C_CALL:
-  syscall CON_OUT_CHR
-  RTS
-
+;PRT_BYT:
+;  JSR BYT2ASC
+;  PHY
+;  JSR PRT_C_CALL
+;  PLA
+;PRT_C_CALL:
+;  syscall CON_OUT_CHR
+;  RTS
+;
 PRT_LF:
   ; 改行
   LDA #$A
@@ -294,31 +330,34 @@ PRT_LF:
 PRT_S:
   ; スペース
   LDA #' '
-  JMP PRT_C_CALL
-
-BYT2ASC:
-  ; Aで与えられたバイト値をASCII値AYにする
-  ; Aから先に表示すると良い
-  PHA           ; 下位のために保存
-  AND #$0F
-  JSR NIB2ASC
-  TAY
-  PLA
-  LSR           ; 右シフトx4で上位を下位に持ってくる
-  LSR
-  LSR
-  LSR
-  JSR NIB2ASC
+  ;JMP PRT_C_CALL
+PRT_C_CALL:
+  syscall CON_OUT_CHR
   RTS
 
-NIB2ASC:
-  ; #$0?をアスキー一文字にする
-  ORA #$30
-  CMP #$3A
-  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
-  ADC #$06
-@SKP_ADC:
-  RTS
+;BYT2ASC:
+;  ; Aで与えられたバイト値をASCII値AYにする
+;  ; Aから先に表示すると良い
+;  PHA           ; 下位のために保存
+;  AND #$0F
+;  JSR NIB2ASC
+;  TAY
+;  PLA
+;  LSR           ; 右シフトx4で上位を下位に持ってくる
+;  LSR
+;  LSR
+;  LSR
+;  JSR NIB2ASC
+;  RTS
+;
+;NIB2ASC:
+;  ; #$0?をアスキー一文字にする
+;  ORA #$30
+;  CMP #$3A
+;  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
+;  ADC #$06
+;@SKP_ADC:
+;  RTS
 
 M_EQ_AY:
   ; AYとZR0が等しいかを返す
@@ -359,6 +398,7 @@ M_LEN_RTS:
 
 M_CP_AYS:
   ; 文字列をコピーする
+  ; DST=ZR1
   STA ZR0
   STY ZR0+1
   LDY #$FF
@@ -369,60 +409,6 @@ M_CP_AYS:
   BEQ M_LEN_RTS
   BRA @LOOP
 
-ANALYZE_PATH:
-  ; あらゆる種類のパスを解析する
-  ; ディスクアクセスはしない
-  ; input : AY=パス先頭
-  ; output: A=分析結果
-  ;           bit3:/で終わる
-  ;           bit2:ルートディレクトリを指す
-  ;           bit1:ルートから始まる（相対パスでない
-  ;           bit0:ドライブ文字を含む
-  STA ZR0
-  STY ZR0+1
-  STZ ZR1         ; 記録保存用
-  LDY #1
-  LDA (ZR0),Y     ; :の有無を見る
-  CMP #':'
-  BNE @NODRIVE
-  SMB0 ZR1        ; ドライブ文字があるフラグを立てる
-  LDA #2          ; ポインタを進め、ドライブなしと同一条件にする
-  CLC
-  ADC ZR0
-  STA ZR0
-  LDA #0
-  ADC ZR0+1
-  STA ZR0+1
-  LDA (ZR0)       ; 最初の文字を見る
-  BEQ @ROOTEND    ; 何もないならルートを指している（ドライブ前提
-@NODRIVE:
-  LDA (ZR0)       ; 最初の文字を見る
-  CMP #'/'
-  BNE @NOTFULL    ; /でないなら相対パス（ドライブ指定なし前提
-  SMB1 ZR1        ; ルートから始まるフラグを立てる
-@NOTFULL:
-  LDY #$FF
-@LOOP:            ; 最後の文字を調べるループ
-  INY
-  LDA (ZR0),Y
-  BEQ @SKP_LOOP
-  CMP #' '
-  BEQ @SKP_LOOP
-  BRA @LOOP       ; 以下、(ZR0),Yはヌルかスペース
-@SKP_LOOP:
-  DEY             ; 最後の文字を指す
-  LDA (ZR0),Y     ; 最後の文字を読む
-  CMP #'/'
-  BNE @END        ; 最後が/でなければ終わり
-  SMB3 ZR1        ; /で終わるフラグを立てる
-  CPY #0          ; /で終わり、しかも一文字だけなら、それはルートを指している
-  BNE @END
-@ROOTEND:
-  SMB2 ZR1        ; ルートディレクトリが指されているフラグを立てる
-@END:
-  LDA ZR1
-  RTS
-
 ; -------------------------------------------------------------------
 ;                             データ領域
 ; -------------------------------------------------------------------
@@ -430,6 +416,9 @@ STR_INITMESSAGE:  .BYT "MIRACOS 0.03 for FxT-65",$A,$0 ; 起動時メッセー�
 STR_COMNOTFOUND:  .BYT "Unknown Command.",$A,$0
 STR_GOODBYE:      .BYT "Good Bye.",$A,$0
 STR_DOT:          .BYT ".",$0                             ; これの絶対パスを得ると、それはカレントディレクトリ
+PATH_COM:         .BYT "A:/MCOS/COM/"
+  PATH_COM_DIREND:  .RES 13
+PATH_DOTCOM:      .BYT ".COM",$0
 
 ; -------------------------------------------------------------------
 ;                        内部コマンドテーブル
