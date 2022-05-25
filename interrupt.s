@@ -46,7 +46,6 @@ SKP_UART:
   LSR                 ; C = bit 0 CA2
   BCC @SKP_CA2
   ; 垂直同期割り込み処理
-  ; NOTE:ここにキーボード処理など
   JSR PS2::VBLANK
   BEQ @SKP_PS2TRAP
   JSR TRAP
