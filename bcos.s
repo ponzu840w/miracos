@@ -48,11 +48,11 @@ SRECBUILD = TRUE  ; TRUEで、テスト用のUARTによるロードに適した�
   .INCLUDE "varbcos.s"
   .INCLUDE "gcon/vargcon.s"
   .INCLUDE "donki/vardonki.s"
-  .INCLUDE "ps2/varps2.s"
 
 ; OS側変数領域
 .SEGMENT "COSVAR"
   .INCLUDE "fs/varfs2.s"
+  .INCLUDE "ps2/varps2.s"
 
 ; ROMとの共通バッファ
 .SEGMENT "ROMBF100"         ; $0200~

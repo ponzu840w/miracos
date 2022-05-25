@@ -70,6 +70,71 @@ VBLANK:
 ; -------------------------------------------------------------------
 ;                    スキャンコード処理ルーチン群
 ; -------------------------------------------------------------------
+
+; 押下登録
+KEYSTATE_ON:
+  PHA
+  ; インデックス部とビット部の分離
+  STZ ZP_SHIFTER
+  ; bit 0
+  LSR
+  ROL ZP_SHIFTER
+  ; bit 1
+  LSR
+  ROL ZP_SHIFTER
+  ; bit 2
+  LSR
+  ROL ZP_SHIFTER
+  TAY                     ; Yをインデックスに
+  ; ワンホット化
+  LDX ZP_SHIFTER
+  LDA BITS,X
+  ; 今立ってるか調べる
+  BIT SCANCODE_STATE32,X
+  BNE @SKP_SET            ; 立ってればスキップ
+  EOR SCANCODE_STATE32,X  ; 立ってないのでEORで立てる
+  STA SCANCODE_STATE32,X
+@SKP_SET:
+  PLA
+  RTS
+
+; 押上登録
+KEYSTATE_OFF:
+  PHA
+  ; インデックス部とビット部の分離
+  STZ ZP_SHIFTER
+  ; bit 0
+  LSR
+  ROL ZP_SHIFTER
+  ; bit 1
+  LSR
+  ROL ZP_SHIFTER
+  ; bit 2
+  LSR
+  ROL ZP_SHIFTER
+  TAY                     ; Yをインデックスに
+  ; ワンホット化
+  LDX ZP_SHIFTER
+  LDA BITS,X
+  ; 今立ってるか調べる
+  BIT SCANCODE_STATE32,X
+  BNE @SKP_SET            ; 立ってればスキップ
+  EOR SCANCODE_STATE32,X  ; 立ってないのでEORで立てる
+  STA SCANCODE_STATE32,X
+@SKP_SET:
+  PLA
+  RTS
+
+BITS:
+.BYT %00000001
+.BYT %00000010
+.BYT %00000100
+.BYT %00001000
+.BYT %00010000
+.BYT %00100000
+.BYT %01000000
+.BYT %10000000
+
 ; シフトキー押下
 SP_SET_SHIFT:
   LDA #STATE_SHIFT
@@ -143,7 +208,7 @@ SP_BRK:
   RTS
 
 CHK_SPCODES: ; kbcsrch            ; 14種類の特殊コードがあればベクタテーブルで処理する
-  LDX #(SP_VECLST-SP_LST-1)         ; ループ回数
+  LDX #(SP_VECLST-SP_LST-1)       ; ループ回数
 @LOOP_CHK:
   CMP SP_LST,X                    ; チェック対象リストに対照
   BEQ @JUMP                       ; マッチしたらベクタに跳ぶ

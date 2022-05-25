@@ -10,4 +10,5 @@ ZP_DECODE_STATE:    .RES 1        ; SPECIALと共用できないか検討
   STATE_CTRL          = %00001000
   STATE_SHIFT         = %00010000
   STATE_BRK           = %00100000
+ZP_SHIFTER:          .RES 1
 
