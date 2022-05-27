@@ -8,9 +8,7 @@ SEPARATOR="---------------------------------------------------------------------
 
 # 対象ディレクトリ作成
 mkdir ./listing -p
-mkdir ./listing/com -p
 mkdir ./bin/MCOS -p
-mkdir ./bin/MCOS/COM -p
 
 # S-REC作成
 tmpdir=$(mktemp -d)         # 一時ディレクトリ作成
@@ -25,17 +23,28 @@ cat ${tmpdir}/bcos.srec ${tmpdir}/ccp.srec | awk '/S1/' | cat - ${tmpdir}/syscal
 cl65 -g -Wl -Ln,./listing/symbol-bcos.s  -l ./listing/list-bcos.s -m ./listing/map-bcos.s -vm -t none -C ./confcos.cfg -o ./bin/BCOS.SYS ./bcos.s
 
 # コマンドアセンブル
-rm ./bin/MCOS/COM/*                 # 古いバイナリを廃棄
-com_srcs=$(find ./com/*.s)
-for comsrc in $com_srcs;            # com内の.sファイルすべてに対して
+rm ./bin/MCOS/COM/* -fr                 # 古いバイナリを廃棄
+# ディレクトリが優先されるようにソートしつつソースのリストを作成
+com_srcs=$(find ./com/* | awk '/\.s$/{"dirname "$0""|getline var;printf("%s %s\n",var,$0)}' | sort | awk '{print $2}')
+#echo "$com_srcs"
+predir=""                               # 表示をすっきりさせるためのディレクトリ移動ディテクタ
+for comsrc in $com_srcs;                # com内の.sファイルすべてに対して
 do
-  #echo $comsrc
-  bn=$(basename $comsrc .s)         # ファイル名を抽出
-  out="./bin/MCOS/COM/"${bn^^}.COM  # 出力ファイルは大文字に
-  cl65 -m ./listing/com/${bn}.map -vm -t none -C ./conftpa.cfg -o $out $comsrc
-  cat ./listing/com/${bn}.map |
+  nam=$(echo $comsrc | cut -c 3-)       # ./を無視
+  dn=$(dirname $nam)                    # com/ あるいはcom/testなどディレクトリ部
+  bn=$(basename $nam .s)                # ファイル名を抽出
+  out="./bin/MCOS/"${dn^^}/${bn^^}.COM  # 出力ファイルは大文字に
+  #echo $nam $dn $bn $out
+  if [[ "$predir" != "$dn" ]]; then
+    echo ${dn^^}
+    predir=$dn
+  fi
+  mkdir ./listing/${dn} -p
+  mkdir ./bin/MCOS/${dn^^} -p
+  cl65 -Wa -I,"./com/" -m ./listing/${dn}/${bn}.map -vm -t none -C ./conftpa.cfg -o $out $comsrc
+  cat ./listing/${dn}/${bn}.map |
     awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 " 0x"$2 " 0x"$3 " 0x"$4}' |
-    awk -v name="COM/"${bn^^}.COM -v tpa=$TPA_START -v ccp=$CCP_START '
+    awk -v name=${bn^^}.COM -v tpa=$TPA_START -v ccp=$CCP_START '
     /^ZEROPAGE/{ zp=strtonum($4) }
     /^CODE|^BSS|^DATA/{
       size=size+strtonum($4)
@@ -43,14 +52,14 @@ do
     END{
       zpp=zp/(0x100-0x40)
       sizep=size/(strtonum(ccp)-strtonum(tpa))
-      printf("%16-s\tZP:$%2X(%2.1f%%)\tTPA:$%4X = %2.3fK (%2.1f%%)\n",name,zp,zpp*100,size,size/1000,sizep*100)
+      printf("\t%16-s\tZP:$%2X(%2.1f%%)\tTPA:$%4X = %2.3fK (%2.1f%%)\n",name,zp,zpp*100,size,size/1000,sizep*100)
     }
   '
 done
 
 # 不要なオブジェクトファイル削除
-rm ./bcos.o
-rm ./com/*.o
+rm ./bcos.o   -f
+find ./com/ -name "*.o" | xargs rm -f
 #rm ./ccp.o
 
 # ビルド結果表示
