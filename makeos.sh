@@ -24,13 +24,17 @@ do
   bn=$(basename $comsrc .s)         # ファイル名を抽出
   out="./bin/MCOS/COM/"${bn^^}.COM  # 出力ファイルは大文字に
   cl65 -m ./listing/com/${bn}.map -vm -t none -C ./conftpa.cfg -o $out $comsrc
-  cat ./listing/com/${bn}.map | awk -v name="COM/"${bn^^}.COM -v tpa=$TPA_START -v ccp=$CCP_START '
+  cat ./listing/com/${bn}.map |
+    awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 " 0x"$2 " 0x"$3 " 0x"$4}' |
+    awk -v name="COM/"${bn^^}.COM -v tpa=$TPA_START -v ccp=$CCP_START '
     /^ZEROPAGE/{ zp=strtonum($4) }
-    /^CODE|^BSS|^DATA/{ size=size+strtonum($4) }
+    /^CODE|^BSS|^DATA/{
+      size=size+strtonum($4)
+    }
     END{
       zpp=zp/(0x100-0x40)
       sizep=size/(strtonum(ccp)-strtonum(tpa))
-      printf("%16-s\tZP:$%2X(%2.1f%%)\tTPA:$%4X(%2.1f%%)\n",name,zp,zpp,size*100,sizep*100)
+      printf("%16-s\tZP:$%2X(%2.1f%%)\tTPA:$%4X = %2.3fK (%2.1f%%)\n",name,zp,zpp*100,size,size/1000,sizep*100)
     }
   '
 done
@@ -53,14 +57,14 @@ segmentlist=$(cat listing/map-bcos.s | awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 
 # ゼロページ
 echo $SEPARATOR
 echo "$segmentlist"| awk '
-  /ZEROPAGE/{printf("[System-ZP]\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+  /ZEROPAGE/{printf("[System-ZP]\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
     size=strtonum($4)
     area=0x40
     free=area-size
     use=size/area
     printf("-\n")
     printf("USAGE\t$%4X / $%4X\t(%2.2f%%)\n",size,area,use*100)
-    printf("FREE\t$%4X = %4dB\n",free,free)
+    printf("FREE\t$%4X = %2.3fK\n",free,free/1000)
   }
   '
 # CCP
@@ -68,11 +72,11 @@ echo $SEPARATOR
 echo "$segmentlist"| awk -v start=$CCP_START -v end=$BCOS_START '
 BEGIN{printf("[CCP.SYS]\n")}
   /^CODE/{
-    printf("\tCODE\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    printf("\tCODE\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
     size=strtonum($4)
   }
   /^BSS/{
-    printf("\tVAR\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    printf("\tVAR\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
     size=size+strtonum($4)
   }
   END{
@@ -82,7 +86,7 @@ BEGIN{printf("[CCP.SYS]\n")}
     freep=free/area
     printf("-\n")
     printf("USAGE\t$%4X / $%4X\t(%2.2f%%)\n",size,area,use*100)
-    printf("FREE\t$%4X = %4dB\n",free,free,freep*100)
+    printf("FREE\t$%4X = %2.3fK\n",free,free/1000,freep*100)
   }
 '
 # BCOS
@@ -90,19 +94,19 @@ echo $SEPARATOR
 echo "$segmentlist" | awk -v start=$BCOS_START -v end=$BCOS_END '
   BEGIN{printf("[BCOS.SYS]\n")}
   /COSCODE/{
-    printf("\tCODE\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    printf("\tCODE\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
     size=size+strtonum($4)
   }
   /COSLIB/{
-    printf("\tLIB\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    printf("\tLIB\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
     size=size+strtonum($4)
   }
   /COSVAR/{
-    printf("\tVAR\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    printf("\tVAR\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
     size=size+strtonum($4)
   }
   /COSBF100/{
-    printf("\tBUF\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    printf("\tBUF\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
     size=size+strtonum($4)
   }
   END{
@@ -112,7 +116,7 @@ echo "$segmentlist" | awk -v start=$BCOS_START -v end=$BCOS_END '
     freep=free/area
     printf("-\n")
     printf("USAGE\t$%4X / $%4X\t(%2.2f%%)\n",size,area,use*100)
-    printf("FREE\t$%4X = %4dB\n",free,free,freep*100)
+    printf("FREE\t$%4X = %2.3fK\n",free,free/1000,freep*100)
   }
 '
 
