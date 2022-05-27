@@ -8,6 +8,7 @@ SEPARATOR="---------------------------------------------------------------------
 
 # 対象ディレクトリ作成
 mkdir ./listing -p
+mkdir ./listing/com -p
 mkdir ./bin/MCOS -p
 mkdir ./bin/MCOS/COM -p
 
@@ -19,11 +20,19 @@ rm ./bin/MCOS/COM/*                 # 古いバイナリを廃棄
 com_srcs=$(find ./com/*.s)
 for comsrc in $com_srcs;            # com内の.sファイルすべてに対して
 do
-  echo $comsrc
+  #echo $comsrc
   bn=$(basename $comsrc .s)         # ファイル名を抽出
   out="./bin/MCOS/COM/"${bn^^}.COM  # 出力ファイルは大文字に
-  #echo $out
-  cl65 -vm -t none -C ./conftpa.cfg -o $out $comsrc
+  cl65 -m ./listing/com/${bn}.map -vm -t none -C ./conftpa.cfg -o $out $comsrc
+  cat ./listing/com/${bn}.map | awk -v name="COM/"${bn^^}.COM -v tpa=$TPA_START -v ccp=$CCP_START '
+    /^ZEROPAGE/{ zp=strtonum($4) }
+    /^CODE|^BSS|^DATA/{ size=size+strtonum($4) }
+    END{
+      zpp=zp/(0x100-0x40)
+      sizep=size/(strtonum(ccp)-strtonum(tpa))
+      printf("%16-s\tZP:$%2X(%2.1f%%)\tTPA:$%4X(%2.1f%%)\n",name,zp,zpp,size*100,sizep*100)
+    }
+  '
 done
 
 # 不要なオブジェクトファイル削除
