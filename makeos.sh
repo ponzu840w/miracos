@@ -12,7 +12,16 @@ mkdir ./listing/com -p
 mkdir ./bin/MCOS -p
 mkdir ./bin/MCOS/COM -p
 
-# BCOSアセンブル
+# S-REC作成
+tmpdir=$(mktemp -d)         # 一時ディレクトリ作成
+trap "rm -rf $tmpdir" EXIT  # スクリプト終了時に処分
+cl65 -Wa -D,SRECBUILD=1 -vm -t none -C ./confcos.cfg -o ${tmpdir}/bcos.sys ./bcos.s # SRECビルドモードで再ビルド
+objcopy -I binary -O srec --adjust-vma=$BCOS_START ${tmpdir}/bcos.sys ${tmpdir}/bcos.srec
+objcopy -I binary -O srec --adjust-vma=$CCP_START ./bin/MCOS/CCP.SYS ${tmpdir}/ccp.srec
+objcopy -I binary -O srec --adjust-vma=$SYSCALLTABLE_START ./bin/MCOS/SYSCALL.SYS ${tmpdir}/syscall.srec
+cat ${tmpdir}/bcos.srec ${tmpdir}/ccp.srec | awk '/S1/' | cat - ${tmpdir}/syscall.srec | clip.exe # クリップボードに合成
+
+# リリースBCOSアセンブル
 cl65 -g -Wl -Ln,./listing/symbol-bcos.s  -l ./listing/list-bcos.s -m ./listing/map-bcos.s -vm -t none -C ./confcos.cfg -o ./bin/BCOS.SYS ./bcos.s
 
 # コマンドアセンブル
@@ -43,14 +52,6 @@ done
 rm ./bcos.o
 rm ./com/*.o
 #rm ./ccp.o
-
-# S-REC作成
-objcopy -I binary -O srec --adjust-vma=$BCOS_START ./bin/BCOS.SYS ./bin/bcos.srec  # バイアスについては要検討
-objcopy -I binary -O srec --adjust-vma=$CCP_START ./bin/MCOS/CCP.SYS ./bin/ccp.srec  # バイアスについては要検討
-objcopy -I binary -O srec --adjust-vma=$SYSCALLTABLE_START ./bin/MCOS/SYSCALL.SYS ./bin/syscall.srec  # バイアスについては要検討
-
-# クリップボードに合成
-cat ./bin/bcos.srec ./bin/ccp.srec | awk '/S1/' | cat - ./bin/syscall.srec | clip.exe
 
 # ビルド結果表示
 segmentlist=$(cat listing/map-bcos.s | awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 " 0x"$2 " 0x"$3 " 0x"$4}')
