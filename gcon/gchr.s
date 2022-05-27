@@ -104,9 +104,8 @@ DRAW_LINE_RAW:
   TYA                       ; インデックスをAに
   AND #%11100000            ; 行として意味のある部分を抽出
   TAX                       ; しばらく使わないXに保存
-  LDA #0
   ; HVの初期化
-  STA ZP_X
+  STZ ZP_X
   ; 0~2のページオフセットを取得
   LDA ZP_TRAM_VEC16+1
   SEC
