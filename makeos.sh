@@ -1,4 +1,11 @@
 # ----------------- MIRACOS生成専用スクリプト ------------------------
+SYSCALLTABLE_START="0x0600"
+TPA_START="0x0700"
+CCP_START="0x5000"
+BCOS_START="0x6000"
+BCOS_END="0x7FFF"
+SEPARATOR="---------------------------------------------------------------------------"
+
 # 対象ディレクトリ作成
 mkdir ./listing -p
 mkdir ./bin/MCOS -p
@@ -25,25 +32,78 @@ rm ./com/*.o
 #rm ./ccp.o
 
 # S-REC作成
-objcopy -I binary -O srec --adjust-vma=0x6000 ./bin/BCOS.SYS ./bin/bcos.srec  # バイアスについては要検討
-objcopy -I binary -O srec --adjust-vma=0x5000 ./bin/MCOS/CCP.SYS ./bin/ccp.srec  # バイアスについては要検討
-objcopy -I binary -O srec --adjust-vma=0x0600 ./bin/MCOS/SYSCALL.SYS ./bin/syscall.srec  # バイアスについては要検討
+objcopy -I binary -O srec --adjust-vma=$BCOS_START ./bin/BCOS.SYS ./bin/bcos.srec  # バイアスについては要検討
+objcopy -I binary -O srec --adjust-vma=$CCP_START ./bin/MCOS/CCP.SYS ./bin/ccp.srec  # バイアスについては要検討
+objcopy -I binary -O srec --adjust-vma=$SYSCALLTABLE_START ./bin/MCOS/SYSCALL.SYS ./bin/syscall.srec  # バイアスについては要検討
 
 # クリップボードに合成
 cat ./bin/bcos.srec ./bin/ccp.srec | awk '/S1/' | cat - ./bin/syscall.srec | clip.exe
 
 # ビルド結果表示
 segmentlist=$(cat listing/map-bcos.s | awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 " 0x"$2 " 0x"$3 " 0x"$4}')
+# ゼロページ
+echo $SEPARATOR
 echo "$segmentlist"| awk '
-  /ZEROPAGE/{printf("System-ZP\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
-  /^CODE/{printf("CPP\n\tCODE\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
-  /^BSS/{printf("\tVAR\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
+  /ZEROPAGE/{printf("[System-ZP]\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    size=strtonum($4)
+    area=0x40
+    free=area-size
+    use=size/area
+    printf("-\n")
+    printf("USAGE\t$%4X / $%4X\t(%2.2f%%)\n",size,area,use*100)
+    printf("FREE\t$%4X = %4dB\n",free,free)
+  }
   '
-
-echo "$segmentlist" | awk '
-  /COSCODE/{printf("BCOS\n\tCODE\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
-  /COSLIB/{printf("\tLIB\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
-  /COSVAR/{printf("\tVAR\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
-  /COSBF100/{printf("\tBUF\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
-  '
+# CCP
+echo $SEPARATOR
+echo "$segmentlist"| awk -v start=$CCP_START -v end=$BCOS_START '
+BEGIN{printf("[CCP.SYS]\n")}
+  /^CODE/{
+    printf("\tCODE\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    size=strtonum($4)
+  }
+  /^BSS/{
+    printf("\tVAR\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    size=size+strtonum($4)
+  }
+  END{
+    area=strtonum(end)-strtonum(start)
+    use=size/area
+    free=area-size
+    freep=free/area
+    printf("-\n")
+    printf("USAGE\t$%4X / $%4X\t(%2.2f%%)\n",size,area,use*100)
+    printf("FREE\t$%4X = %4dB\n",free,free,freep*100)
+  }
+'
+# BCOS
+echo $SEPARATOR
+echo "$segmentlist" | awk -v start=$BCOS_START -v end=$BCOS_END '
+  BEGIN{printf("[BCOS.SYS]\n")}
+  /COSCODE/{
+    printf("\tCODE\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    size=size+strtonum($4)
+  }
+  /COSLIB/{
+    printf("\tLIB\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    size=size+strtonum($4)
+  }
+  /COSVAR/{
+    printf("\tVAR\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    size=size+strtonum($4)
+  }
+  /COSBF100/{
+    printf("\tBUF\t$%4X...$%4X\t($%4X = %4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))
+    size=size+strtonum($4)
+  }
+  END{
+    area=strtonum(end)-strtonum(start)+1
+    use=size/area
+    free=area-size
+    freep=free/area
+    printf("-\n")
+    printf("USAGE\t$%4X / $%4X\t(%2.2f%%)\n",size,area,use*100)
+    printf("FREE\t$%4X = %4dB\n",free,free,freep*100)
+  }
+'
 
