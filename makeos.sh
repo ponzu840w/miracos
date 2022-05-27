@@ -32,3 +32,18 @@ objcopy -I binary -O srec --adjust-vma=0x0600 ./bin/MCOS/SYSCALL.SYS ./bin/sysca
 # クリップボードに合成
 cat ./bin/bcos.srec ./bin/ccp.srec | awk '/S1/' | cat - ./bin/syscall.srec | clip.exe
 
+# ビルド結果表示
+segmentlist=$(cat listing/map-bcos.s | awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 " 0x"$2 " 0x"$3 " 0x"$4}')
+echo "$segmentlist"| awk '
+  /ZEROPAGE/{printf("System-ZP\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
+  /^CODE/{printf("CPP\n\tCODE\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
+  /^BSS/{printf("\tVAR\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
+  '
+
+echo "$segmentlist" | awk '
+  /COSCODE/{printf("BCOS\n\tCODE\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
+  /COSLIB/{printf("\tLIB\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
+  /COSVAR/{printf("\tVAR\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
+  /COSBF100/{printf("\tBUF\t:$%4X-$%4X\t($%4X=%4dB)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4))}
+  '
+
