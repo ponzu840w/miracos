@@ -42,7 +42,8 @@ ZP_RND_ADDR16:         .RES 2
 ; -------------------------------------------------------------------
 .CODE
 START:
-  syscall RND16
+  LDY #0
+  syscall GET_ADDR
   storeAY16 ZP_RND_ADDR16
   ; 変数初期化
   STZ HOME_X
