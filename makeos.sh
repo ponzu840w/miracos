@@ -6,7 +6,10 @@ BCOS_START="0x6000"
 BCOS_END="0x7FFF"
 SEPARATOR="---------------------------------------------------------------------------"
 
-echo $(git tag | sort -V | tail -1) '-' | tr -d " \n"; git rev-parse HEAD | cut -c1-7 | tr -d "\n"; echo '-'$(date +%Y%m%d)
+version=$(git describe --tag)
+commit=$(git rev-parse HEAD | cut -c1-7 | tr -d "\n")
+date=$(date '+%Y %m%d-%H%M%S' | awk '{print "build ""R"$1-2018$2}')
+echo $version" "$commit" "$date
 
 # 対象ディレクトリ作成
 mkdir ./listing -p
