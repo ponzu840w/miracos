@@ -6,6 +6,8 @@ BCOS_START="0x6000"
 BCOS_END="0x7FFF"
 SEPARATOR="---------------------------------------------------------------------------"
 
+echo $(git tag | sort -V | tail -1) '-' | tr -d " \n"; git rev-parse HEAD | cut -c1-7 | tr -d "\n"; echo '-'$(date +%Y%m%d)
+
 # 対象ディレクトリ作成
 mkdir ./listing -p
 mkdir ./bin/MCOS -p
