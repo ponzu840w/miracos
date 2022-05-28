@@ -9,7 +9,8 @@ SEPARATOR="---------------------------------------------------------------------
 version=$(git describe --abbrev=0 --tags)
 commit=$(git rev-parse HEAD | cut -c1-6 | tr -d "\n")
 date=$(date '+%Y %m%d-%H%M' | awk '{print "R"$1-2018$2}')
-echo ".BYT \"MIRACOS $version for FxT-65\",10,\"$(printf "%32s" "(build [$commit]${date}t)")\",10,0" > initmessage.txt
+echo ".BYT \"MIRACOS $version for FxT-65\",10,\"$(printf "%32s" "(build [$commit]${date}t)")\",0" > initmessage.txt
+cat initmessage.txt
 
 # 対象ディレクトリ作成
 mkdir ./listing -p
