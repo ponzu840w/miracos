@@ -6,7 +6,7 @@ if [ $# = 0 ]; then
 fi
 
 # コマンドアセンブル
-cl65 -vm -t none -C ../conftpa.cfg -o tmp.com $1
+cl65 -Wa -I,"./" -vm -t none -C ../conftpa.cfg -o tmp.com $1
 
 # 不要なオブジェクトファイル削除
 rm ./*.o
