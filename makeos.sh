@@ -6,10 +6,10 @@ BCOS_START="0x6000"
 BCOS_END="0x7FFF"
 SEPARATOR="---------------------------------------------------------------------------"
 
-version=$(git describe --tag)
-commit=$(git rev-parse HEAD | cut -c1-7 | tr -d "\n")
-date=$(date '+%Y %m%d-%H%M%S' | awk '{print "build ""R"$1-2018$2}')
-echo $version" "$commit" "$date
+version=$(git describe --abbrev=0 --tags)
+commit=$(git rev-parse HEAD | cut -c1-6 | tr -d "\n")
+date=$(date '+%Y %m%d-%H%M' | awk '{print "R"$1-2018$2}')
+echo ".BYT \"MIRACOS $version for FxT-65\",10,\"$(printf "%32s" "(build [$commit]${date}t)")\",10,0" > initmessage.txt
 
 # 対象ディレクトリ作成
 mkdir ./listing -p
@@ -25,6 +25,7 @@ objcopy -I binary -O srec --adjust-vma=$SYSCALLTABLE_START ./bin/MCOS/SYSCALL.SY
 cat ${tmpdir}/bcos.srec ${tmpdir}/ccp.srec | awk '/S1/' | cat - ${tmpdir}/syscall.srec | clip.exe # クリップボードに合成
 
 # リリースBCOSアセンブル
+echo ".BYT \"MIRACOS $version for FxT-65\",10,\"$(printf "%32s" "(build [$commit]${date}r)")\",10,0" > initmessage.txt
 cl65 -g -Wl -Ln,./listing/symbol-bcos.s  -l ./listing/list-bcos.s -m ./listing/map-bcos.s -vm -t none -C ./confcos.cfg -o ./bin/BCOS.SYS ./bcos.s
 
 # コマンドアセンブル

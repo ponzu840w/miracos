@@ -336,7 +336,7 @@ M_CP_AYS:
 ; -------------------------------------------------------------------
 ;                             データ領域
 ; -------------------------------------------------------------------
-STR_INITMESSAGE:  .BYT "MIRACOS 0.04 for FxT-65",$A,$0 ; 起動時メッセージ
+STR_INITMESSAGE:  .INCLUDE "initmessage.txt"              ; 起動時メッセージ
 STR_COMNOTFOUND:  .BYT "Unknown Command.",$A,$0
 STR_GOODBYE:      .BYT "Good Bye.",$A,$0
 STR_DOT:          .BYT ".",$0                             ; これの絶対パスを得ると、それはカレントディレクトリ
