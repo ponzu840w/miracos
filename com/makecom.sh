@@ -9,7 +9,7 @@ fi
 cl65 -Wa -I,"./" -vm -t none -C ../conftpa.cfg -o tmp.com $1
 
 # 不要なオブジェクトファイル削除
-rm ./*.o
+find | grep .o$ | xargs rm
 
 # S-REC作成
 objcopy -I binary -O srec --adjust-vma=0x0700 ./tmp.com ./tmp.srec  # バイアスについては要検討
