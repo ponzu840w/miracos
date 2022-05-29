@@ -51,6 +51,12 @@ ZP_INPUT:                 .RES 1
 ZP_RND_ADDR16:            .RES 2
 ZP_APPLE_X:               .RES 1
 ZP_APPLE_Y:               .RES 1
+ZP_VB_STUB:               .RES 2  ; 割り込み終了処理
+ZP_VB_PAR_TICK:           .RES 1
+ZP_GEAR_FOR_TICK:         .RES 1  ; TICK生成
+ZP_MM:                    .RES 1
+ZP_SS:                    .RES 1
+ZP_COMCOM:                .RES 1
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -67,12 +73,25 @@ START:
   LDY #BCOS::BHY_GET_ADDR_zprand16    ; RND
   syscall GET_ADDR
   storeAY16 ZP_RND_ADDR16
-  ; 画面をいじってみる
+  ; 割り込みハンドラの登録
+  SEI
+  loadAY16 VBLANK
+  syscall IRQ_SETHNDR_VB
+  storeAY16 ZP_VB_STUB
+  CLI
+INIT:
   ; 初期化
   JSR CLEAR_TXTVRAM                   ; 画面クリア
   JSR DRAW_ALLLINE
   JSR DRAW_FRAME                      ; 枠の描画
+  loadmem16 ZR0,STR_LENGTH
+  LDX #0
+  LDY #22
+  JSR XY_PRT_STR
   ; ゲーム情報の初期化
+  ; 長さ
+  LDA #1
+  STA ZP_SNK_LENGTH
   ; 向きリングキューのポインタ初期化
   STZ ZP_SNK_TAIL_PTR8
   STZ ZP_SNK_HEAD_PTR8
@@ -132,14 +151,18 @@ EXIT:
   ; 大政奉還コード
   RTS
 
+; -------------------------------------------------------------------
+;                        垂直同期割り込み
+; -------------------------------------------------------------------
+VBLANK:
+  JMP (ZP_VB_STUB)           ; 片付けはBCOSにやらせる
+
 ; --- デバッグ用ウェイト
 WAIT:
   LDY #$FF
 WAIT_Y:
   LDX #$FF
 WAIT_X:
-  NOP
-  NOP
   NOP
   NOP
   DEX
@@ -230,9 +253,7 @@ MOVE_HEAD:
   RTS
 
 GAMEOVER:
-  BRK
-  NOP
-  RTS
+  JMP INIT
 
 ; -------------------------------------------------------------------
 ;                           尾を動かす
@@ -411,19 +432,7 @@ DRAW_ALLLINE_LOOP:
 
 DRAW_LINE:
   ; Yで指定された行を描画する
-  TYA                       ; 行数をAに
-  STZ ZP_Y                  ; シフト先をクリア
-  ASL                       ; 行数を右にシフト
-  ROR ZP_Y                  ; おこぼれをインデックスとするx3
-  ASL
-  ROR ZP_Y
-  ASL
-  ROR ZP_Y                  ; A:ページ数0~2 ZP_Y:ページ内インデックス行頭
-  CLC
-  ;ADC #>TXTVRAM768          ; TXTVRAM上位に加算
-  ADC ZP_TXTVRAM768_16+1    ; TXTVRAM上位に加算
-  STA ZP_TRAM_VEC16+1       ; ページ数登録
-  LDY ZP_Y                  ; インデックスをYにロード
+  JSR XY2TRAM_VEC
 DRAW_LINE_RAW:
   ; 行を描画する
   ; TRAM_VEC16を上位だけ設定しておき、そのなかのインデックスもYで持っておく
@@ -525,6 +534,45 @@ X5PLUS1RETRY:
   ADC (ZP_RND_ADDR16)
   STA (ZP_RND_ADDR16)
   RTS
+
+BYT2ASC:
+  ; Aで与えられたバイト値をASCII値AYにする
+  ; Aから先に表示すると良い
+  PHA           ; 下位のために保存
+  AND #$0F
+  JSR NIB2ASC
+  TAY
+  PLA
+  LSR           ; 右シフトx4で上位を下位に持ってくる
+  LSR
+  LSR
+  LSR
+NIB2ASC:
+  ; #$0?をアスキー一文字にする
+  ORA #$30
+  CMP #$3A
+  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
+  ADC #$06
+@SKP_ADC:
+  RTS
+
+XY_PRT_STR:
+  LDA (ZR0)
+  BEQ @EXT
+  JSR XY_PUT
+  INX
+  INC ZR0
+  BNE @SKP_INCH
+  INC ZR0+1
+@SKP_INCH:
+  BRA XY_PRT_STR
+@EXT:
+  JSR DRAW_LINE
+@a:
+  BRA @a
+  RTS
+
+STR_LENGTH: .ASCIIZ "Length:"
 
 SNAKE_DATA256:
 
