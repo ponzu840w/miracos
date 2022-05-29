@@ -88,6 +88,7 @@ INIT:
   LDX #0
   LDY #22
   JSR XY_PRT_STR
+  JSR DRAW_LINE
   ; ゲーム情報の初期化
   ; 長さ
   LDA #1
@@ -228,9 +229,16 @@ MOVE_HEAD:
   CMP #CHR_APPLE
   BNE @SKP_APPLE
   ; 成長処理
-  INC ZP_SNK_LENGTH
+  SED
+  CLC
+  LDA ZP_SNK_LENGTH
+  ADC #1
+  STA ZP_SNK_LENGTH
+  CLD
   PHX
   PHY
+  JSR DRAW_LENGTH
+  JSR DRAW_LINE
   JSR GEN_APPLE
   PLY
   PLX
@@ -254,6 +262,14 @@ MOVE_HEAD:
 
 GAMEOVER:
   JMP INIT
+
+DRAW_LENGTH:
+  LDA ZP_SNK_LENGTH
+  LDY #22
+  LDX #7
+  JSR XY_PRT_BYT
+  RTS
+
 
 ; -------------------------------------------------------------------
 ;                           尾を動かす
@@ -556,6 +572,17 @@ NIB2ASC:
 @SKP_ADC:
   RTS
 
+XY_PRT_BYT:
+  PHY
+  JSR BYT2ASC
+  STY ZR0
+  PLY
+  JSR XY_PUT
+  INX
+  LDA ZR0
+  JSR XY_PUT
+  RTS
+
 XY_PRT_STR:
   LDA (ZR0)
   BEQ @EXT
@@ -567,12 +594,9 @@ XY_PRT_STR:
 @SKP_INCH:
   BRA XY_PRT_STR
 @EXT:
-  JSR DRAW_LINE
-@a:
-  BRA @a
   RTS
 
-STR_LENGTH: .ASCIIZ "Length:"
+STR_LENGTH: .ASCIIZ "Length:01"
 
 SNAKE_DATA256:
 
