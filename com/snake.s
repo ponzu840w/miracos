@@ -57,6 +57,7 @@ ZP_GEAR_FOR_TICK:         .RES 1  ; TICK生成
 ZP_MM:                    .RES 1
 ZP_SS:                    .RES 1
 ZP_COMCOM:                .RES 1
+ZP_TICK_FLAG:             .RES 1
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -90,6 +91,10 @@ INIT:
   JSR XY_PRT_STR
   JSR DRAW_LINE
   ; ゲーム情報の初期化
+  ; 速度難易度
+  LDA #8
+  STA ZP_VB_PAR_TICK
+  STZ ZP_TICK_FLAG
   ; 長さ
   LDA #1
   STA ZP_SNK_LENGTH
@@ -146,7 +151,10 @@ INIT:
   BCS @SKP_TAIL
   JSR MOVE_TAIL
 @SKP_TAIL:
-  JSR WAIT
+@TICK_WAIT:
+  LDA ZP_TICK_FLAG
+  BEQ @TICK_WAIT
+  STZ ZP_TICK_FLAG
   BRA @LOOP
 EXIT:
   ; 大政奉還コード
@@ -156,21 +164,13 @@ EXIT:
 ;                        垂直同期割り込み
 ; -------------------------------------------------------------------
 VBLANK:
+  DEC ZP_GEAR_FOR_TICK
+  BNE @SKP_TICK
+  LDA ZP_VB_PAR_TICK
+  STA ZP_GEAR_FOR_TICK
+  STA ZP_TICK_FLAG
+@SKP_TICK:
   JMP (ZP_VB_STUB)           ; 片付けはBCOSにやらせる
-
-; --- デバッグ用ウェイト
-WAIT:
-  LDY #$FF
-WAIT_Y:
-  LDX #$FF
-WAIT_X:
-  NOP
-  NOP
-  DEX
-  BNE WAIT_X
-  DEY
-  BNE WAIT_Y
-  RTS
 
 ; -------------------------------------------------------------------
 ;                          リンゴを生成
