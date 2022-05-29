@@ -5,6 +5,9 @@ RESET               = 0
 CON_IN_CHR          = 1
 CON_OUT_CHR         = 2
 CON_RAWIN           = 3
+  BHA_CON_RAWIN_GetState      = 0
+  BHA_CON_RAWIN_NoWaitNoEcho  = 1
+  BHA_CON_RAWIN_WaitAndNoEcho = 2
 CON_OUT_STR         = 4
 FS_OPEN             = 5
 FS_CLOSE            = 6
@@ -22,4 +25,7 @@ FS_FIND_NXT         = 17
 FS_READ_BYTS        = 18
 IRQ_SETHNDR_VB      = 19
 GET_ADDR            = 20
+  BHY_GET_ADDR_zprand16       = 0
+  BHY_GET_ADDR_txtvram768     = 1*2
+  BHY_GET_ADDR_font2048       = 2*2
 
