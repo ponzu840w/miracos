@@ -21,8 +21,9 @@ BUTTOM=%0010
 TOP   =%0100
 RIGHT =%1000
 CHR_BLANK =' '
-CHR_HEAD  ='@'
+CHR_HEAD  ='O'
 CHR_WALL  ='#'
+CHR_APPLE ='@'
 
 ; -------------------------------------------------------------------
 ;                             ZP領域
@@ -47,6 +48,9 @@ ZP_SNK_TAIL_PTR8:         .RES 1
 ZP_SNK_LENGTH:            .RES 1
 ZP_SNK_DIREC:             .RES 1
 ZP_INPUT:                 .RES 1
+ZP_RND_ADDR16:            .RES 2
+ZP_APPLE_X:               .RES 1
+ZP_APPLE_Y:               .RES 1
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -60,6 +64,9 @@ START:
   LDY #BCOS::BHY_GET_ADDR_font2048    ; FONT
   syscall GET_ADDR
   storeAY16 ZP_FONT2048_16
+  LDY #BCOS::BHY_GET_ADDR_zprand16    ; RND
+  syscall GET_ADDR
+  storeAY16 ZP_RND_ADDR16
   ; 画面をいじってみる
   ; 初期化
   JSR CLEAR_TXTVRAM                   ; 画面クリア
@@ -79,6 +86,8 @@ START:
   STA ZP_SNK_HEAD_Y
   STA ZP_SNK_TAIL_X
   STA ZP_SNK_TAIL_Y
+  ; 初期リンゴ
+  JSR GEN_APPLE
 @LOOP:
   ; wasd
   LDA #BCOS::BHA_CON_RAWIN_NoWaitNoEcho
@@ -114,7 +123,9 @@ START:
   STA ZP_SNK_DIREC
 @END_WASD:
   JSR MOVE_HEAD
+  BCS @SKP_TAIL
   JSR MOVE_TAIL
+@SKP_TAIL:
   JSR WAIT
   BRA @LOOP
 EXIT:
@@ -138,9 +149,48 @@ WAIT_X:
   RTS
 
 ; -------------------------------------------------------------------
+;                          リンゴを生成
+; -------------------------------------------------------------------
+GEN_APPLE:
+  ; X
+@RETRY_X:
+  JSR GET_RND   ; $00...$FF
+  AND #31
+  ; 00...31
+  CMP #2
+  BMI @RETRY_X
+  CMP #30
+  BPL @RETRY_X
+  ; 02...29
+  STA ZP_APPLE_X
+  ; Y
+@RETRY_Y:
+  JSR GET_RND   ; $00...$FF
+  AND #31
+  ; 00...31
+  CMP #2
+  BMI @RETRY_Y
+  CMP #20
+  BPL @RETRY_Y
+  ; 02...29
+  STA ZP_APPLE_Y
+  ; 蛇と被ってないかチェック
+  LDX ZP_APPLE_X
+  LDY ZP_APPLE_Y
+  JSR XY_GET
+  CMP #CHR_BLANK
+  BNE @RETRY_X
+  ; 描画する
+  LDA #CHR_APPLE
+  JSR XY_PUT_DRAW
+  RTS
+
+; -------------------------------------------------------------------
 ;                           頭を動かす
 ; -------------------------------------------------------------------
 MOVE_HEAD:
+  CLC
+  PHP
   ; 次の頭の座標を取得する
   LDA ZP_SNK_DIREC
   LDX ZP_SNK_HEAD_X
@@ -152,6 +202,19 @@ MOVE_HEAD:
   BEQ GAMEOVER
   CMP #CHR_HEAD
   BEQ GAMEOVER
+  CMP #CHR_APPLE
+  BNE @SKP_APPLE
+  ; 成長処理
+  INC ZP_SNK_LENGTH
+  PHX
+  PHY
+  JSR GEN_APPLE
+  PLY
+  PLX
+  PLP
+  SEC
+  PHP
+@SKP_APPLE:
   ; 大丈夫そうだ
   ; 頭の座標を更新
   LDA #CHR_HEAD
@@ -163,6 +226,7 @@ MOVE_HEAD:
   LDX ZP_SNK_HEAD_PTR8    ; 更新すべき場所のポインタ
   STA SNAKE_DATA256,X     ; 向きを登録
   INC ZP_SNK_HEAD_PTR8    ; 進める
+  PLP
   RTS
 
 GAMEOVER:
@@ -448,6 +512,19 @@ SKP_EXT_DRAWLINE:
   SBC #8
   STA ZP_Y
   BRA DRAW_TXT_LOOP
+
+; -------------------------------------------------------------------
+;                             乱数取得
+; -------------------------------------------------------------------
+GET_RND:
+X5PLUS1RETRY:
+  LDA (ZP_RND_ADDR16)
+  ASL
+  ASL
+  SEC ;+1
+  ADC (ZP_RND_ADDR16)
+  STA (ZP_RND_ADDR16)
+  RTS
 
 SNAKE_DATA256:
 
