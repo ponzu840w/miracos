@@ -336,7 +336,7 @@ M_CP_AYS:
 ; -------------------------------------------------------------------
 ;                             データ領域
 ; -------------------------------------------------------------------
-STR_INITMESSAGE:  .INCLUDE "initmessage.txt"              ; 起動時メッセージ
+STR_INITMESSAGE:  .INCLUDE "initmessage.s"                ; 起動時メッセージ
 STR_COMNOTFOUND:  .BYT "Unknown Command.",$A,$0
 STR_GOODBYE:      .BYT "Good Bye.",$A,$0
 STR_DOT:          .BYT ".",$0                             ; これの絶対パスを得ると、それはカレントディレクトリ
