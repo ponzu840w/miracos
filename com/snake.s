@@ -14,6 +14,17 @@
 .INCLUDE "../zr.inc"
 
 ; -------------------------------------------------------------------
+;                            定数定義
+; -------------------------------------------------------------------
+LEFT  =%0001
+BUTTOM=%0010
+TOP   =%0100
+RIGHT =%1000
+CHR_BLANK =' '
+CHR_HEAD  ='@'
+CHR_WALL  ='#'
+
+; -------------------------------------------------------------------
 ;                             ZP領域
 ; -------------------------------------------------------------------
 .ZEROPAGE
@@ -27,6 +38,15 @@ ZP_Y:                     .RES 1
 ZP_CURSOR_X:              .RES 1
 ZP_CURSOR_Y:              .RES 1
 ZP_ITR:                   .RES 1
+ZP_SNK_HEAD_X:            .RES 1
+ZP_SNK_HEAD_Y:            .RES 1
+ZP_SNK_TAIL_X:            .RES 1
+ZP_SNK_TAIL_Y:            .RES 1
+ZP_SNK_HEAD_PTR8:         .RES 1
+ZP_SNK_TAIL_PTR8:         .RES 1
+ZP_SNK_LENGTH:            .RES 1
+ZP_SNK_DIREC:             .RES 1
+ZP_INPUT:                 .RES 1
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -44,79 +64,189 @@ START:
   ; 初期化
   JSR CLEAR_TXTVRAM                   ; 画面クリア
   JSR DRAW_ALLLINE
-  JSR DRAW_FRAME
-  LDA #10
-  STA ZP_CURSOR_X
-  STA ZP_CURSOR_Y                     ; カーソルの初期化
-  ; 本処理
-  LDA #'@'
-  JSR CURSOR_PUT
+  JSR DRAW_FRAME                      ; 枠の描画
+  ; ゲーム情報の初期化
+  ; 向きリングキューのポインタ初期化
+  STZ ZP_SNK_TAIL_PTR8
+  STZ ZP_SNK_HEAD_PTR8
+  ; 向きリングキューの内容初期化
+  LDA #RIGHT          ; 右を向いている
+  STA ZP_SNK_DIREC
+  STA SNAKE_DATA256
+  ; 実座標データの初期化
+  LDA #10             ; 10,10がちょうどよかろうか
+  STA ZP_SNK_HEAD_X
+  STA ZP_SNK_HEAD_Y
+  STA ZP_SNK_TAIL_X
+  STA ZP_SNK_TAIL_Y
 @LOOP:
-  LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho
-  syscall CON_RAWIN                   ; 入力待機
-  PHA
-  LDA #' '
-  JSR CURSOR_PUT
-  PLA
   ; wasd
+  LDA #BCOS::BHA_CON_RAWIN_NoWaitNoEcho
+  syscall CON_RAWIN
+  BEQ @END_WASD
+  STA ZP_INPUT
+  LDA ZP_SNK_DIREC
+  BIT #LEFT|RIGHT
+  BEQ @V
+@H:
 @W:
+  LDA ZP_INPUT
   CMP #'w'
   BNE @S
-  DEC ZP_CURSOR_Y
+  LDA #TOP
+  STA ZP_SNK_DIREC
 @S:
   CMP #'s'
-  BNE @A
-  INC ZP_CURSOR_Y
+  BNE @END_WASD
+  LDA #BUTTOM
+  STA ZP_SNK_DIREC
+@V:
 @A:
+  LDA ZP_INPUT
   CMP #'a'
   BNE @D
-  DEC ZP_CURSOR_X
+  LDA #LEFT
+  STA ZP_SNK_DIREC
 @D:
   CMP #'d'
   BNE @END_WASD
-  INC ZP_CURSOR_X
+  LDA #RIGHT
+  STA ZP_SNK_DIREC
 @END_WASD:
-  LDA #'@'
-  JSR CURSOR_PUT
+  JSR MOVE_HEAD
+  JSR MOVE_TAIL
+  JSR WAIT
   BRA @LOOP
 EXIT:
   ; 大政奉還コード
   RTS
 
+; --- デバッグ用ウェイト
+WAIT:
+  LDY #$FF
+WAIT_Y:
+  LDX #$FF
+WAIT_X:
+  NOP
+  NOP
+  NOP
+  NOP
+  DEX
+  BNE WAIT_X
+  DEY
+  BNE WAIT_Y
+  RTS
+
 ; -------------------------------------------------------------------
-;                          ワクを描画
+;                           頭を動かす
+; -------------------------------------------------------------------
+MOVE_HEAD:
+  ; 次の頭の座標を取得する
+  LDA ZP_SNK_DIREC
+  LDX ZP_SNK_HEAD_X
+  LDY ZP_SNK_HEAD_Y
+  JSR NEXT_XY
+  ; そこを調べる
+  JSR XY_GET
+  CMP #CHR_WALL
+  BEQ GAMEOVER
+  CMP #CHR_HEAD
+  BEQ GAMEOVER
+  ; 大丈夫そうだ
+  ; 頭の座標を更新
+  LDA #CHR_HEAD
+  STX ZP_SNK_HEAD_X
+  STY ZP_SNK_HEAD_Y
+  JSR XY_PUT_DRAW
+  ; 向きリングキューの更新
+  LDA ZP_SNK_DIREC        ; 使った向き
+  LDX ZP_SNK_HEAD_PTR8    ; 更新すべき場所のポインタ
+  STA SNAKE_DATA256,X     ; 向きを登録
+  INC ZP_SNK_HEAD_PTR8    ; 進める
+  RTS
+
+GAMEOVER:
+  BRK
+  NOP
+  RTS
+
+; -------------------------------------------------------------------
+;                           尾を動かす
+; -------------------------------------------------------------------
+MOVE_TAIL:
+  ; 現在の尾を消す
+  LDA #CHR_BLANK
+  LDX ZP_SNK_TAIL_X
+  LDY ZP_SNK_TAIL_Y
+  JSR XY_PUT_DRAW
+  ; 尾の座標を更新
+  PHX
+  LDX ZP_SNK_TAIL_PTR8
+  LDA SNAKE_DATA256,X   ; 尾の持つ次の胴体へのDIRECを取得
+  PLX
+  JSR NEXT_XY           ; 次の尾となる胴体の座標を取得
+  ; 次の尾の座標とする
+  STX ZP_SNK_TAIL_X
+  STY ZP_SNK_TAIL_Y
+  ; 向きリングキューの尾ポインタを移動
+  INC ZP_SNK_TAIL_PTR8
+  RTS
+
+; -------------------------------------------------------------------
+;                 XY座標のDIREC方向に隣接するXY座標
+; -------------------------------------------------------------------
+NEXT_XY:
+@RIGHT:
+  CMP #RIGHT
+  BNE @LEFT
+  INX
+  RTS
+@LEFT:
+  CMP #LEFT
+  BNE @TOP
+  DEX
+  RTS
+@TOP:
+  CMP #TOP
+  BNE @BUTTOM
+  DEY
+  RTS
+@BUTTOM:
+  INY
+  RTS
+
+; -------------------------------------------------------------------
+;                           ワクを描画
 ; -------------------------------------------------------------------
 DRAW_FRAME:
   ; 上
-  STZ ZP_CURSOR_Y
+  LDY #0
   JSR DRAW_HLINE
   ; 下
-  LDA #24-1-2
-  STA ZP_CURSOR_Y
+  LDY #24-1-2
   JSR DRAW_HLINE
   ; 左右
-  DEC ZP_CURSOR_Y
+  DEY
 @LOOP_SIDE:
-  STZ ZP_CURSOR_X
-  LDA #'#'
-  JSR CURSOR_PUT
-  LDA #32-1
-  STA ZP_CURSOR_X
-  LDA #'#'
-  JSR CURSOR_PUT
-  DEC ZP_CURSOR_Y
+  LDX #0
+  LDA #CHR_WALL
+  JSR XY_PUT
+  LDX #32-1
+  LDA #CHR_WALL
+  JSR XY_PUT
+  DEY
   BNE @LOOP_SIDE
   JSR DRAW_ALLLINE
   RTS
 
 DRAW_HLINE:
-  STZ ZP_CURSOR_X
+  LDX #0
   LDA #32
   STA ZP_ITR
 @LOOP:
-  LDA #'#'
-  JSR CURSOR_PUT
-  INC ZP_CURSOR_X
+  LDA #CHR_WALL
+  JSR XY_PUT
+  INX
   DEC ZP_ITR
   BNE @LOOP
   ;JSR DRAW_LINE_RAW
@@ -125,10 +255,14 @@ DRAW_HLINE:
 ; -------------------------------------------------------------------
 ;                     カーソル位置から読み取り
 ; -------------------------------------------------------------------
-CURSOR_GET:
+XY_GET:
+  PHX
+  PHY
   ; --- 読み取り
-  JSR CUR2TRAM_VEC
+  JSR XY2TRAM_VEC
   LDA (ZP_TRAM_VEC16),Y
+  PLY
+  PLX
   RTS
 
 ; -------------------------------------------------------------------
@@ -136,19 +270,37 @@ CURSOR_GET:
 ; -------------------------------------------------------------------
 ; 呼び出し直後にJSR DRAW_LINE_RAWが使える
 ; -------------------------------------------------------------------
-CURSOR_PUT:
+XY_PUT:
+  PHX
+  PHY
   ; --- 書き込み
   PHA
-  JSR CUR2TRAM_VEC
+  JSR XY2TRAM_VEC
   PLA
   STA (ZP_TRAM_VEC16),Y
   ;JSR DRAW_LINE_RAW    ; 呼び出し側の任意
+  PLY
+  PLX
   RTS
 
-CUR2TRAM_VEC:
+XY_PUT_DRAW:
+  PHX
+  PHY
+  ; --- 書き込み
+  PHA
+  JSR XY2TRAM_VEC
+  PLA
+  STA (ZP_TRAM_VEC16),Y
+  JSR DRAW_LINE_RAW    ; 呼び出し側の任意
+  PLY
+  PLX
+  RTS
+
+XY2TRAM_VEC:
   STZ ZP_FONT_SR        ; シフタ初期化
   STZ ZP_TRAM_VEC16     ; TRAMポインタ初期化
-  LDA ZP_CURSOR_Y
+  ;LDA ZP_CURSOR_Y
+  TYA
   LSR
   ROR ZP_FONT_SR
   LSR
@@ -157,7 +309,8 @@ CUR2TRAM_VEC:
   ROR ZP_FONT_SR
   ADC ZP_TXTVRAM768_16+1
   STA ZP_TRAM_VEC16+1
-  LDA ZP_CURSOR_X
+  ;LDA ZP_CURSOR_X
+  TXA
   ORA ZP_FONT_SR
   TAY
   RTS
@@ -295,4 +448,6 @@ SKP_EXT_DRAWLINE:
   SBC #8
   STA ZP_Y
   BRA DRAW_TXT_LOOP
+
+SNAKE_DATA256:
 
