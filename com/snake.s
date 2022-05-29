@@ -54,8 +54,11 @@ ZP_APPLE_Y:               .RES 1
 ZP_VB_STUB:               .RES 2  ; 割り込み終了処理
 ZP_VB_PAR_TICK:           .RES 1
 ZP_GEAR_FOR_TICK:         .RES 1  ; TICK生成
+ZP_GEAR_FOR_SEC:          .RES 1
 ZP_MM:                    .RES 1
 ZP_SS:                    .RES 1
+ZP_MMR:                   .RES 1
+ZP_SSR:                   .RES 1
 ZP_COMCOM:                .RES 1
 ZP_TICK_FLAG:             .RES 1
 
@@ -81,18 +84,10 @@ START:
   storeAY16 ZP_VB_STUB
   CLI
 INIT:
-  ; 初期化
   JSR CLEAR_TXTVRAM                   ; 画面クリア
-  JSR DRAW_ALLLINE
-  JSR DRAW_FRAME                      ; 枠の描画
-  loadmem16 ZR0,STR_LENGTH
-  LDX #0
-  LDY #22
-  JSR XY_PRT_STR
-  JSR DRAW_LINE
   ; ゲーム情報の初期化
   ; 速度難易度
-  LDA #8
+  LDA #5
   STA ZP_VB_PAR_TICK
   STZ ZP_TICK_FLAG
   ; 長さ
@@ -111,6 +106,21 @@ INIT:
   STA ZP_SNK_HEAD_Y
   STA ZP_SNK_TAIL_X
   STA ZP_SNK_TAIL_Y
+  ; Length
+  loadmem16 ZR0,STR_LENGTH
+  LDX #7
+  LDY #22
+  JSR XY_PRT_STR
+  ; Time
+  STZ ZP_MM
+  STZ ZP_SS
+  LDX #27
+  LDY #22
+  loadmem16 ZR0,STR_TIME
+  JSR XY_PRT_STR
+  ; Record
+  JSR DRAW_FRAME                      ; 枠の描画
+  JSR DRAW_ALLLINE                    ; 全部描画
   ; 初期リンゴ
   JSR GEN_APPLE
 @LOOP:
@@ -170,6 +180,23 @@ VBLANK:
   STA ZP_GEAR_FOR_TICK
   STA ZP_TICK_FLAG
 @SKP_TICK:
+  DEC ZP_GEAR_FOR_SEC
+  BNE @SKP_SEC
+  LDA #60
+  STA ZP_GEAR_FOR_SEC
+  ; 一秒ごとの処理
+  SED
+  LDA ZP_SS
+  CLC
+  ADC #1
+  STA ZP_SS
+  LDX #27
+  LDY #22
+  JSR XY_PRT_TIME
+  LDY #22
+  JSR DRAW_LINE
+  CLD
+@SKP_SEC:
   JMP (ZP_VB_STUB)           ; 片付けはBCOSにやらせる
 
 ; -------------------------------------------------------------------
@@ -266,7 +293,7 @@ GAMEOVER:
 DRAW_LENGTH:
   LDA ZP_SNK_LENGTH
   LDY #22
-  LDX #7
+  LDX #15
   JSR XY_PRT_BYT
   RTS
 
@@ -337,7 +364,6 @@ DRAW_FRAME:
   JSR XY_PUT
   DEY
   BNE @LOOP_SIDE
-  JSR DRAW_ALLLINE
   RTS
 
 DRAW_HLINE:
@@ -572,6 +598,9 @@ NIB2ASC:
 @SKP_ADC:
   RTS
 
+; -------------------------------------------------------------------
+;                      バイト値を16進2ケタで表示
+; -------------------------------------------------------------------
 XY_PRT_BYT:
   PHY
   JSR BYT2ASC
@@ -583,6 +612,9 @@ XY_PRT_BYT:
   JSR XY_PUT
   RTS
 
+; -------------------------------------------------------------------
+;                            文字列を表示
+; -------------------------------------------------------------------
 XY_PRT_STR:
   LDA (ZR0)
   BEQ @EXT
@@ -596,7 +628,26 @@ XY_PRT_STR:
 @EXT:
   RTS
 
-STR_LENGTH: .ASCIIZ "Length:01"
+; -------------------------------------------------------------------
+;                            時間を表示
+; -------------------------------------------------------------------
+XY_PRT_TIME:
+  PHX
+  PHY
+  LDA ZP_MM
+  JSR XY_PRT_BYT
+  PLY
+  PLX
+  INX
+  INX
+  INX
+  LDA ZP_SS
+  JSR XY_PRT_BYT
+  RTS
+
+STR_LENGTH: .ASCIIZ "Length: 01"
+STR_RECORD: .ASCIIZ "Record: 01"
+STR_TIME:   .ASCIIZ "00:00"
 
 SNAKE_DATA256:
 
