@@ -26,6 +26,7 @@ ZP_X:                     .RES 1
 ZP_Y:                     .RES 1
 ZP_CURSOR_X:              .RES 1
 ZP_CURSOR_Y:              .RES 1
+ZP_ITR:                   .RES 1
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -43,6 +44,7 @@ START:
   ; 初期化
   JSR CLEAR_TXTVRAM                   ; 画面クリア
   JSR DRAW_ALLLINE
+  JSR DRAW_FRAME
   LDA #10
   STA ZP_CURSOR_X
   STA ZP_CURSOR_Y                     ; カーソルの初期化
@@ -81,19 +83,66 @@ EXIT:
   ; 大政奉還コード
   RTS
 
+; -------------------------------------------------------------------
+;                          ワクを描画
+; -------------------------------------------------------------------
+DRAW_FRAME:
+  ; 上
+  STZ ZP_CURSOR_Y
+  JSR DRAW_HLINE
+  ; 下
+  LDA #24-1-2
+  STA ZP_CURSOR_Y
+  JSR DRAW_HLINE
+  ; 左右
+  DEC ZP_CURSOR_Y
+@LOOP_SIDE:
+  STZ ZP_CURSOR_X
+  LDA #'#'
+  JSR CURSOR_PUT
+  LDA #32-1
+  STA ZP_CURSOR_X
+  LDA #'#'
+  JSR CURSOR_PUT
+  DEC ZP_CURSOR_Y
+  BNE @LOOP_SIDE
+  JSR DRAW_ALLLINE
+  RTS
+
+DRAW_HLINE:
+  STZ ZP_CURSOR_X
+  LDA #32
+  STA ZP_ITR
+@LOOP:
+  LDA #'#'
+  JSR CURSOR_PUT
+  INC ZP_CURSOR_X
+  DEC ZP_ITR
+  BNE @LOOP
+  ;JSR DRAW_LINE_RAW
+  RTS
+
+; -------------------------------------------------------------------
+;                     カーソル位置から読み取り
+; -------------------------------------------------------------------
 CURSOR_GET:
   ; --- 読み取り
   JSR CUR2TRAM_VEC
   LDA (ZP_TRAM_VEC16),Y
   RTS
 
+; -------------------------------------------------------------------
+;                     カーソル位置に書き込み
+; -------------------------------------------------------------------
+; 呼び出し直後にJSR DRAW_LINE_RAWが使える
+; -------------------------------------------------------------------
 CURSOR_PUT:
   ; --- 書き込み
   PHA
   JSR CUR2TRAM_VEC
   PLA
   STA (ZP_TRAM_VEC16),Y
-  JSR DRAW_LINE_RAW
+  ;JSR DRAW_LINE_RAW    ; 呼び出し側の任意
   RTS
 
 CUR2TRAM_VEC:
