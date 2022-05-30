@@ -25,6 +25,14 @@ CHR_HEAD  ='O'
 CHR_TAIL  ='o'
 CHR_WALL  ='#'
 CHR_APPLE ='@'
+CHR_YOKOBO=$10
+CHR_TATEBO=$11
+CHR_HIDARI_UE=$12
+CHR_MIGI_UE=$13
+CHR_HIDARI_SITA=$15
+CHR_MIGI_SITA=$14
+CHR_ALLOWL=$C1
+CHR_ALLOWR=$C0
 
 ; -------------------------------------------------------------------
 ;                             ZP領域
@@ -84,12 +92,13 @@ START:
   syscall IRQ_SETHNDR_VB
   storeAY16 ZP_VB_STUB
   CLI
+  JSR TITLE
 INIT:
   JSR CLEAR_TXTVRAM                   ; 画面クリア
   ; ゲーム情報の初期化
   ; 速度難易度
-  LDA #5
-  STA ZP_VB_PAR_TICK
+  ;LDA #5
+  ;STA ZP_VB_PAR_TICK
   STZ ZP_TICK_FLAG
   ; 長さ
   LDA #1
@@ -169,6 +178,69 @@ INIT:
   BRA @LOOP
 EXIT:
   ; 大政奉還コード
+  RTS
+
+; -------------------------------------------------------------------
+;                             タイトル
+; -------------------------------------------------------------------
+TITLE_Y=(24/2)-2
+TITLE_DIF_Y=TITLE_Y+3
+TITLE_PROMPT_Y=23-2
+TITLE:
+  ; 速度難易度のデフォ値
+  LDA #5
+  STA ZP_VB_PAR_TICK
+  ; タイトル画面の描画
+  JSR CLEAR_TXTVRAM                   ; 画面クリア
+  ; ヘヒ゛ ケ゛ーム (8)
+  loadmem16 ZR0,STR_TITLE_SNAKEGAME
+  LDX #12             ; 中央寄せ
+  LDY #TITLE_Y        ; 中央寄せ
+  JSR XY_PRT_STR
+  ; 難易度の調整ウィンドウ
+  ; 0
+  loadmem16 ZR0,STR_TITLE_DIF0
+  LDX #0              ; 面倒に負けてスペース埋めした…
+  LDY #TITLE_DIF_Y+1
+  JSR XY_PRT_STR
+  ; 1
+  loadmem16 ZR0,STR_TITLE_DIF1
+  LDX #0              ; 面倒に負けてスペース埋めした…
+  LDY #TITLE_DIF_Y+2
+  JSR XY_PRT_STR
+  ; 2
+  loadmem16 ZR0,STR_TITLE_DIF2
+  LDX #0              ; 面倒に負けてスペース埋めした…
+  LDY #TITLE_DIF_Y+3
+  JSR XY_PRT_STR
+  ; 3
+  loadmem16 ZR0,STR_TITLE_DIF3
+  LDX #0              ; 面倒に負けてスペース埋めした…
+  LDY #TITLE_DIF_Y+4
+  JSR XY_PRT_STR
+  ; プロンプト三行
+  ; 0
+  loadmem16 ZR0,STR_TITLE_PROMPT0
+  LDX #0
+  LDY #TITLE_PROMPT_Y
+  JSR XY_PRT_STR
+  ; 1
+  loadmem16 ZR0,STR_TITLE_PROMPT1
+  LDX #0
+  LDY #TITLE_PROMPT_Y+1
+  JSR XY_PRT_STR
+  ; 2
+  loadmem16 ZR0,STR_TITLE_PROMPT2
+  LDX #0
+  LDY #TITLE_PROMPT_Y+2
+  JSR XY_PRT_STR
+  ; 描画
+  JSR DRAW_ALLLINE
+@LOOP:
+  ; キー入力駆動
+  LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
+  syscall CON_RAWIN
+  ; キーごとの処理
   RTS
 
 ; -------------------------------------------------------------------
@@ -649,9 +721,55 @@ XY_PRT_TIME:
   JSR XY_PRT_BYT
   RTS
 
-STR_LENGTH: .ASCIIZ "Length: 01"
-STR_RECORD: .ASCIIZ "Record: 01"
-STR_TIME:   .ASCIIZ "00:00"
+STR_LENGTH: .ASCIIZ         "Length: 01"
+STR_RECORD: .ASCIIZ         "Record: 01"
+STR_TIME:   .ASCIIZ         "00:00"
+STR_TITLE_SNAKEGAME: .BYT   $AD,$EB,$BE,' ',$D9,$BE,$90,$F1,$0
+;STR_TITLE_DIFNUMS: .ASCIIZ  "123456"
+;STR_TITLE_DIFSNK:  .ASCIIZ  "ooO"
+;  ********     0
+;  *123456*     1
+; ←*ooO   *→    2
+;  ********     3
+STR_TITLE_DIF0:
+  .REPEAT 12
+    .BYT ' '
+  .ENDREPEAT
+  .BYT CHR_HIDARI_UE
+  .REPEAT 6
+    .BYT CHR_YOKOBO
+  .ENDREPEAT
+  .BYT CHR_MIGI_UE
+  .BYT 0
+STR_TITLE_DIF1:
+  .REPEAT 12
+    .BYT ' '
+  .ENDREPEAT
+  .BYT CHR_TATEBO,"123456",CHR_TATEBO
+  .BYT 0
+STR_TITLE_DIF2:
+  .REPEAT 11
+    .BYT ' '
+  .ENDREPEAT
+  .BYT CHR_ALLOWL,CHR_TATEBO,"ooO   ",CHR_TATEBO,CHR_ALLOWR
+  .BYT 0
+STR_TITLE_DIF3:
+  .REPEAT 12
+    .BYT ' '
+  .ENDREPEAT
+  .BYT CHR_HIDARI_SITA
+  .REPEAT 6
+    .BYT CHR_YOKOBO
+  .ENDREPEAT
+  .BYT CHR_MIGI_SITA
+  .BYT 0
+
+STR_TITLE_PROMPT0:
+  .ASCIIZ "[Esc]=Quit"
+STR_TITLE_PROMPT1:
+  .ASCIIZ "[A/D]=Select Speed"
+STR_TITLE_PROMPT2:
+  .ASCIIZ "[Enter]=Start Game"
 
 SNAKE_DATA256:
 
