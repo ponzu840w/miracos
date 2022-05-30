@@ -185,7 +185,10 @@ EXIT:
 ; -------------------------------------------------------------------
 TITLE_Y=(24/2)-2
 TITLE_DIF_Y=TITLE_Y+3
-TITLE_PROMPT_Y=23-2
+TITLE_DIF_X=12
+TITLE_PROMPT_Y=23-3
+TITLE_PROMPT_EXIT_X=9
+TITLE_PROMPT_START_X=18
 TITLE:
   ; 速度難易度のデフォ値
   LDA #5
@@ -200,39 +203,33 @@ TITLE:
   ; 難易度の調整ウィンドウ
   ; 0
   loadmem16 ZR0,STR_TITLE_DIF0
-  LDX #0              ; 面倒に負けてスペース埋めした…
+  LDX #TITLE_DIF_X
   LDY #TITLE_DIF_Y+1
   JSR XY_PRT_STR
   ; 1
   loadmem16 ZR0,STR_TITLE_DIF1
-  LDX #0              ; 面倒に負けてスペース埋めした…
+  LDX #TITLE_DIF_X
   LDY #TITLE_DIF_Y+2
   JSR XY_PRT_STR
   ; 2
   loadmem16 ZR0,STR_TITLE_DIF2
-  LDX #0              ; 面倒に負けてスペース埋めした…
+  LDX #TITLE_DIF_X-1
   LDY #TITLE_DIF_Y+3
   JSR XY_PRT_STR
   ; 3
   loadmem16 ZR0,STR_TITLE_DIF3
-  LDX #0              ; 面倒に負けてスペース埋めした…
+  LDX #TITLE_DIF_X
   LDY #TITLE_DIF_Y+4
   JSR XY_PRT_STR
-  ; プロンプト三行
-  ; 0
-  loadmem16 ZR0,STR_TITLE_PROMPT0
-  LDX #0
+  ; EXIT
+  loadmem16 ZR0,STR_TITLE_EXIT
+  LDX #TITLE_PROMPT_EXIT_X
   LDY #TITLE_PROMPT_Y
   JSR XY_PRT_STR
-  ; 1
-  loadmem16 ZR0,STR_TITLE_PROMPT1
-  LDX #0
-  LDY #TITLE_PROMPT_Y+1
-  JSR XY_PRT_STR
-  ; 2
-  loadmem16 ZR0,STR_TITLE_PROMPT2
-  LDX #0
-  LDY #TITLE_PROMPT_Y+2
+  ; START
+  loadmem16 ZR0,STR_TITLE_START
+  LDX #TITLE_PROMPT_START_X
+  LDY #TITLE_PROMPT_Y
   JSR XY_PRT_STR
   ; 描画
   JSR DRAW_ALLLINE
@@ -732,9 +729,6 @@ STR_TITLE_SNAKEGAME: .BYT   $AD,$EB,$BE,' ',$D9,$BE,$90,$F1,$0
 ; ←*ooO   *→    2
 ;  ********     3
 STR_TITLE_DIF0:
-  .REPEAT 12
-    .BYT ' '
-  .ENDREPEAT
   .BYT CHR_HIDARI_UE
   .REPEAT 6
     .BYT CHR_YOKOBO
@@ -742,21 +736,12 @@ STR_TITLE_DIF0:
   .BYT CHR_MIGI_UE
   .BYT 0
 STR_TITLE_DIF1:
-  .REPEAT 12
-    .BYT ' '
-  .ENDREPEAT
   .BYT CHR_TATEBO,"123456",CHR_TATEBO
   .BYT 0
 STR_TITLE_DIF2:
-  .REPEAT 11
-    .BYT ' '
-  .ENDREPEAT
   .BYT CHR_ALLOWL,CHR_TATEBO,"ooO   ",CHR_TATEBO,CHR_ALLOWR
   .BYT 0
 STR_TITLE_DIF3:
-  .REPEAT 12
-    .BYT ' '
-  .ENDREPEAT
   .BYT CHR_HIDARI_SITA
   .REPEAT 6
     .BYT CHR_YOKOBO
@@ -764,12 +749,10 @@ STR_TITLE_DIF3:
   .BYT CHR_MIGI_SITA
   .BYT 0
 
-STR_TITLE_PROMPT0:
-  .ASCIIZ "[Esc]=Quit"
-STR_TITLE_PROMPT1:
-  .ASCIIZ "[A/D]=Select Speed"
-STR_TITLE_PROMPT2:
-  .ASCIIZ "[Enter]=Start Game"
+STR_TITLE_EXIT:
+  .ASCIIZ " EXIT"
+STR_TITLE_START:
+  .ASCIIZ "*START"
 
 SNAKE_DATA256:
 
