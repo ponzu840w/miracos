@@ -30,7 +30,6 @@ LF=10
 ; -------------------------------------------------------------------
 .CODE
 START:
-  STZ TEXT+256                    ; 終端
   ; nullチェック
   storeAY16 ZR0
   TAX
@@ -57,7 +56,7 @@ LOOP:
   BNE @SKP_WAIT                   ; 非改行なら待機しない
   ; 改行文字
 @RAWIN:
-  LDA BHA_CON_RAWIN_WaitAndNoEcho
+  LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho
   syscall CON_RAWIN
   CMP #LF
   BNE @RAWIN
