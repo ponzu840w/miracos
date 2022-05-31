@@ -1,24 +1,34 @@
 # ----------------- MIRACOS生成専用スクリプト ------------------------
+ZP_START="0x00"
+ZP_END="0x40"
 SYSCALLTABLE_START="0x0600"
 TPA_START="0x0700"
 CCP_START="0x5000"
 BCOS_START="0x6000"
-BCOS_END="0x7FFF"
+NOUSE_START="0x8000"
 SEPARATOR="---------------------------------------------------------------------------"
+
+# --- 簡略化関数群
+# initmessageを出力する
+# $1でビルドの種類を指定できる
+function writeInitMessage () {
+  echo ".BYT \"MIRACOS $version for FxT-65\",10,\"$(printf "%32s" "(build [$commit]${date}$1)")\",0" > initmessage.s
+}
+
+# 一時ディレクトリ
+tmpdir=$(mktemp -d)         # 一時ディレクトリ作成
+trap "rm -rf $tmpdir" EXIT  # スクリプト終了時に処分
 
 version=$(git describe --abbrev=0 --tags)
 commit=$(git rev-parse HEAD | cut -c1-6 | tr -d "\n")
 date=$(date '+%Y %m%d-%H%M' | awk '{print "R"$1-2018$2}')
-echo ".BYT \"MIRACOS $version for FxT-65\",10,\"$(printf "%32s" "(build [$commit]${date}t)")\",0" > initmessage.txt
-cat initmessage.txt
 
 # 対象ディレクトリ作成
 mkdir ./listing -p
 mkdir ./bin/MCOS -p
 
 # S-REC作成
-tmpdir=$(mktemp -d)         # 一時ディレクトリ作成
-trap "rm -rf $tmpdir" EXIT  # スクリプト終了時に処分
+writeInitMessage t          # テストビルドであることを明示
 cl65 -Wa -D,SRECBUILD=1 -vm -t none -C ./confcos.cfg -o ${tmpdir}/bcos.sys ./bcos.s # SRECビルドモードで再ビルド
 objcopy -I binary -O srec --adjust-vma=$BCOS_START ${tmpdir}/bcos.sys ${tmpdir}/bcos.srec
 objcopy -I binary -O srec --adjust-vma=$CCP_START ./bin/MCOS/CCP.SYS ${tmpdir}/ccp.srec
@@ -26,7 +36,7 @@ objcopy -I binary -O srec --adjust-vma=$SYSCALLTABLE_START ./bin/MCOS/SYSCALL.SY
 cat ${tmpdir}/bcos.srec ${tmpdir}/ccp.srec | awk '/S1/' | cat - ${tmpdir}/syscall.srec | clip.exe # クリップボードに合成
 
 # リリースBCOSアセンブル
-echo ".BYT \"MIRACOS $version for FxT-65\",10,\"$(printf "%32s" "(build [$commit]${date}r)")\",10,0" > initmessage.txt
+writeInitMessage r        # リリースビルド
 cl65 -g -Wl -Ln,./listing/symbol-bcos.s  -l ./listing/list-bcos.s -m ./listing/map-bcos.s -vm -t none -C ./confcos.cfg -o ./bin/BCOS.SYS ./bcos.s
 
 # コマンドアセンブル
@@ -69,33 +79,9 @@ rm ./bcos.o   -f
 find ./com/ -name "*.o" | xargs rm -f
 #rm ./ccp.o
 
-# ビルド結果表示
-segmentlist=$(cat listing/map-bcos.s | awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 " 0x"$2 " 0x"$3 " 0x"$4}')
-# ゼロページ
-echo $SEPARATOR
-echo "$segmentlist"| awk '
-  /ZEROPAGE/{printf("[System-ZP]\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
-    size=strtonum($4)
-    area=0x40
-    free=area-size
-    use=size/area
-    printf("-\n")
-    printf("USAGE\t$%4X / $%4X\t(%2.2f%%)\n",size,area,use*100)
-    printf("FREE\t$%4X = %2.3fK\n",free,free/1000)
-  }
-  '
-# CCP
-echo $SEPARATOR
-echo "$segmentlist"| awk -v start=$CCP_START -v end=$BCOS_START '
-BEGIN{printf("[CCP.SYS]\n")}
-  /^CODE/{
-    printf("\tCODE\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
-    size=strtonum($4)
-  }
-  /^BSS/{
-    printf("\tVAR\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
-    size=size+strtonum($4)
-  }
+# ----------------- ビルド結果の表示 ------------------------
+# awkコマンドの共通部分
+cat - << EOS > ${tmpdir}/awkcom
   END{
     area=strtonum(end)-strtonum(start)
     use=size/area
@@ -105,35 +91,40 @@ BEGIN{printf("[CCP.SYS]\n")}
     printf("USAGE\t$%4X / $%4X\t(%2.2f%%)\n",size,area,use*100)
     printf("FREE\t$%4X = %2.3fK\n",free,free/1000,freep*100)
   }
-'
+  function line(name, from, to, siz){
+    printf("\t%s\t$%4X...$%4X\t($%4X = %2.3fK)\n",name,strtonum(from),strtonum(to),strtonum(siz),strtonum(siz)/1000)
+    size=size+strtonum(siz)
+  }
+EOS
+
+# セグメントのリストを取得
+segmentlist=$(cat listing/map-bcos.s | awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 " 0x"$2 " 0x"$3 " 0x"$4}')
+
+# ゼロページ
+echo $SEPARATOR
+cat - << EOS > ${tmpdir}/awkcom_zp
+  BEGIN{printf("[System-ZP]\n")}
+  /ZEROPAGE/ { line("ZP", \$2, \$3, \$4) }
+EOS
+echo "$segmentlist"| awk -v start=$ZP_START -v end=$ZP_END -f ${tmpdir}/awkcom -f ${tmpdir}/awkcom_zp
+
+# CCP
+echo $SEPARATOR
+cat - << EOS > ${tmpdir}/awkcom_ccp
+  BEGIN{printf("[CCP.SYS]\n")}
+  /^CODE/ { line("CODE", \$2, \$3, \$4) }
+  /^BSS/ { line("VAR", \$2, \$3, \$4) }
+EOS
+echo "$segmentlist"| awk -v start=$CCP_START -v end=$BCOS_START -f ${tmpdir}/awkcom -f ${tmpdir}/awkcom_ccp
+
 # BCOS
 echo $SEPARATOR
-echo "$segmentlist" | awk -v start=$BCOS_START -v end=$BCOS_END '
+cat - << EOS > ${tmpdir}/awkcom_bcos
   BEGIN{printf("[BCOS.SYS]\n")}
-  /COSCODE/{
-    printf("\tCODE\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
-    size=size+strtonum($4)
-  }
-  /COSLIB/{
-    printf("\tLIB\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
-    size=size+strtonum($4)
-  }
-  /COSVAR/{
-    printf("\tVAR\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
-    size=size+strtonum($4)
-  }
-  /COSBF100/{
-    printf("\tBUF\t$%4X...$%4X\t($%4X = %2.3fK)\n",strtonum($2),strtonum($3),strtonum($4),strtonum($4)/1000)
-    size=size+strtonum($4)
-  }
-  END{
-    area=strtonum(end)-strtonum(start)+1
-    use=size/area
-    free=area-size
-    freep=free/area
-    printf("-\n")
-    printf("USAGE\t$%4X / $%4X\t(%2.2f%%)\n",size,area,use*100)
-    printf("FREE\t$%4X = %2.3fK\n",free,free/1000,freep*100)
-  }
-'
+  /COSCODE/ { line("CODE", \$2, \$3, \$4) }
+  /COSLIB/  { line("LIB", \$2, \$3, \$4) }
+  /COSVAR/  { line("VAR", \$2, \$3, \$4) }
+  /COSBF100/{ line("BUF", \$2, \$3, \$4) }
+EOS
+echo "$segmentlist" | awk -v start=$BCOS_START -v end=$NOUSE_START -f ${tmpdir}/awkcom -f ${tmpdir}/awkcom_bcos
 

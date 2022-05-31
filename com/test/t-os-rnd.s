@@ -22,7 +22,8 @@ ZP_RND_ADDR16:         .RES 2
 ;                             実行領域
 ; -------------------------------------------------------------------
 .CODE
-  syscall RND16
+  LDY #0
+  syscall GET_ADDR
   storeAY16 ZP_RND_ADDR16
 LOOP:
   LDA #$2                   ; エコーなし入力
