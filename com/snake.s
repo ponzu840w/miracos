@@ -92,6 +92,25 @@ START:
   STZ ZP_SNK_LENGTHR
 GAME:
   JSR CLEAR_TXTVRAM                   ; 画面クリア
+  ; 速度メータ表示
+  LDA #']'
+  LDX #7
+  LDY #23
+  JSR XY_PUT
+  LDA #'['
+  LDX #0
+  JSR XY_PUT
+  LDA ZP_VB_PAR_TICK
+  STA ZP_ITR
+@SPEED_LOOP:
+  LDA #'>'
+  INX
+  JSR XY_PUT
+  LDA ZP_ITR
+  INC
+  STA ZP_ITR
+  CMP #8
+  BNE @SPEED_LOOP
   ; 割り込みハンドラの登録
   SEI
   loadAY16 VBLANK
@@ -118,13 +137,13 @@ GAME:
   STA ZP_SNK_TAIL_Y
   ; Length
   loadmem16 ZR0,STR_LENGTH
-  LDX #7
+  LDX #10
   LDY #22
   JSR XY_PRT_STR
   ; Record
   loadmem16 ZR0,STR_RECORD
-  LDX #7
-  LDY #23
+  LDX #10
+  INY
   JSR XY_PRT_STR
   ; RecordTime
   LDA ZP_MMR
@@ -534,14 +553,14 @@ MOVE_HEAD:
 DRAW_LENGTH:
   LDA ZP_SNK_LENGTH
   LDY #22
-  LDX #15
+  LDX #15+3
   JSR XY_PRT_BYT
   RTS
 
 DRAW_LENGTHR:
   LDA ZP_SNK_LENGTHR
   LDY #23
-  LDX #15
+  LDX #15+3
   JSR XY_PRT_BYT
   RTS
 
