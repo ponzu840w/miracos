@@ -85,11 +85,11 @@ START:
   LDY #BCOS::BHY_GET_ADDR_zprand16    ; RND
   syscall GET_ADDR
   storeAY16 ZP_RND_ADDR16
-  JSR TITLE
   ; レコード記録リセット
   STZ ZP_MMR
   STZ ZP_SSR
   STZ ZP_SNK_LENGTHR
+  JSR TITLE
 GAME:
   JSR CLEAR_TXTVRAM                   ; 画面クリア
   ; 速度メータ表示
@@ -574,8 +574,12 @@ GAMEOVER:
   syscall IRQ_SETHNDR_VB
   CLI
   loadmem16 ZR0,STR_GAMEOVER
-  LDX #12                             ; 中央寄せ
+  LDX #11                             ; 中央寄せ
   LDY #TITLE_Y                        ; 中央寄せ
+  JSR XY_PRT_STR
+  loadmem16 ZR0,STR_GAMEOVER_PROM
+  LDX #2                              ; 中央寄せ
+  LDY #TITLE_Y+2                      ; 中央寄せ
   JSR XY_PRT_STR
   ; レコード処理
   LDA ZP_SNK_LENGTH
@@ -592,7 +596,15 @@ GAMEOVER:
   ; キー入力駆動
   LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
   syscall CON_RAWIN
+  CMP #10
+  BNE @SKP_GAME
   JMP GAME
+@SKP_GAME:
+  CMP #$1B
+  BNE @SKP_ESC
+  JMP START
+@SKP_ESC:
+  BRA @LOOP
 
 ; -------------------------------------------------------------------
 ;                             尾を動かす
@@ -991,6 +1003,8 @@ STR_TITLE_START:
   .ASCIIZ "*START"
 STR_GAMEOVER:
   .ASCIIZ "GAME OVER"
+STR_GAMEOVER_PROM:
+  .ASCIIZ "Esc to Quit / Enter to Retry"
 
 SNAKE_DATA256:  .RES 256
 
