@@ -38,38 +38,37 @@ CHR_ALLOWR=$C0
 ;                             ZP領域
 ; -------------------------------------------------------------------
 .ZEROPAGE
-ZP_TXTVRAM768_16:         .RES 2
-ZP_FONT2048_16:           .RES 2
+ZP_TXTVRAM768_16:         .RES 2  ; カーネルのワークエリアを借用するためのアドレス
+ZP_FONT2048_16:           .RES 2  ; カーネルのワークエリアを借用するためのアドレス
 ZP_TRAM_VEC16:            .RES 2  ; TRAM操作用ベクタ
 ZP_FONT_VEC16:            .RES 2  ; フォント読み取りベクタ
 ZP_FONT_SR:               .RES 1  ; FONT_OFST
-ZP_X:                     .RES 1
-ZP_Y:                     .RES 1
-ZP_CURSOR_X:              .RES 1
-ZP_CURSOR_Y:              .RES 1
-ZP_ITR:                   .RES 1
-ZP_SNK_HEAD_X:            .RES 1
+ZP_DRAWTMP_X:             .RES 1  ; 描画用
+ZP_DRAWTMP_Y:             .RES 1  ; 描画用
+ZP_ITR:                   .RES 1  ; 汎用イテレータ
+ZP_SNK_HEAD_X:            .RES 1  ; 頭の座標
 ZP_SNK_HEAD_Y:            .RES 1
-ZP_SNK_TAIL_X:            .RES 1
+ZP_SNK_TAIL_X:            .RES 1  ; 尾の座標
 ZP_SNK_TAIL_Y:            .RES 1
-ZP_SNK_HEAD_PTR8:         .RES 1
-ZP_SNK_TAIL_PTR8:         .RES 1
-ZP_SNK_LENGTH:            .RES 1
-ZP_SNK_DIREC:             .RES 1
-ZP_INPUT:                 .RES 1
-ZP_RND_ADDR16:            .RES 2
-ZP_APPLE_X:               .RES 1
+ZP_SNK_HEAD_PTR8:         .RES 1  ; 向きキューの頭のインデックス
+ZP_SNK_TAIL_PTR8:         .RES 1  ; 向きキューの尾のインデックス
+ZP_SNK_LENGTH:            .RES 1  ; 蛇の長さ 1...
+ZP_SNK_DIREC:             .RES 1  ; 次の向き
+ZP_INPUT:                 .RES 1  ; キー入力バッファ
+ZP_RND_ADDR16:            .RES 2  ; カーネルが乱数をくれるはずのアドレス
+ZP_APPLE_X:               .RES 1  ; リンゴの座標
 ZP_APPLE_Y:               .RES 1
 ZP_VB_STUB:               .RES 2  ; 割り込み終了処理
-ZP_VB_PAR_TICK:           .RES 1
+ZP_VB_PAR_TICK:           .RES 1  ; ティック当たり垂直同期割込み数。難易度を担う。
 ZP_GEAR_FOR_TICK:         .RES 1  ; TICK生成
-ZP_GEAR_FOR_SEC:          .RES 1
-ZP_MM:                    .RES 1
-ZP_SS:                    .RES 1
-ZP_MMR:                   .RES 1
-ZP_SSR:                   .RES 1
+ZP_GEAR_FOR_SEC:          .RES 1  ; 秒生成
+ZP_MM:                    .RES 1  ; 経過分数（デシマル
+ZP_SS:                    .RES 1  ; 経過秒数（デシマル
+ZP_MMR:                   .RES 1  ; レコード経過分数（デシマル
+ZP_SSR:                   .RES 1  ; レコード経過秒数（デシマル
 ZP_COMCOM:                .RES 1
-ZP_TICK_FLAG:             .RES 1
+ZP_TICK_FLAG:             .RES 1  ; 0=ティック待機期間 非0=ティック発生
+;ZP_GAME_STATE:            .RES 1 ; 割込み処理を制御するために考えたが、ルーチンを切り替えればよい
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -439,6 +438,9 @@ DRAW_FRAME:
   BNE @LOOP_SIDE
   RTS
 
+; -------------------------------------------------------------------
+;                           横棒を描画
+; -------------------------------------------------------------------
 DRAW_HLINE:
   LDX #0
   LDA #32
@@ -453,7 +455,7 @@ DRAW_HLINE:
   RTS
 
 ; -------------------------------------------------------------------
-;                     カーソル位置から読み取り
+;                         XY位置から読み取り
 ; -------------------------------------------------------------------
 XY_GET:
   PHX
@@ -466,9 +468,7 @@ XY_GET:
   RTS
 
 ; -------------------------------------------------------------------
-;                     カーソル位置に書き込み
-; -------------------------------------------------------------------
-; 呼び出し直後にJSR DRAW_LINE_RAWが使える
+;                         XY位置に書き込み
 ; -------------------------------------------------------------------
 XY_PUT:
   PHX
@@ -478,11 +478,13 @@ XY_PUT:
   JSR XY2TRAM_VEC
   PLA
   STA (ZP_TRAM_VEC16),Y
-  ;JSR DRAW_LINE_RAW    ; 呼び出し側の任意
   PLY
   PLX
   RTS
 
+; -------------------------------------------------------------------
+;                    XY位置に書き込み、描画込み
+; -------------------------------------------------------------------
 XY_PUT_DRAW:
   PHX
   PHY
@@ -496,10 +498,12 @@ XY_PUT_DRAW:
   PLX
   RTS
 
+; -------------------------------------------------------------------
+;                 カーソル位置に書き込み、描画込み
+; -------------------------------------------------------------------
 XY2TRAM_VEC:
   STZ ZP_FONT_SR        ; シフタ初期化
   STZ ZP_TRAM_VEC16     ; TRAMポインタ初期化
-  ;LDA ZP_CURSOR_Y
   TYA
   LSR
   ROR ZP_FONT_SR
@@ -509,12 +513,14 @@ XY2TRAM_VEC:
   ROR ZP_FONT_SR
   ADC ZP_TXTVRAM768_16+1
   STA ZP_TRAM_VEC16+1
-  ;LDA ZP_CURSOR_X
   TXA
   ORA ZP_FONT_SR
   TAY
   RTS
 
+; -------------------------------------------------------------------
+;                       TRAMをスペースで埋める
+; -------------------------------------------------------------------
 CLEAR_TXTVRAM:
   mem2mem16 ZR0,ZP_TXTVRAM768_16
   LDA #' '
@@ -529,8 +535,10 @@ CLEAR_TXTVRAM_LOOP:
   BNE CLEAR_TXTVRAM_LOOP
   RTS
 
+; -------------------------------------------------------------------
+;                       TRAMの全行を反映する
+; -------------------------------------------------------------------
 DRAW_ALLLINE:
-  ; TRAMから全行を反映する
   mem2mem16 ZP_TRAM_VEC16,ZP_TXTVRAM768_16
   LDY #0
   LDX #6
@@ -545,8 +553,10 @@ DRAW_ALLLINE_LOOP:
   BNE DRAW_ALLLINE_LOOP
   RTS
 
+; -------------------------------------------------------------------
+;                     Yで指定された行を反映する
+; -------------------------------------------------------------------
 DRAW_LINE:
-  ; Yで指定された行を描画する
   JSR XY2TRAM_VEC
 DRAW_LINE_RAW:
   ; 行を描画する
@@ -556,27 +566,27 @@ DRAW_LINE_RAW:
   AND #%11100000            ; 行として意味のある部分を抽出
   TAX                       ; しばらく使わないXに保存
   ; HVの初期化
-  STZ ZP_X
+  STZ ZP_DRAWTMP_X
   ; 0~2のページオフセットを取得
   LDA ZP_TRAM_VEC16+1
   SEC
   ;SBC #>TXTVRAM768
   SBC ZP_TXTVRAM768_16+1
-  STA ZP_Y
+  STA ZP_DRAWTMP_Y
   ; インデックスの垂直部分3bitを挿入
   TYA
   ASL
-  ROL ZP_Y
+  ROL ZP_DRAWTMP_Y
   ASL
-  ROL ZP_Y
+  ROL ZP_DRAWTMP_Y
   ASL
-  ROL ZP_Y
+  ROL ZP_DRAWTMP_Y
   ; 8倍
-  LDA ZP_Y
+  LDA ZP_DRAWTMP_Y
   ASL
   ASL
   ASL
-  STA ZP_Y
+  STA ZP_DRAWTMP_Y
   ; --- フォント参照ベクタ作成
 DRAW_TXT_LOOP:
   ;LDA #>FONT2048
@@ -601,17 +611,17 @@ DRAW_TXT_LOOP:
   STA ZP_FONT_VEC16+1
   ; --- フォント書き込み
   ; カーソルセット
-  LDA ZP_X
+  LDA ZP_DRAWTMP_X
   STA CRTC::VMAH
   ; 一文字表示ループ
   LDY #0
 CHAR_LOOP:
-  LDA ZP_Y
+  LDA ZP_DRAWTMP_Y
   STA CRTC::VMAV
   ; フォントデータ読み取り
   LDA (ZP_FONT_VEC16),Y
   STA CRTC::WDBF
-  INC ZP_Y
+  INC ZP_DRAWTMP_Y
   INY
   CPY #8
   BNE CHAR_LOOP
@@ -622,8 +632,8 @@ CHAR_LOOP:
   INC ZP_TRAM_VEC16+1
 SKP_TXTNP:
   ; H
-  INC ZP_X
-  LDA ZP_X
+  INC ZP_DRAWTMP_X
+  LDA ZP_DRAWTMP_X
   AND #%00011111  ; 左端に戻るたびゼロ
   BNE SKP_EXT_DRAWLINE
   TXA
@@ -632,9 +642,9 @@ SKP_TXTNP:
 SKP_EXT_DRAWLINE:
   ; V
   SEC
-  LDA ZP_Y
+  LDA ZP_DRAWTMP_Y
   SBC #8
-  STA ZP_Y
+  STA ZP_DRAWTMP_Y
   BRA DRAW_TXT_LOOP
 
 ; -------------------------------------------------------------------
@@ -755,5 +765,5 @@ STR_TITLE_EXIT:
 STR_TITLE_START:
   .ASCIIZ "*START"
 
-SNAKE_DATA256:
+SNAKE_DATA256:  .RES 256
 
