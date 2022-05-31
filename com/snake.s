@@ -268,18 +268,72 @@ TITLE:
   LDA #CHR_ALLOWR               ; →
   LDX #TITLE_DIF_X+2+6
   JSR XY_PUT_DRAW
-  BRA @SKP_WASD
+  BRA @LOOP
 @S:
   ; Sキー
   ; SPEEDにあるとき、STARTに移動する
   CMP #'s'
   BNE @A
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_SPEED         ; SPEEDか？
+  BNE @LOOP                     ; EXIT/STARTなら無視
+  ; STARTに移動
+  LDA #TITLE_MENU_START
+  STA ZP_SELECTOR_STATE         ; 状態のセット
+  LDA #' '                      ; ←
+  LDX #TITLE_DIF_X-1
+  LDY #TITLE_DIF_Y+3
+  JSR XY_PUT
+  LDA #' '                      ; →
+  LDX #TITLE_DIF_X+2+6
+  JSR XY_PUT_DRAW
+  LDA #'*'                      ; *START
+  LDY #TITLE_PROMPT_Y
+  LDX #TITLE_PROMPT_START_X
+  JSR XY_PUT_DRAW
+  BRA @LOOP
 @A:
   ; Aキー
   ; STARTにあるとき、EXITにする
   ; SPEEDにあるとき、臓側する
   CMP #'a'
   BNE @D
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_START         ; STARTか？
+  BNE @A_NOT_START
+  ; STARTをEXITに
+  LDA #TITLE_MENU_EXIT
+  STA ZP_SELECTOR_STATE         ; 状態のセット
+  LDA #'*'                      ; *EXIT
+  LDY #TITLE_PROMPT_Y
+  LDX #TITLE_PROMPT_EXIT_X
+  JSR XY_PUT
+  LDA #' '                      ; *STARTの塗りつぶし
+  LDX #TITLE_PROMPT_START_X
+  JSR XY_PUT_DRAW
+  BRA @LOOP
+@A_NOT_START:
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_SPEED         ; SPEEDか？
+  BNE @LOOP2
+  ; 減速
+  LDA ZP_VB_PAR_TICK            ; 速度基準のチェック
+  CMP #7
+  BEQ @LOOP2                    ; 最低速度の7[/TICK]なら中断
+  INC                           ; ++
+  STA ZP_VB_PAR_TICK            ; 速度格納
+  ; ヘビが一つ引っ込む
+  LDA #TITLE_DIF_X+2+6
+  SEC
+  SBC ZP_VB_PAR_TICK            ; 減算により、新しい頭の座標が求まるはず
+  TAX
+  LDY #TITLE_DIF_Y+3
+  LDA #CHR_HEAD
+  JSR XY_PUT
+  INX                           ; 古い頭を削除
+  LDA #' '
+  JSR XY_PUT_DRAW
+  BRA @LOOP2
 @D:
   ; Dキー
   ; EXITにあるとき、STARTにする
@@ -292,7 +346,8 @@ TITLE:
   CMP #10
   BNE @SKP_ENTER
 @SKP_ENTER:
-  BRA @LOOP
+@LOOP2:
+  JMP @LOOP
   RTS
 
 ; -------------------------------------------------------------------
