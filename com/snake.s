@@ -66,9 +66,8 @@ ZP_MM:                    .RES 1  ; 経過分数（デシマル
 ZP_SS:                    .RES 1  ; 経過秒数（デシマル
 ZP_MMR:                   .RES 1  ; レコード経過分数（デシマル
 ZP_SSR:                   .RES 1  ; レコード経過秒数（デシマル
-ZP_COMCOM:                .RES 1
 ZP_TICK_FLAG:             .RES 1  ; 0=ティック待機期間 非0=ティック発生
-;ZP_GAME_STATE:            .RES 1 ; 割込み処理を制御するために考えたが、ルーチンを切り替えればよい
+ZP_SELECTOR_STATE:        .RES 1  ; メニュー状態
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -188,7 +187,13 @@ TITLE_DIF_X=12
 TITLE_PROMPT_Y=23-3
 TITLE_PROMPT_EXIT_X=9
 TITLE_PROMPT_START_X=18
+TITLE_MENU_SPEED=0
+TITLE_MENU_EXIT=1
+TITLE_MENU_START=2
 TITLE:
+  ; STARTにポイント
+  LDA #TITLE_MENU_START
+  STA ZP_SELECTOR_STATE
   ; 速度難易度のデフォ値
   LDA #5
   STA ZP_VB_PAR_TICK
@@ -237,6 +242,57 @@ TITLE:
   LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
   syscall CON_RAWIN
   ; キーごとの処理
+@W:
+  ; Wキー
+  ; EXIT/STARTにあるとき、SPEEDに移動する
+  ; それ以外では何もしない
+  CMP #'w'
+  BNE @S
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_SPEED         ; SPEEDか？
+  BEQ @LOOP                     ; SPEEDなら無視
+  ; SPEEDに移動
+  LDA #TITLE_MENU_SPEED
+  STA ZP_SELECTOR_STATE         ; 状態のセット
+  LDA #' '                      ; *の塗りつぶし
+  LDY #TITLE_PROMPT_Y
+  LDX #TITLE_PROMPT_EXIT_X
+  JSR XY_PUT
+  ;LDA #' '                      ; *の塗りつぶし
+  LDX #TITLE_PROMPT_START_X
+  JSR XY_PUT_DRAW
+  LDA #CHR_ALLOWL               ; ←
+  LDX #TITLE_DIF_X-1
+  LDY #TITLE_DIF_Y+3
+  JSR XY_PUT
+  LDA #CHR_ALLOWR               ; →
+  LDX #TITLE_DIF_X+2+6
+  JSR XY_PUT_DRAW
+  BRA @SKP_WASD
+@S:
+  ; Sキー
+  ; SPEEDにあるとき、STARTに移動する
+  CMP #'s'
+  BNE @A
+@A:
+  ; Aキー
+  ; STARTにあるとき、EXITにする
+  ; SPEEDにあるとき、臓側する
+  CMP #'a'
+  BNE @D
+@D:
+  ; Dキー
+  ; EXITにあるとき、STARTにする
+  ; SPEEDにあるとき、減速する
+  CMP #'d'
+  BNE @SKP_WASD
+@SKP_WASD:
+  ; エンターキー
+@ENTER:
+  CMP #10
+  BNE @SKP_ENTER
+@SKP_ENTER:
+  BRA @LOOP
   RTS
 
 ; -------------------------------------------------------------------
