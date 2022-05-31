@@ -53,6 +53,7 @@ ZP_SNK_TAIL_Y:            .RES 1
 ZP_SNK_HEAD_PTR8:         .RES 1  ; 向きキューの頭のインデックス
 ZP_SNK_TAIL_PTR8:         .RES 1  ; 向きキューの尾のインデックス
 ZP_SNK_LENGTH:            .RES 1  ; 蛇の長さ 1...
+ZP_SNK_LENGTHR:           .RES 1  ; 蛇の長さ 1...レコード
 ZP_SNK_DIREC:             .RES 1  ; 次の向き
 ZP_INPUT:                 .RES 1  ; キー入力バッファ
 ZP_RND_ADDR16:            .RES 2  ; カーネルが乱数をくれるはずのアドレス
@@ -84,19 +85,20 @@ START:
   LDY #BCOS::BHY_GET_ADDR_zprand16    ; RND
   syscall GET_ADDR
   storeAY16 ZP_RND_ADDR16
+  JSR TITLE
+  ; レコード記録リセット
+  STZ ZP_MMR
+  STZ ZP_SSR
+  STZ ZP_SNK_LENGTHR
+GAME:
+  JSR CLEAR_TXTVRAM                   ; 画面クリア
   ; 割り込みハンドラの登録
   SEI
   loadAY16 VBLANK
   syscall IRQ_SETHNDR_VB
   storeAY16 ZP_VB_STUB
   CLI
-  JSR TITLE
-INIT:
-  JSR CLEAR_TXTVRAM                   ; 画面クリア
   ; ゲーム情報の初期化
-  ; 速度難易度
-  ;LDA #5
-  ;STA ZP_VB_PAR_TICK
   STZ ZP_TICK_FLAG
   ; 長さ
   LDA #1
@@ -119,14 +121,27 @@ INIT:
   LDX #7
   LDY #22
   JSR XY_PRT_STR
+  ; Record
+  loadmem16 ZR0,STR_RECORD
+  LDX #7
+  LDY #23
+  JSR XY_PRT_STR
+  ; RecordTime
+  LDA ZP_MMR
+  STA ZP_MM
+  LDA ZP_SSR
+  STA ZP_SS
+  LDX #27
+  LDY #23
+  JSR XY_PRT_TIME
   ; Time
   STZ ZP_MM
   STZ ZP_SS
   LDX #27
   LDY #22
-  loadmem16 ZR0,STR_TIME
-  JSR XY_PRT_STR
-  ; Record
+  JSR XY_PRT_TIME
+  JSR DRAW_LENGTH                     ; LENGTH描画
+  JSR DRAW_LENGTHR                    ; LENGTHR描画
   JSR DRAW_FRAME                      ; 枠の描画
   JSR DRAW_ALLLINE                    ; 全部描画
   ; 初期リンゴ
@@ -516,9 +531,6 @@ MOVE_HEAD:
   PLP
   RTS
 
-GAMEOVER:
-  JMP INIT
-
 DRAW_LENGTH:
   LDA ZP_SNK_LENGTH
   LDY #22
@@ -526,9 +538,45 @@ DRAW_LENGTH:
   JSR XY_PRT_BYT
   RTS
 
+DRAW_LENGTHR:
+  LDA ZP_SNK_LENGTHR
+  LDY #23
+  LDX #15
+  JSR XY_PRT_BYT
+  RTS
 
 ; -------------------------------------------------------------------
-;                           尾を動かす
+;                                衝突
+; -------------------------------------------------------------------
+GAMEOVER:
+  ; 割り込みハンドラの登録抹消
+  SEI
+  mem2AY16 ZP_VB_STUB
+  syscall IRQ_SETHNDR_VB
+  CLI
+  loadmem16 ZR0,STR_GAMEOVER
+  LDX #12                             ; 中央寄せ
+  LDY #TITLE_Y                        ; 中央寄せ
+  JSR XY_PRT_STR
+  ; レコード処理
+  LDA ZP_SNK_LENGTH
+  CMP ZP_SNK_LENGTHR
+  BMI @SKP_NEWRECORD                  ; 記録-レコード=負なら更新ならず
+  STA ZP_SNK_LENGTHR
+  LDA ZP_MM
+  STA ZP_MMR
+  LDA ZP_SS
+  STA ZP_SSR
+@SKP_NEWRECORD:
+  JSR DRAW_ALLLINE                    ; 全部描画
+@LOOP:
+  ; キー入力駆動
+  LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
+  syscall CON_RAWIN
+  JMP GAME
+
+; -------------------------------------------------------------------
+;                             尾を動かす
 ; -------------------------------------------------------------------
 MOVE_TAIL:
   ; 現在の尾を消す
@@ -880,14 +928,15 @@ XY_PRT_TIME:
   PLX
   INX
   INX
+  LDA #':'
+  JSR XY_PUT
   INX
   LDA ZP_SS
   JSR XY_PRT_BYT
   RTS
 
-STR_LENGTH: .ASCIIZ         "Length: 01"
-STR_RECORD: .ASCIIZ         "Record: 01"
-STR_TIME:   .ASCIIZ         "00:00"
+STR_LENGTH: .ASCIIZ         "Length:"
+STR_RECORD: .ASCIIZ         "Record:"
 STR_TITLE_SNAKEGAME: .BYT   $AD,$EB,$BE,' ',$D9,$BE,$90,$F1,$0
 ;STR_TITLE_DIFNUMS: .ASCIIZ  "123456"
 ;STR_TITLE_DIFSNK:  .ASCIIZ  "ooO"
@@ -921,6 +970,8 @@ STR_TITLE_EXIT:
   .ASCIIZ " EXIT"
 STR_TITLE_START:
   .ASCIIZ "*START"
+STR_GAMEOVER:
+  .ASCIIZ "GAME OVER"
 
 SNAKE_DATA256:  .RES 256
 
