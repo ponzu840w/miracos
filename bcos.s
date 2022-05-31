@@ -8,7 +8,16 @@
 ; アセンブル設定スイッチ
 TRUE = 1
 FALSE = 0
-SRECBUILD = TRUE  ; TRUEで、テスト用のUARTによるロードに適した形にする
+.IFDEF SRECBUILD
+.ELSE
+  SRECBUILD = FALSE  ; TRUEで、テスト用のUARTによるロードに適した形にする
+.ENDIF
+
+.IF SRECBUILD
+  .OUT "SREC TEST BUILD"
+.ELSE
+  .OUT "SD RELEASE BUILD"
+.ENDIF
 
 .INCLUDE "FXT65.inc"
 .INCLUDE "generic.mac"
@@ -217,7 +226,6 @@ FUNC_RESET:
     JSR FS::FUNC_FS_CLOSE           ; クローズ
   .ENDIF
   JMP $5000                       ; CCP（仮）へ飛ぶ
-  ;RTS
 
 .IF !SRECBUILD
   PATH_SYSCALL:         .ASCIIZ "A:/MCOS/SYSCALL.SYS"
