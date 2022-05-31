@@ -340,15 +340,61 @@ TITLE:
   ; SPEEDにあるとき、減速する
   CMP #'d'
   BNE @SKP_WASD
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_EXIT         ; EXITか？
+  BNE @D_NOT_EXIT
+  ; START
+  LDA #TITLE_MENU_START
+  STA ZP_SELECTOR_STATE         ; 状態のセット
+  LDA #'*'                      ; *EXIT
+  LDY #TITLE_PROMPT_Y
+  LDX #TITLE_PROMPT_START_X
+  JSR XY_PUT
+  LDA #' '                      ; *STARTの塗りつぶし
+  LDX #TITLE_PROMPT_EXIT_X
+  JSR XY_PUT_DRAW
+  BRA @LOOP2
+@D_NOT_EXIT:
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_SPEED         ; SPEEDか？
+  BNE @LOOP2
+  ; 増速
+  LDA ZP_VB_PAR_TICK            ; 速度基準のチェック
+  CMP #2
+  BEQ @LOOP2                    ; 最高速度の2[/TICK]なら中断
+  DEC                           ; --
+  STA ZP_VB_PAR_TICK            ; 速度格納
+  ; ヘビが一つ引っ込む
+  LDA #TITLE_DIF_X+2+6
+  SEC
+  SBC ZP_VB_PAR_TICK            ; 減算により、新しい頭の座標が求まるはず
+  TAX
+  LDY #TITLE_DIF_Y+3
+  LDA #CHR_HEAD
+  JSR XY_PUT
+  DEX                           ; 胴を設置
+  LDA #CHR_TAIL
+  JSR XY_PUT_DRAW
+  BRA @LOOP2
 @SKP_WASD:
   ; エンターキー
 @ENTER:
   CMP #10
   BNE @SKP_ENTER
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_EXIT
+  BNE @SKP_EXIT
+  PLA
+  PLA
+  RTS
+@SKP_EXIT:
+  CMP #TITLE_MENU_START
+  BNE @SKP_START
+  RTS
+@SKP_START:
 @SKP_ENTER:
 @LOOP2:
   JMP @LOOP
-  RTS
 
 ; -------------------------------------------------------------------
 ;                        垂直同期割り込み
