@@ -10,11 +10,14 @@
 ; -------------------------------------------------------------------
 ;                              定数
 ; -------------------------------------------------------------------
-VB_DEV  = 1        ; 垂直同期をこれで分周した周期でスキャンする
-_VB_DEV_ENABLE = VB_DEV-1
+VB_DEV  = 1                 ; 垂直同期をこれで分周した周期でスキャンする
+_VB_DEV_ENABLE = VB_DEV-1   ; VB_DEVが1だとこれが偽になり、分周コード省略
 
 ; -------------------------------------------------------------------
 ;                          垂直同期割り込み
+; -------------------------------------------------------------------
+; （場合によっては分周した周期の）垂直同期のタイミングでスキャンし、
+; あれば多バイト分処理する
 ; -------------------------------------------------------------------
 VBLANK:
   ; 分周
@@ -30,25 +33,163 @@ VBLANK:
   ; データが返った
   ; スキャンコードのASCIIデコード
 @PROCESSING_SCAN_CODE:
-  ; ブレイクコード状態をチェック
-  BBR5 ZP_DECODE_STATE,@PLAIN     ; ブレイク状態ビットが立っていなかったら普通
-  ; ブレイクコード
-@BREAK:
-  RMB5 ZP_DECODE_STATE
-  LDA #0
-  BRA @EXT
-  ; 曇りなき目
-@PLAIN:
-  CMP #$F0
-  BNE @SKP_SETBREAK
-  SMB5 ZP_DECODE_STATE            ; ブレイク状態ビットセット
-  BRA @EXT
-@SKP_SETBREAK:
-  ; $F0ではない
+  JSR CHK_SPCODES                 ; 特殊処理
+@kbvnvt:
+  BEQ @EXT                        ; 0なら無視
+  TAX                             ; 処理されたスキャンコードをテーブルインデックスに
+  ; NOTE:ここに78,69,7E,02,numpad
+@TEST_SHIFT:
+  LDA ZP_DECODE_STATE
+  BIT #STATE_SHIFT                ; シフトが押されてるか
+  BEQ @NOSHIFT
+@SHIFT:     ; kbcnvt2
+  TXA
+  ORA #%10000000
   TAX
-  LDA ASCIITBL,X                  ; ASCII変換
+@NOSHIFT:   ; kbcnvt3
+  LDA ZP_DECODE_STATE
+  BIT #STATE_CTRL                 ; コントロールが押されているか
+  BEQ @NOCTRL
+@CTRL:
+  LDA ASCIITBL,X
+  CMP #$8F
+  ;BEQ REINIT
+  AND #$1F
+  BRA @EXT
+  ;TAX
+  BRA @DONE
+@NOCTRL:    ; kbcnvt4
+  LDA ASCIITBL,X
+  BEQ @EXT
+  ; NOTE:CAPS処理
+@DONE:
+  ; Aにアスキーコードが
 @EXT:
+  RTS                             ; 0以外はトラップされる
+
+; -------------------------------------------------------------------
+;                    スキャンコード処理ルーチン群
+; -------------------------------------------------------------------
+; シフトキー押下
+SP_SET_SHIFT:
+  LDA #STATE_SHIFT
+  .BYT $2C
+; コントロールキー押下
+SP_SET_CTRL:
+  LDA #STATE_CTRL
+  ORA ZP_DECODE_STATE
+  STA ZP_DECODE_STATE
+  BRA SP_NULL
+
+; 再送要求をくらった
+SP_RESEND:
+  LDA LASTBYT
+  JSR SEND
+  ;BRA SP_NULL          ; NULLまでの間のコードを省いたので直通
+
+; なにもしない
+SP_NULL:
+  LDA #0
   RTS
+
+; E0拡張
+SP_E0EXT:
+  JSR GET         ; 次のコードを取得する
+  CMP #$F0        ; 拡張リリースか？
+  BEQ @RLS        ; 拡張リリース
+  CMP #$14        ; 右CTRL
+  BEQ SP_SET_CTRL
+  ; NOTE:ここに4つの置換コード
+  CMP #$03
+; E0リリース
+@RLS:
+  CMP #$12            ; E0F012
+  BNE SP_RLS_CHKCTRL  ; でなければふつうのリリース
+  BRA SP_NULL
+
+; リリース
+SP_RLS:
+  JSR GET
+  CMP #$12      ; 左シフト
+  BEQ SP_RLS_SHIFT
+  CMP #$59      ; 右シフト
+  BEQ SP_RLS_SHIFT
+SP_RLS_CHKCTRL:
+  CMP #$14      ; CTRL
+  BEQ SP_RLS_CTRL
+  CMP #$11      ; ALT
+  BNE SP_NULL   ; シフト、コントロール、オルト以外のリリースは無視
+                ; では困るのだが
+@ALT:
+  LDA #$13      ; ALTリリースで13を返す真意はわからない
+  RTS
+SP_RLS_CTRL:
+  LDA #<~STATE_CTRL
+  .BYT $2C
+SP_RLS_SHIFT:
+  LDA #<~STATE_SHIFT
+  AND ZP_DECODE_STATE
+  STA ZP_DECODE_STATE
+  BRA SP_NULL
+
+; ブレイク
+SP_BRK:
+  LDX #$07
+@LOOP:
+  JSR GET
+  DEX
+  BNE @LOOP
+  LDA #$10
+  RTS
+
+CHK_SPCODES: ; kbcsrch            ; 14種類の特殊コードがあればベクタテーブルで処理する
+  LDX #(SP_VECLST-SP_LST-1)         ; ループ回数
+@LOOP_CHK:
+  CMP SP_LST,X                    ; チェック対象リストに対照
+  BEQ @JUMP                       ; マッチしたらベクタに跳ぶ
+  DEX
+  BPL @LOOP_CHK
+  RTS                             ; マッチしない
+@JUMP:
+  TXA                             ; マッチしたインデックスをAに
+  ASL                             ; 16bit幅ベクタに適合するようにx2
+  TAX                             ; Xに
+  LDA BYTSAV                      ; 元のスキャンコードをAに復帰
+  JMP (SP_VECLST,X)               ; 各ベクタにジャンプ
+
+SP_LST:
+.BYT $12               ; Lshift
+.BYT $59               ; Rshift
+.BYT $14               ; ctrl
+.BYT $E1               ; Extended pause break 
+;
+.BYT $E0               ; Extended key handler
+.BYT $F0               ; Release 1 BYT key code
+.BYT $FA               ; Ack
+.BYT $AA               ; POST passed
+;
+.BYT $EE               ; Echo
+.BYT $FE               ; resend
+.BYT $FF               ; overflow/error
+.BYT $00               ; underflow/error
+;
+; command/scancode jump table
+; 
+SP_VECLST:
+.WORD SP_SET_SHIFT      ; Lshift
+.WORD SP_SET_SHIFT      ; Rshift
+.WORD SP_SET_CTRL       ; ctrl
+.WORD SP_BRK            ; Extended pause break
+;
+.WORD SP_E0EXT          ; Extended key handler
+.WORD SP_RLS            ; Release 1 BYT key code
+.WORD SP_NULL           ; Ack
+.WORD SP_NULL           ; POST passed
+;
+.WORD SP_NULL           ; Echo
+.WORD SP_RESEND         ; resend
+.WORD FLUSH             ; overflow/error
+.WORD FLUSH             ; underflow/error
 
 ;*************************************************************
 ;
@@ -217,7 +358,7 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
                .byte $53               ; 9B sS
                .byte $41               ; 9C aA
                .byte $57               ; 9D wW
-               .byte $40               ; 9E 2@
+               .byte '"'               ; 9E 2'"'
                .byte $E1               ; 9F Windows 98 menu key (left side)
                .byte $02               ; A0 relocated ctrl-break key
                .byte $43               ; A1 cC
@@ -241,46 +382,46 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
                .byte $48               ; B3 hH
                .byte $47               ; B4 gG
                .byte $59               ; B5 yY
-               .byte $5E               ; B6 6^
+               .byte '&'               ; B6 6&
                .byte $00               ; B7
                .byte $00               ; B8
                .byte $00               ; B9
                .byte $4D               ; BA mM
                .byte $4A               ; BB jJ
                .byte $55               ; BC uU
-               .byte $26               ; BD 7&
-               .byte $2A               ; BE 8*
+               .byte '''               ; BD 7'
+               .byte '('               ; BE 8(
                .byte $00               ; BF
                .byte $00               ; C0
                .byte $3C               ; C1 ,<
                .byte $4B               ; C2 kK
                .byte $49               ; C3 iI
                .byte $4F               ; C4 oO
-               .byte $29               ; C5 0)
-               .byte $28               ; C6 9(
+               .byte $00               ; C5 0
+               .byte ')'               ; C6 9)
                .byte $00               ; C7
                .byte $00               ; C8
                .byte $3E               ; C9 .>
                .byte $3F               ; CA /?
                .byte $4C               ; CB lL
-               .byte $3A               ; CC ;:
+               .byte '+'               ; CC ;+
                .byte $50               ; CD pP
-               .byte $5F               ; CE -_
+               .byte '='               ; CE -=
                .byte $00               ; CF
                .byte $00               ; D0
-               .byte $00               ; D1
-               .byte $22               ; D2 '"
+               .byte '_'               ; D1 \_
+               .byte '*'               ; D2 :*
                .byte $00               ; D3
-               .byte $7B               ; D4 [{
-               .byte $2B               ; D5 =+
+               .byte '`'               ; D4 @`
+               .byte '~'               ; D5 ^~
                .byte $00               ; D6
                .byte $00               ; D7
                .byte $00               ; D8 caps
                .byte $00               ; D9 r shift
-               .byte $0D               ; DA <Enter>
-               .byte $7D               ; DB ]}
+               .byte $0A               ; DA <Enter>
+               .byte '{'               ; DB [{
                .byte $00               ; DC
-               .byte $7C               ; DD \|
+               .byte '}'               ; DD ]}
                .byte $00               ; DE
                .byte $00               ; DF
                .byte $00               ; E0
@@ -293,7 +434,7 @@ ASCIITBL:      .byte $00               ; 00 no key pressed
                .byte $00               ; E7
                .byte $00               ; E8
                .byte $91               ; E9 kp 1
-               .byte $2f               ; EA kp / converted from E04A in code
+               .byte '|'               ; EA \|
                .byte $94               ; EB kp 4
                .byte $97               ; EC kp 7
                .byte $00               ; ED
