@@ -111,14 +111,45 @@ EXEC_ICOM:                        ; Xで渡された内部コマンド番号を�
 ; -------------------------------------------------------------------
 
 ; -------------------------------------------------------------------
-;                          見つからない
+;                    内部コマンドが見つからない
 ; -------------------------------------------------------------------
 ICOM_NOTFOUND:
-; 外部コマンド実行（引数がプッシュされている
+  ; 外部コマンド実行（引数がプッシュされている
+FIND_CURDIRCOM:
+  ; カレントディレクトリでの検索
   loadAY16 COMMAND_BUF            ; 元のコマンド行を（壊してないっけか？
-  ;syscall FS_FPATH                ; フルパス取得
+  syscall FS_FIND_FST             ; 検索
+  BCC OCOM_FOUND                  ; 見つかったらパス検索しない
+FIND_INSTALLEDCOM:
+  ; パスの通った部分での検索
+  ; /チェック
+  loadAY16 COMMAND_BUF            ; 元のコマンド行を
+  syscall FS_PURSE                ; パース
+  BBS4 ZR1,COMMAND_NOTFOUND       ; /を含むパスならあきらめる
+  ; 長さチェック
+  loadAY16 COMMAND_BUF            ; 元のコマンド行を
+  JSR M_LEN                       ; 長さ取得
+  CPY #$9
+  BCS COMMAND_NOTFOUND            ; 8文字を超える（A>=9）ならあきらめる
+  ; 検索に着手
+  loadmem16 ZR1,PATH_COM_DIREND   ; 固定パスの最後に
+  loadAY16 COMMAND_BUF            ; 元のコマンド行を
+  JSR M_CP_AYS                    ; コピーして
+  ; .COMを付ける
+  LDX #0  ; ロード側インデックス
+@LOOP:
+  LDA PATH_DOTCOM,X
+  STA PATH_COM_DIREND,Y
+  INY     ; ストア側インデックス
+  INX
+  CPX #5
+  BNE @LOOP
+  loadAY16 PATH_COM               ; 合体したパスを
+  ; [DEBUG]
+  ;syscall CON_OUT_STR             ; ひょうじ
   syscall FS_FIND_FST             ; 検索
   BCS COMMAND_NOTFOUND            ; 見つからなかったらあきらめる
+OCOM_FOUND:
   storeAY16 ZR3                   ; FINFOをZR3に格納
   syscall FS_OPEN                 ; コマンドファイルをオープン
   BCS COMMAND_NOTFOUND            ; オープンできなかったらあきらめる
@@ -140,23 +171,12 @@ ICOM_NOTFOUND:
   JSR TPA                         ; コマンドを呼ぶ
   JMP LOOP
 
-ICOM_REBOOT:
 COMMAND_NOTFOUND:
 ; いよいよもってコマンドが見つからなかった
   PLY                             ; 引数を捨てる
   PLA
   loadAY16 STR_COMNOTFOUND
   syscall CON_OUT_STR
-  JMP LOOP
-
-; -------------------------------------------------------------------
-;                        ROMモニタに落ちる
-; -------------------------------------------------------------------
-ICOM_EXIT:
-  loadAY16 STR_GOODBYE
-  syscall CON_OUT_STR
-  BRK
-  NOP
   JMP LOOP
 
 ; -------------------------------------------------------------------
@@ -171,82 +191,6 @@ ICOM_DONKI:
   JMP LOOP
 
 ; -------------------------------------------------------------------
-;                        ディレクトリ表示
-; -------------------------------------------------------------------
-ICOM_DIR:
-ICOM_LS:
-  storeAY16 ZR0                 ; 引数を格納
-  LDA (ZR0)                     ; 最初の文字がnullか
-  BNE @FIND                     ; nullなら特殊な*処理
-  LDA #'*'
-  STA (ZR0)
-  LDA #0
-  LDY #1
-  STA (ZR0),Y
-@FIND:
-  mem2AY16 ZR0
-  syscall FS_FIND_FST
-  storeAY16 ZR4                 ; FINFOをZR4に退避
-  BCS @ERR
-  BRA @FSTENT
-@LOOP:                          ; 発見したエントリごとのループ
-  mem2AY16 ZR4                  ; 前回のFINFO
-  syscall FS_FIND_NXT           ; 次のエントリを検索
-  BCS @END                      ; もう見つからなければ終了
-@FSTENT:                        ; 初回に見つかったらここに飛ぶ
-  ; 属性
-  storeAY16 ZR0                 ; オフセットを加えたりして参照するためにFINFOをZR0に
-  LDA ZR0                       ; 下位桁取得
-  ADC #FINFO::ATTR              ; 属性を取得したいのでオフセット加算
-  STA ZR0
-  BCC @SKP_C
-  INC ZR0+1
-@SKP_C:
-  LDA (ZR0)                     ; 属性バイト取得
-  STA ZP_ATTR                   ; 専用ZPに格納
-  LDY #$0
-  ASL ZP_ATTR                   ; 上位2bitを捨てる
-  ASL ZP_ATTR
-@ATTRLOOP:
-  ASL ZP_ATTR                   ; C=ビット情報
-  BCS @ATTR_CHR
-  LDA #'-'                      ; そのビットが立っていないときはハイフンを表示
-  BRA @SKP_ATTR_CHR
-@ATTR_CHR:
-  LDA STR_ATTR,Y                ; 属性文字を表示
-@SKP_ATTR_CHR:
-  PHY
-  syscall CON_OUT_CHR           ; 属性文字/-を表示
-  PLY
-  INY
-  CPY #6
-  BNE @ATTRLOOP
-  JSR PRT_S                     ; 区切りスペース
-  ; [DEBUG] FINFO表示
-  ;LDY #FINFO::DIR_SEC           ; クラスタ内セクタ番号
-  ;LDA (ZR4),Y
-  ;JSR PRT_BYT
-  ;JSR PRT_S
-  ;LDY #FINFO::DIR_ENT           ; エントリ番号
-  ;LDA (ZR4),Y
-  ;JSR PRT_BYT
-  ;JSR PRT_S
-  ; ファイル名
-  mem2AY16 ZR4
-  INC
-  syscall CON_OUT_STR           ; ファイル名を出力
-  ; 改行
-  JSR PRT_LF
-  BRA @LOOP
-@END:
-  JMP LOOP
-@ERR:
-  JSR BCOS_ERROR
-  BRA @END
-
-STR_ATTR: .BYT  "advshr"
-
-; -------------------------------------------------------------------
 ;                     カレントディレクトリ変更
 ; -------------------------------------------------------------------
 ICOM_CD:
@@ -257,62 +201,10 @@ ICOM_CD:
   JMP LOOP
 
 ; -------------------------------------------------------------------
-;                        画面の色を変える
+;                    ロードを省略してTPAを実行
 ; -------------------------------------------------------------------
-ICOM_COLOR:
-  loadAY16 STR_ICOM_COLOR_START
-  syscall CON_OUT_STR                 ; 説明文
-@LOOP:
-  LDA #2
-  syscall CON_RAWIN                   ; コマンド入力
-@J:
-  CMP #'j'
-  BNE @K
-  LDA #0
-  JSR @GET
-  DEY
-  LDA #2
-  JSR @PUT
-  BRA @LOOP
-@K:
-  CMP #'k'
-  BNE @H
-  LDA #0
-  JSR @GET
-  INY
-  LDA #2
-  JSR @PUT
-  BRA @LOOP
-@H:
-  CMP #'h'
-  BNE @L
-  LDA #1
-  JSR @GET
-  DEY
-  LDA #3
-  JSR @PUT
-  BRA @LOOP
-@L:
-  CMP #'l'
-  BNE @ENT
-  LDA #1
-  JSR @GET
-  INY
-  LDA #3
-  JSR @PUT
-@ENT:
-  CMP #$A
-  BNE @LOOP
-  JSR PRT_LF
-  JMP LOOP
-@GET:
-  syscall GCHR_COL
-  TAY
-  RTS
-@PUT:
-  syscall GCHR_COL
-  RTS
-
+; SREC読み込みでテスト実行するのに便利
+; -------------------------------------------------------------------
 ICOM_TEST:
   JSR TPA
   JMP LOOP
@@ -328,65 +220,68 @@ BCOS_ERROR:
   syscall ERR_MES
   JMP LOOP
 
-PRT_BIN:
-  LDX #8
-@LOOP:
-  ASL
-  PHA
-  LDA #'0'    ; キャリーが立ってなければ'0'
-  BCC @SKP_ADD1
-  INC         ; キャリーが立ってたら'1'
-@SKP_ADD1:
-  PHX
-  syscall CON_OUT_CHR
-  PLX
-  PLA
-  DEX
-  BNE @LOOP
-  RTS
+;PRT_BIN:
+;  LDX #8
+;@LOOP:
+;  ASL
+;  PHA
+;  LDA #'0'    ; キャリーが立ってなければ'0'
+;  BCC @SKP_ADD1
+;  INC         ; キャリーが立ってたら'1'
+;@SKP_ADD1:
+;  PHX
+;  syscall CON_OUT_CHR
+;  PLX
+;  PLA
+;  DEX
+;  BNE @LOOP
+;  RTS
 
-PRT_BYT:
-  JSR BYT2ASC
-  PHY
-  JSR PRT_C_CALL
-  PLA
+;PRT_BYT:
+;  JSR BYT2ASC
+;  PHY
+;  JSR PRT_C_CALL
+;  PLA
+;PRT_C_CALL:
+;  syscall CON_OUT_CHR
+;  RTS
+;
+PRT_LF:
+  ; 改行
+  LDA #$A
+;  JMP PRT_C_CALL
+
+;PRT_S:
+;  ; スペース
+;  LDA #' '
+;  ;JMP PRT_C_CALL
 PRT_C_CALL:
   syscall CON_OUT_CHR
   RTS
 
-PRT_LF:
-  ; 改行
-  LDA #$A
-  JMP PRT_C_CALL
-
-PRT_S:
-  ; スペース
-  LDA #' '
-  JMP PRT_C_CALL
-
-BYT2ASC:
-  ; Aで与えられたバイト値をASCII値AYにする
-  ; Aから先に表示すると良い
-  PHA           ; 下位のために保存
-  AND #$0F
-  JSR NIB2ASC
-  TAY
-  PLA
-  LSR           ; 右シフトx4で上位を下位に持ってくる
-  LSR
-  LSR
-  LSR
-  JSR NIB2ASC
-  RTS
-
-NIB2ASC:
-  ; #$0?をアスキー一文字にする
-  ORA #$30
-  CMP #$3A
-  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
-  ADC #$06
-@SKP_ADC:
-  RTS
+;BYT2ASC:
+;  ; Aで与えられたバイト値をASCII値AYにする
+;  ; Aから先に表示すると良い
+;  PHA           ; 下位のために保存
+;  AND #$0F
+;  JSR NIB2ASC
+;  TAY
+;  PLA
+;  LSR           ; 右シフトx4で上位を下位に持ってくる
+;  LSR
+;  LSR
+;  LSR
+;  JSR NIB2ASC
+;  RTS
+;
+;NIB2ASC:
+;  ; #$0?をアスキー一文字にする
+;  ORA #$30
+;  CMP #$3A
+;  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
+;  ADC #$06
+;@SKP_ADC:
+;  RTS
 
 M_EQ_AY:
   ; AYとZR0が等しいかを返す
@@ -427,6 +322,7 @@ M_LEN_RTS:
 
 M_CP_AYS:
   ; 文字列をコピーする
+  ; DST=ZR1
   STA ZR0
   STY ZR0+1
   LDY #$FF
@@ -437,88 +333,36 @@ M_CP_AYS:
   BEQ M_LEN_RTS
   BRA @LOOP
 
-ANALYZE_PATH:
-  ; あらゆる種類のパスを解析する
-  ; ディスクアクセスはしない
-  ; input : AY=パス先頭
-  ; output: A=分析結果
-  ;           bit3:/で終わる
-  ;           bit2:ルートディレクトリを指す
-  ;           bit1:ルートから始まる（相対パスでない
-  ;           bit0:ドライブ文字を含む
-  STA ZR0
-  STY ZR0+1
-  STZ ZR1         ; 記録保存用
-  LDY #1
-  LDA (ZR0),Y     ; :の有無を見る
-  CMP #':'
-  BNE @NODRIVE
-  SMB0 ZR1        ; ドライブ文字があるフラグを立てる
-  LDA #2          ; ポインタを進め、ドライブなしと同一条件にする
-  CLC
-  ADC ZR0
-  STA ZR0
-  LDA #0
-  ADC ZR0+1
-  STA ZR0+1
-  LDA (ZR0)       ; 最初の文字を見る
-  BEQ @ROOTEND    ; 何もないならルートを指している（ドライブ前提
-@NODRIVE:
-  LDA (ZR0)       ; 最初の文字を見る
-  CMP #'/'
-  BNE @NOTFULL    ; /でないなら相対パス（ドライブ指定なし前提
-  SMB1 ZR1        ; ルートから始まるフラグを立てる
-@NOTFULL:
-  LDY #$FF
-@LOOP:            ; 最後の文字を調べるループ
-  INY
-  LDA (ZR0),Y
-  BEQ @SKP_LOOP
-  CMP #' '
-  BEQ @SKP_LOOP
-  BRA @LOOP       ; 以下、(ZR0),Yはヌルかスペース
-@SKP_LOOP:
-  DEY             ; 最後の文字を指す
-  LDA (ZR0),Y     ; 最後の文字を読む
-  CMP #'/'
-  BNE @END        ; 最後が/でなければ終わり
-  SMB3 ZR1        ; /で終わるフラグを立てる
-  CPY #0          ; /で終わり、しかも一文字だけなら、それはルートを指している
-  BNE @END
-@ROOTEND:
-  SMB2 ZR1        ; ルートディレクトリが指されているフラグを立てる
-@END:
-  LDA ZR1
-  RTS
-
 ; -------------------------------------------------------------------
 ;                             データ領域
 ; -------------------------------------------------------------------
-STR_INITMESSAGE:  .BYT "MIRACOS 0.03 for FxT-65",$A,$0 ; 起動時メッセージ
+STR_INITMESSAGE:  .INCLUDE "initmessage.s"                ; 起動時メッセージ
 STR_COMNOTFOUND:  .BYT "Unknown Command.",$A,$0
-STR_ICOM_COLOR_START:  .BYT "Console Color Setting.",$A,"j,k  : Character",$A,"h,l  : Background",$A,"ENTER: Complete",$0
 STR_GOODBYE:      .BYT "Good Bye.",$A,$0
 STR_DOT:          .BYT ".",$0                             ; これの絶対パスを得ると、それはカレントディレクトリ
+PATH_COM:         .BYT "A:/MCOS/COM/"
+  PATH_COM_DIREND:  .RES 13
+PATH_DOTCOM:      .BYT ".COM",$0
 
 ; -------------------------------------------------------------------
 ;                        内部コマンドテーブル
 ; -------------------------------------------------------------------
-ICOMNAMES:        .ASCIIZ "EXIT"        ; 0
+ICOMNAMES:        ;.ASCIIZ "EXIT"        ; 0
                   .ASCIIZ "CD"          ; 1
-                  .ASCIIZ "REBOOT"      ; 2
-                  .ASCIIZ "COLOR"       ; 3
-                  .ASCIIZ "DIR"         ; 4
+                  ;.ASCIIZ "REBOOT"      ; 2
+                  ;.ASCIIZ "COLOR"       ; 3
+                  ;.ASCIIZ "DIR"         ; 4
                   .ASCIIZ "TEST"        ; 5
-                  .ASCIIZ "LS"          ; 6
+                  ;.ASCIIZ "LS"          ; 6
                   .ASCIIZ "DONKI"       ; 7
                   .BYT $0
 
-ICOMVECS:         .WORD ICOM_EXIT
+ICOMVECS:         ;.WORD ICOM_EXIT
                   .WORD ICOM_CD
-                  .WORD ICOM_REBOOT
-                  .WORD ICOM_COLOR
-                  .WORD ICOM_DIR
+                  ;.WORD ICOM_REBOOT
+                  ;.WORD ICOM_COLOR
+                  ;.WORD ICOM_DIR
                   .WORD ICOM_TEST
-                  .WORD ICOM_LS
+                  ;.WORD ICOM_LS
                   .WORD ICOM_DONKI
 
