@@ -29,3 +29,5 @@ GET_ADDR            = 20
   BHY_GET_ADDR_txtvram768     = 1*2
   BHY_GET_ADDR_font2048       = 2*2
 
+; 実験用
+FS_READ_BYTS2       = 21
