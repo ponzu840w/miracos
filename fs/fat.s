@@ -312,3 +312,116 @@ FINFO2SIZ:
   JSR L_LD_AXS
   RTS
 
+DIR_NEXTMATCH:
+  ; 次のマッチするエントリを拾ってくる（FINFO_WKを構築する）
+  ; ZP_SDSEEK_VEC16が32bitにアライメントされる
+  ; Aには属性が入って帰る
+  ; もう何もなければ$FFを返す
+  ; input:AY=ファイル名
+  STA ZR2                       ; ZR2=マッチパターン（ファイル名）
+  STY ZR2+1
+  JSR DIR_NEXTENT_ENT           ; 初回用エントリ
+  BRA :+                        ; @FIRST
+DIR_NEXTMATCH_NEXT_ZR2:         ; 今のポイントを無視して次を探すためのエントリポイント
+@NEXT:
+  JSR DIR_NEXTENT               ; 次のエントリを拾う
+:
+@FIRST:
+  CMP #$FF                      ; もうエントリがない時のエラーハンドル
+  BNE @SKP_END
+  RTS
+@SKP_END:
+  PHA                           ; 属性値をプッシュ
+  LDA ZR2
+  LDY ZR2+1
+  JSR PATTERNMATCH
+  PLA                           ; 属性値をプル
+  BCC @NEXT                     ; C=0つまりマッチしなかったら次を見る
+  RTS
+
+PATH2FINFO:
+  ; フルパスからFINFOをゲットする
+  ; input:AY=PATH
+  ; output:AY=FINFO, ZR2=最終要素の先頭
+  ; ZR0,2使用
+  STA ZR2
+  STY ZR2+1             ; パス先頭を格納
+PATH2FINFO_ZR2:
+  LDY #1
+  LDA (ZR2),Y           ; 二文字目
+  CMP #':'              ; ドライブ文字があること判別
+  BEQ @SKP_E1
+  LDA #ERR::ILLEGAL_PATH
+  JMP ERR::REPORT       ; ERR:ドライブ文字がないパスをぶち込まれても困る
+@SKP_E1:
+  LDA (ZR2)             ; ドライブレターを取得
+  SEC
+  SBC #'A'              ; ドライブ番号に変換
+  ;STA FINFO_WK+FINFO::DRV_NUM ; ドライブ番号を登録
+  JSR INTOPEN_DRV       ; ドライブを開く
+  JSR INTOPEN_ROOT      ; ルートディレクトリを開く
+  ; ディレクトリをたどる旅
+@LOOP:
+  mem2AY16 ZR2
+  JSR PATH_SLASHNEXT_GETNULL    ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1 NOTE:AYが次のよう先頭を指すBP
+  storeAY16 ZR2
+  BCS @LAST             ; パス要素がまだあるなら続行
+  JSR @NEXT             ; 非最終要素
+  BCC @LOOP             ; 見つからないエラーがなければ次の要素へ
+  RTS                   ; 見つからなければC=1を保持して戻る
+@LAST:                  ; 最終要素 ; NOTE:ZR2を読むと、LASTが本当にLASTか見えるBP
+  JSR @NEXT
+  BCS @ERREND           ; 最終要素が見つからなかったらC=1を保持して戻る
+  loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
+  CLC                   ; 成功コード
+@ERREND:
+  RTS
+@NEXT:
+  JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得 NOTE:ヒットしたが開かれる前のFINFOを見るBP
+  CMP #$FF              ; 見つからない場合
+  BNE @SKP_E2
+  LDA #ERR::FILE_NOT_FOUND
+  JMP ERR::REPORT       ; ERR:指定されてファイルが見つからなかった
+@SKP_E2:
+  JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く NOTE:開かれた内容を覗くBP
+  CLC                   ; コールされた時の成功を知るC=0
+  RTS
+
+PATH_SLASHNEXT_GETNULL:
+  ; 下のサブルーチンの、その要素が/で終わるのかnullで終わるのか通知する版
+  JSR PATH_SLASHNEXT
+  BCC @SKP_FIRSTNULL        ; そもそもnullから開始される
+  RTS
+@SKP_FIRSTNULL:
+  pushAY16
+  JSR PATH_SLASHNEXT        ; 進んだ先の次を探知
+  pullAY16
+  RTS                       ; キャリー含め返す
+
+PATH_SLASHNEXT:
+  ; AYの次のスラッシュの次を得る、AYが進む
+  ; そこがnullならC=1（失敗
+  STA ZR0
+  STY ZR0+1
+  LDY #$FF
+@LOOP:
+  INY
+  LDA (ZR0),Y
+  BNE @SKP_ERR
+@EXP:                   ; 例外終了
+  SEC
+  RTS
+@SKP_ERR:
+  CMP #'/'
+  BNE @LOOP
+  INY                   ; スラッシュの次を示す
+  LDA (ZR0),Y           ; /の次がヌルならやはり例外終了
+  BEQ @EXP
+  LDA ZR0
+  LDX ZR0+1
+  JSR S_ADD_BYT         ; ZR0+Y
+  PHX
+  PLY
+  CLC
+  RTS
+
