@@ -1,74 +1,134 @@
-; 2色モードChDzによるキャラクタ表示
-.INCLUDE "FXT65.inc"
+; -------------------------------------------------------------------
+; -------------------------------------------------------------------
+; SNAKEゲームのおこぼれ
+; -------------------------------------------------------------------
+.INCLUDE "../FXT65.inc"
+.INCLUDE "../generic.mac"
+.INCLUDE "../fs/structfs.s"
+.INCLUDE "../fscons.inc"
+.PROC BCOS
+  .INCLUDE "../syscall.inc"  ; システムコール番号
+.ENDPROC
+.INCLUDE "../syscall.mac"
+.INCLUDE "../zr.inc"
 
 ; -------------------------------------------------------------------
-; BCOS 8             テキスト画面色操作
+;                             ZP領域
 ; -------------------------------------------------------------------
-; input   : A = 動作選択
-;               $0 : 文字色を取得
-;               $1 : 背景色を取得
-;               $2 : 文字色を設定
-;               $3 : 背景色を設定
-;           Y = 色データ（下位ニブル有効、$2,$3動作時のみ
-; output  : A = 取得した色データ
-; 二色モードに限らず画面の状態は勝手に叩いていいのだが、
-; GCHRモジュールを使うならカーネルの支配下にないといけない
+.ZEROPAGE
+ZP_TXTVRAM768_16:         .RES 2
+ZP_FONT2048_16:           .RES 2
+ZP_TRAM_VEC16:            .RES 2  ; TRAM操作用ベクタ
+ZP_FONT_VEC16:            .RES 2  ; フォント読み取りベクタ
+ZP_FONT_SR:               .RES 1  ; FONT_OFST
+ZP_X:                     .RES 1
+ZP_Y:                     .RES 1
+ZP_CURSOR_X:              .RES 1
+ZP_CURSOR_Y:              .RES 1
+
 ; -------------------------------------------------------------------
-FUNC_GCHR_COL:
-  BIT #%00000010  ; bit1が立ってたら設定、でなければ取得
-  BNE @SETTING
-@GETTING:
-  ROR             ; bit0が立ってたら背景色、でなければ文字色
-  BCS @GETBACK
-@GETMAIN:
-  LDA COL_MAIN
-  RTS
-@GETBACK:
-  LDA COL_BACK
-  RTS
-@SETTING:
-  ROR             ; bit0が立ってたら背景色、でなければ文字色
-  BCS @SETBACK
-@SETMAIN:
-  STY COL_MAIN
-  BRA SET_TCP
-@SETBACK:
-  STY COL_BACK
-SET_TCP:
-  ; 2色パレットを変数から反映する
-  LDA COL_BACK
-  ASL
-  ASL
-  ASL
-  ASL
-  STA ZP_X
-  LDA COL_MAIN
-  AND #%00001111
-  ORA ZP_X
-  STA CRTC::TCP
+;                             実行領域
+; -------------------------------------------------------------------
+.CODE
+START:
+  ; アドレス類を取得
+  LDY #BCOS::BHY_GET_ADDR_txtvram768  ; TRAM
+  syscall GET_ADDR
+  storeAY16 ZP_TXTVRAM768_16
+  LDY #BCOS::BHY_GET_ADDR_font2048    ; FONT
+  syscall GET_ADDR
+  storeAY16 ZP_FONT2048_16
+  ; 画面をいじってみる
+  ; 初期化
+  JSR CLEAR_TXTVRAM                   ; 画面クリア
+  JSR DRAW_ALLLINE
+  LDA #10
+  STA ZP_CURSOR_X
+  STA ZP_CURSOR_Y                     ; カーソルの初期化
+  ; 本処理
+  LDA #'@'
+  JSR CURSOR_PUT
+@LOOP:
+  LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho
+  syscall CON_RAWIN                   ; 入力待機
+  PHA
+  LDA #' '
+  JSR CURSOR_PUT
+  PLA
+  ; wasd
+@W:
+  CMP #'w'
+  BNE @S
+  DEC ZP_CURSOR_Y
+@S:
+  CMP #'s'
+  BNE @A
+  INC ZP_CURSOR_Y
+@A:
+  CMP #'a'
+  BNE @D
+  DEC ZP_CURSOR_X
+@D:
+  CMP #'d'
+  BNE @END_WASD
+  INC ZP_CURSOR_X
+@END_WASD:
+  LDA #'@'
+  JSR CURSOR_PUT
+  BRA @LOOP
+EXIT:
+  ; 大政奉還コード
   RTS
 
-INIT:
-  ; 2色モードの色を白黒に初期化
-  ;LDA #$00                  ; 黒
-  LDA #$44                  ; 青
-  STA COL_BACK              ; 背景色に設定
-  ;LDA #$03                  ; 緑
-  LDA #$FF                  ; 白
-  STA COL_MAIN              ; 文字色に設定
-  JSR CLEAR_TXTVRAM         ; TRAMの空白埋め
-ENTER_TXTMODE:
-  STZ CRTC::WF              ; f0に対する書き込み
-  JSR SET_TCP
-  JSR DRAW_ALLLINE          ; 全体描画
-  LDA #%11110010            ; 全内部行を2色モード、書き込みカウントアップ無効、2色モード座標
-  STA CRTC::CFG
-  STZ CRTC::RF              ; f0を表示
+CURSOR_GET:
+  ; --- 読み取り
+  JSR CUR2TRAM_VEC
+  LDA (ZP_TRAM_VEC16),Y
+  RTS
+
+CURSOR_PUT:
+  ; --- 書き込み
+  PHA
+  JSR CUR2TRAM_VEC
+  PLA
+  STA (ZP_TRAM_VEC16),Y
+  JSR DRAW_LINE_RAW
+  RTS
+
+CUR2TRAM_VEC:
+  STZ ZP_FONT_SR        ; シフタ初期化
+  STZ ZP_TRAM_VEC16     ; TRAMポインタ初期化
+  LDA ZP_CURSOR_Y
+  LSR
+  ROR ZP_FONT_SR
+  LSR
+  ROR ZP_FONT_SR
+  LSR
+  ROR ZP_FONT_SR
+  ADC ZP_TXTVRAM768_16+1
+  STA ZP_TRAM_VEC16+1
+  LDA ZP_CURSOR_X
+  ORA ZP_FONT_SR
+  TAY
+  RTS
+
+CLEAR_TXTVRAM:
+  mem2mem16 ZR0,ZP_TXTVRAM768_16
+  LDA #' '
+  LDY #0
+  LDX #3
+CLEAR_TXTVRAM_LOOP:
+  STA (ZR0),Y
+  INY
+  BNE CLEAR_TXTVRAM_LOOP
+  INC ZR0+1
+  DEX
+  BNE CLEAR_TXTVRAM_LOOP
   RTS
 
 DRAW_ALLLINE:
   ; TRAMから全行を反映する
-  loadmem16 ZP_TRAM_VEC16,TXTVRAM768
+  mem2mem16 ZP_TRAM_VEC16,ZP_TXTVRAM768_16
   LDY #0
   LDX #6
 DRAW_ALLLINE_LOOP:
@@ -93,7 +153,8 @@ DRAW_LINE:
   ASL
   ROR ZP_Y                  ; A:ページ数0~2 ZP_Y:ページ内インデックス行頭
   CLC
-  ADC #>TXTVRAM768          ; TXTVRAM上位に加算
+  ;ADC #>TXTVRAM768          ; TXTVRAM上位に加算
+  ADC ZP_TXTVRAM768_16+1    ; TXTVRAM上位に加算
   STA ZP_TRAM_VEC16+1       ; ページ数登録
   LDY ZP_Y                  ; インデックスをYにロード
 DRAW_LINE_RAW:
@@ -108,7 +169,8 @@ DRAW_LINE_RAW:
   ; 0~2のページオフセットを取得
   LDA ZP_TRAM_VEC16+1
   SEC
-  SBC #>TXTVRAM768
+  ;SBC #>TXTVRAM768
+  SBC ZP_TXTVRAM768_16+1
   STA ZP_Y
   ; インデックスの垂直部分3bitを挿入
   TYA
@@ -126,7 +188,8 @@ DRAW_LINE_RAW:
   STA ZP_Y
   ; --- フォント参照ベクタ作成
 DRAW_TXT_LOOP:
-  LDA #>FONT2048
+  ;LDA #>FONT2048
+  LDA ZP_FONT2048_16+1
   STA ZP_FONT_VEC16+1
   ; フォントあぶれ初期化
   LDY #0
@@ -182,18 +245,4 @@ SKP_EXT_DRAWLINE:
   SBC #8
   STA ZP_Y
   BRA DRAW_TXT_LOOP
-
-CLEAR_TXTVRAM:
-  loadmem16 ZR0,TXTVRAM768
-  LDA #' '
-  LDY #0
-  LDX #3
-CLEAR_TXTVRAM_LOOP:
-  STA (ZR0),Y
-  INY
-  BNE CLEAR_TXTVRAM_LOOP
-  INC ZR0+1
-  DEX
-  BNE CLEAR_TXTVRAM_LOOP
-  RTS
 
