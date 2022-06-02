@@ -64,6 +64,7 @@ LOOP:
   ; 出力
   LDA ONECHR
   syscall CON_OUT_CHR
+  BRA LOOP
   ; 最終バイトがあるとき
   ; クローズ
 @CLOSE:
