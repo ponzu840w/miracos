@@ -161,6 +161,7 @@ SYSCALL_TABLE:
   .WORD FS::FUNC_FS_READ_BYTS     ; 18 バイト数指定ファイル読み取り
   .WORD IRQ::FUNC_IRQ_SETHNDR_VB  ; 19 垂直同期割り込みハンドラ登録
   .WORD FUNC_GET_ADDR             ; 20 16bit乱数のアドレスを取得
+  .WORD FS::FUNC_FS_READ_BYTS2    ; 21 バイト数指定ファイル読み取り（試験用
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
