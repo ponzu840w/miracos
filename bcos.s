@@ -8,7 +8,16 @@
 ; アセンブル設定スイッチ
 TRUE = 1
 FALSE = 0
-SRECBUILD = FALSE  ; TRUEで、テスト用のUARTによるロードに適した形にする
+.IFDEF SRECBUILD
+.ELSE
+  SRECBUILD = FALSE  ; TRUEで、テスト用のUARTによるロードに適した形にする
+.ENDIF
+
+.IF SRECBUILD
+  .OUT "SREC TEST BUILD"
+.ELSE
+  .OUT "SD RELEASE BUILD"
+.ENDIF
 
 .INCLUDE "FXT65.inc"
 .INCLUDE "generic.mac"
@@ -151,7 +160,7 @@ SYSCALL_TABLE:
   .WORD FS::FUNC_FS_FIND_NXT      ; 17 次のエントリの検索
   .WORD FS::FUNC_FS_READ_BYTS     ; 18 バイト数指定ファイル読み取り
   .WORD IRQ::FUNC_IRQ_SETHNDR_VB  ; 19 垂直同期割り込みハンドラ登録
-  .WORD FUNC_RND16                ; 20 16bit乱数のアドレスを取得
+  .WORD FUNC_GET_ADDR             ; 20 16bit乱数のアドレスを取得
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
@@ -217,7 +226,6 @@ FUNC_RESET:
     JSR FS::FUNC_FS_CLOSE           ; クローズ
   .ENDIF
   JMP $5000                       ; CCP（仮）へ飛ぶ
-  ;RTS
 
 .IF !SRECBUILD
   PATH_SYSCALL:         .ASCIIZ "A:/MCOS/SYSCALL.SYS"
@@ -399,11 +407,22 @@ FUNC_UPPER_STR:
   RTS
 
 ; -------------------------------------------------------------------
-; BCOS 20                16bit乱数アドレス取得
+; BCOS 20                    アドレス取得
 ; -------------------------------------------------------------------
-; output    : AY = rand_ptr
+; input     : Y   = 0*2 : ZP_RND16      16bit乱数
+;                 = 1*2 : TXTVRAM768    テキストVRAM
+;                 = 2*2 : FONT2048      フォントグリフエリア
+; output    : AY = ptr
 ; -------------------------------------------------------------------
-FUNC_RND16:
-  loadAY16 ZP_RND16
+FUNC_GET_ADDR:
+  LDX OPEN_ADDR_TABLE,Y
+  LDA OPEN_ADDR_TABLE+1,Y
+  TAY
+  TXA
   RTS
+
+OPEN_ADDR_TABLE:
+  .WORD ZP_RND16    ; 0
+  .WORD TXTVRAM768  ; 1
+  .WORD FONT2048    ; 2
 

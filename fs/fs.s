@@ -260,6 +260,7 @@ FUNC_FS_CLOSE:
 ; ディスクアクセスはしない
 ; input : AY=パス先頭
 ; output: A=分析結果
+;           bit4:/を含む
 ;           bit3:/で終わる
 ;           bit2:ルートディレクトリを指す
 ;           bit1:ルートから始まる（相対パスでない
@@ -290,10 +291,15 @@ FUNC_FS_PURSE:
   SMB1 ZR1        ; ルートから始まるフラグを立てる
 @NOTFULL:
   LDY #$FF
-@LOOP:            ; 最後の文字を調べるループ
+@LOOP:            ; 最後の文字を調べるループ;おまけに/の有無を調べる
   INY
   LDA (ZR0),Y
-  BNE @LOOP       ; 以下、(ZR0),Yはヌル
+  BEQ @SKP_LOOP   ; 以下、(ZR0),Yはヌル
+  CMP #'/'
+  BNE @SKP_SET4
+  SMB4 ZR1        ; /を含むフラグを立てる
+@SKP_SET4:
+  BRA @LOOP
 @SKP_LOOP:
   DEY             ; 最後の文字を指す
   LDA (ZR0),Y     ; 最後の文字を読む

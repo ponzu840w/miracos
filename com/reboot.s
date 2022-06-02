@@ -1,7 +1,7 @@
 ; -------------------------------------------------------------------
-;                           Helloコマンド
+;                         REBOOTコマンド
 ; -------------------------------------------------------------------
-; TCのテスト
+; ハードリセット！
 ; -------------------------------------------------------------------
 .INCLUDE "../FXT65.inc"
 .INCLUDE "../generic.mac"
@@ -19,8 +19,8 @@
 START:
   loadAY16 STR_HELLO
   syscall CON_OUT_STR
-  RTS                             ; BCOS0でも等価でありたいが現状そうでないのでリターン
+  JMP ($FFFC)
+  RTS
 
-STR_HELLO: .BYT "hello, world",$A,$0
-;STR_HELLO: .ASCIIZ "hell!!!!"
+STR_HELLO: .BYT "Rebooting...",$A,$0
 
