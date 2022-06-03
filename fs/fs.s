@@ -117,7 +117,7 @@ FUNC_FS_READ_BYTS2:
   LDA FWK+FCTRL::SIZ
   long_long_sub   @ZR34_TMP32, FWK+FCTRL::SIZ, FWK+FCTRL::SEEK_PTR   ; tmp=siz-seek
   long_short_cmp  @ZR34_TMP32, @ZR2_LENGTH                           ; tmp<=>length
-  BPL @SKP_PARTIAL_LENGTH         ; 要求lengthがファイルの残りより小さければそのままで問題なし
+  BCS @SKP_PARTIAL_LENGTH         ; 要求lengthがファイルの残りより小さければそのままで問題なし
   ; lengthをファイルの残りに変更
   mem2mem16 @ZR2_LENGTH,@ZR34_TMP32
 @SKP_PARTIAL_LENGTH:
