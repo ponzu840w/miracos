@@ -17,7 +17,7 @@
 ; -------------------------------------------------------------------
 ;                             定数定義
 ; -------------------------------------------------------------------
-LENGTH  = 1
+LENGTH  = $23
 BFPTR   = BUFFER
 
 ; -------------------------------------------------------------------
@@ -27,6 +27,8 @@ BFPTR   = BUFFER
   FD_SAV:         .RES 1  ; ファイル記述子
   FINFO_SAV:      .RES 2  ; FINFO
   FCTRL_SAV:      .RES 2
+  TMP32:          .RES 4
+  ACTLEN:         .RES 2
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -39,11 +41,17 @@ START:
   ; ファイル検索
   loadAY16 PATH_DATA
   syscall FS_FIND_FST             ; 検索
-  BCS NOTFOUND                    ; 見つからなかったらあきらめる
+  ;BCS NOTFOUND                    ; 見つからなかったらあきらめる
+  BCC @SKP_NOTFOUND
+  JMP NOTFOUND
+@SKP_NOTFOUND:
   storeAY16 FINFO_SAV             ; FINFOを格納
   ; ファイルオープン
   syscall FS_OPEN                 ; ファイルをオープン
-  BCS NOTFOUND                    ; オープンできなかったらあきらめる
+  ;BCS NOTFOUND                    ; オープンできなかったらあきらめる
+  BCC @SKP_NOTFOUND2
+  JMP NOTFOUND
+@SKP_NOTFOUND2:
   STA FD_SAV                      ; ファイル記述子をセーブ
   ; ファイル記述子の報告
   loadAY16 STR_GOT_FD
@@ -54,10 +62,13 @@ START:
   ; コール
   LDA FD_SAV
   STA ZR1
-  loadmem16 ZR0,BUFFER
-  loadAY16 1
-  syscall FS_READ_BYTS2
-  storeAY16 FCTRL_SAV
+  loadmem16 ZR0,BFPTR
+  loadAY16 LENGTH
+  syscall FS_READ_BYTS2           ; コール
+  storeAY16 FCTRL_SAV             ; FCTRLを取得
+  mem2mem16 ACTLEN,ZR2            ; 16bit値を保存
+  mem2mem16 TMP32,ZR3
+  mem2mem16 TMP32+2,ZR4           ; 32bit値を保存
   ; FCTRL表示
   ; FCTRL_SIZラベル
   loadAY16 STR_FCTRL_SIZ
@@ -75,6 +86,18 @@ START:
   ADC FCTRL_SAV
   LDY FCTRL_SAV+1
   JSR PRT_LONG_LF
+  ; TMP32ラベル
+  loadAY16 STR_TMP32
+  syscall CON_OUT_STR
+  ; TMP32
+  loadAY16 TMP32
+  JSR PRT_LONG_LF
+  ; ACTLENラベル
+  loadAY16 STR_ACTLEN
+  syscall CON_OUT_STR
+  ; ACTLEN
+  loadAY16 ACTLEN
+  JSR PRT_SHORT_LF
   RTS
 
 NOTFOUND:
@@ -87,6 +110,16 @@ BCOS_ERROR:
   syscall ERR_GET
   syscall ERR_MES
   RTS
+
+PRT_SHORT_LF:
+  storeAY16 ZR2
+  LDY #1
+  LDA (ZR2),Y
+  JSR PRT_BYT
+  LDY #0
+  LDA (ZR2),Y
+  JSR PRT_BYT
+  JMP PRT_LF
 
 PRT_LONG_LF:
   JSR PRT_LONG
@@ -158,10 +191,11 @@ PATH_DATA:
   .ASCIIZ "A:/TEST.TXT"
 
 STR_HELLO:      .BYT "New FS_READ syscall dev tool",$A,$0
-STR_GOT_FD:     .BYT "File Descriptor:",$0
-STR_FCTRL_SIZ:  .BYT "FCTRL_SIZE:",$0
-STR_FCTRL_SEEK:  .BYT "FCTRL_SEEK:",$0
-
+STR_GOT_FD:     .BYT "File Descriptor: $",$0
+STR_FCTRL_SIZ:  .BYT "FCTRL_SIZE: $",$0
+STR_FCTRL_SEEK: .BYT "FCTRL_SEEK: $",$0
+STR_TMP32:      .BYT "TMP32     : $",$0
+STR_ACTLEN:     .BYT "ACTLEN    : $",$0
 
 BUFFER:
 
