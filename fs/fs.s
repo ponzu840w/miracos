@@ -51,18 +51,76 @@ INIT:
 ; output:AY=actual_len、C=EOF
 ; -------------------------------------------------------------------
 FUNC_FS_READ_BYTS2:
+; 32bit値をコピーする
+.macro long_long_copy dst,src
+  LDA src
+  STA dst
+  LDA src+1
+  STA dst+1
+  LDA src+2
+  STA dst+2
+  LDA src+3
+  STA dst+3
+.endmac
+; 32bit値を減算する
+.macro long_long_sub dst,left,right
+  SEC
+  LDA left
+  SBC right
+  STA dst
+  LDA left+1
+  SBC right+1
+  STA dst+1
+  LDA left+2
+  SBC right+2
+  STA dst+2
+  LDA left+3
+  SBC right+3
+  STA dst+3
+.endmac
+; 32bit値と16bit値とを比較する
+.macro long_short_cmp left,right
+  .local @EXIT
+  .local @LEFT_GREAT
+  .local @EQUAL
+  .local @LEFT_SMALL
+  ; byte 3, 2 の比較
+  LDA left+3
+  ORA left+2
+  BNE @LEFT_GREAT ; 左の上位半分がゼロでなかったら右は敵わない
+  ; byte 1
+  LDA left+1
+  CMP right+1
+  BNE @EXIT       ; 16bit中上位8bitが同じでなかったら比較結果が出ている
+  ; byte 0
+  LDA left
+  CMP right
+  BRA @EXIT
+@LEFT_GREAT:
+  LDA #2
+  CMP #1          ; 2-1
+@EXIT:
+.endmac
   ; ---------------------------------------------------------------
   ;   サブルーチンローカル変数の定義
-  @ZR2_LENGTH         = ZR2       ; 読みたいバイト長
-  @ZR3_ACTLEN         = ZR3       ; 実際に読み込んだ長さ
+  @ZR2_LENGTH         = ZR2       ; 読みたいバイト長=>読まれたバイト長
+  @ZR34_TMP32         = ZR3
   ; ---------------------------------------------------------------
   ;   引数の格納
   storeAY16 @ZR2_LENGTH
   LDA ZR1
   ;PHA                             ; fdをプッシュ
   ; ---------------------------------------------------------------
-  ;   ACTLENの算出
+  ;   LENGTHの算出
+  ;   ファイルの残りより多く要求されていた場合、ファイルの残りにする
   JSR LOAD_FWK_MAKEREALSEC        ; AのfdからFCTRL構造体をロード、リアルセクタ作成
+  LDA FWK+FCTRL::SIZ
+  long_long_sub   @ZR34_TMP32, FWK+FCTRL::SIZ, FWK+FCTRL::SEEK_PTR   ; tmp=siz-seek
+  long_short_cmp  @ZR34_TMP32, @ZR2_LENGTH                           ; tmp<=>length
+  BPL @SKP_PARTIAL_LENGTH         ; 要求lengthがファイルの残りより小さければそのままで問題なし
+  ; lengthをファイルの残りに変更
+  mem2mem16 @ZR2_LENGTH,@ZR34_TMP32
+@SKP_PARTIAL_LENGTH:
   loadAY16 FWK                    ; 実験用にFCTRLを開放
   RTS
 
