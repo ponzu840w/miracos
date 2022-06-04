@@ -13,6 +13,8 @@
 .ENDPROC
 .INCLUDE "../syscall.mac"
 
+IMAGE_BUFFER_SECS = 32 ; 何セクタをバッファに使うか？ 48の約数
+
 ; -------------------------------------------------------------------
 ;                               ZP領域
 ; -------------------------------------------------------------------
@@ -40,11 +42,14 @@ START:
   storeAY16 ZR0
   TAX
   LDA (ZR0)
-  BEQ NOTFOUND
+  BNE @SKP_NOTFOUND
+@NOTFOUND2:
+  JMP NOTFOUND
+@SKP_NOTFOUND:
   TXA
   ; オープン
   syscall FS_FIND_FST             ; 検索
-  BCS NOTFOUND                    ; 見つからなかったらあきらめる
+  BCS @NOTFOUND2                  ; 見つからなかったらあきらめる
   storeAY16 FINFO_SAV             ; FINFOを格納
   syscall FS_OPEN                 ; ファイルをオープン
   BCS NOTFOUND                    ; オープンできなかったらあきらめる
@@ -61,33 +66,50 @@ LOOP:
   LDA FD_SAV
   STA ZR1                         ; 規約、ファイル記述子はZR1！
   loadmem16 ZR0,TEXT              ; 書き込み先
-  loadAY16 512                    ; 1セクタ読み込み
+  loadAY16 512*IMAGE_BUFFER_SECS  ; 数セクタをバッファに読み込み
   syscall FS_READ_BYTS            ; ロード
-  PHP                             ; 最終バイトがあるかの情報Cを退避
-  ; 1セクタ出力
+  BCS @CLOSE
+  ; 読み取ったセクタ数をバッファ出力ループのイテレータに
+  TYA
+  LSR
+  TAX
+  ; バッファ出力
   ; 書き込み座標リセット
   LDA ZP_VMAV
   STA CRTC::VMAV
-  LDX #0
-  STX CRTC::VMAH
-@PICT_LOOP:
-  LDA TEXT,X
+  STZ CRTC::VMAH
+  loadmem16 ZP_READ_VEC16, TEXT
+  ; バッファ出力ループ
+  ;LDX #IMAGE_BUFFER_SECS
+@BUFFER_LOOP:
+  ; 256バイト出力ループx2
+  ; 前編
+  LDY #0
+@PAGE_LOOP:
+  LDA (ZP_READ_VEC16),Y
   STA CRTC::WDBF
-  INX
-  BNE @PICT_LOOP
-@PICT_LOOP2:
-  LDA TEXT+256,X
+  INY
+  BNE @PAGE_LOOP
+  INC ZP_READ_VEC16+1             ; 読み取りポイント更新
+  ; 後編
+  LDY #0
+@PAGE_LOOP2:
+  LDA (ZP_READ_VEC16),Y
   STA CRTC::WDBF
-  INX
-  BNE @PICT_LOOP2
+  INY
+  BNE @PAGE_LOOP2
+  INC ZP_READ_VEC16+1             ; 読み取りポイント更新
+  ; 512バイト出力終了
+  DEX
+  BNE @BUFFER_LOOP
+  ; バッファ出力終了
   ; 垂直アドレスの更新
   ; 512バイトは4行に相当する
-  INC ZP_VMAV
-  INC ZP_VMAV
-  INC ZP_VMAV
-  INC ZP_VMAV
-  PLP                             ; 最終バイトがあるか
-  BCC LOOP                        ; 最終バイトを含んでいなければ次へ
+  CLC
+  LDA ZP_VMAV
+  ADC #4*IMAGE_BUFFER_SECS
+  STA ZP_VMAV
+  BRA LOOP
   ; 最終バイトがあるとき
   ; クローズ
 @CLOSE:
@@ -140,42 +162,10 @@ FILL_LOOP_H:
   BNE FILL_LOOP_V
   RTS
 
-; 画像貼り付け
-; ZP_TMP_X,Yを起点とし、ZP_TMP_X_DEST,ZP_TMP_Y_DESTは大きさを表す
-; FONT_READ_VEC16が画像起点
-;DRAW_IMAGE:
-;  LDY #0
-;DRAW_IMAGE_LOOP_Y:
-;  LDX ZP_TMP_X
-;  STX CRTC::VMAH
-;  LDX ZP_TMP_Y
-;  STX CRTC::VMAV
-;  LDX #0
-;DRAW_IMAGE_LOOP_X:
-;  LDA (ZP_READ_VEC16),Y
-;  STA CRTC::WDBF
-;  INX
-;  INY
-;  BNE DRAW_IMAGE_SKP0
-;  ; 画像データのページ跨ぎ
-;  INC ZP_READ_VEC16+1
-;DRAW_IMAGE_SKP0:
-;  CPX ZP_TMP_X_DEST
-;  BNE DRAW_IMAGE_LOOP_X
-;  ; 右終端
-;  INC ZP_TMP_Y
-;  LDA ZP_TMP_Y
-;  CMP ZP_TMP_Y_DEST
-;  BNE DRAW_IMAGE_LOOP_Y
-;  RTS
-
 STR_NOTFOUND:
   .BYT "Input File Not Found.",$A,$0
 
-; -------------------------------------------------------------------
-;                             データ領域
-; -------------------------------------------------------------------
-.DATA
+.BSS
 TEXT:
-  .RES 512
+  .RES 512*IMAGE_BUFFER_SECS
 
