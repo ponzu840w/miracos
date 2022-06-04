@@ -93,6 +93,9 @@ START:
   loadmem16 ZR0,BFPTR
   mem2AY16 REQLEN
   syscall FS_READ_BYTS2           ; コール
+  BCC @SKP_EOF
+  JMP @EOF
+@SKP_EOF:
   storeAY16 FCTRL_SAV             ; FCTRLを取得
   mem2mem16 ACTLEN,ZR2            ; 16bit値を保存
   mem2mem16 SDSEEK,ZR0
@@ -135,6 +138,9 @@ START:
   ; 受信文字列
   loadAY16 BUFFER
   syscall CON_OUT_STR
+  ; bra
+  JMP @INPUT_LENGTH
+@EOF:
   ; ファイルクローズ
   LDA FD_SAV
   syscall FS_CLOSE
