@@ -68,7 +68,7 @@ LOOP:
   STA ZR1                         ; 規約、ファイル記述子はZR1！
   loadmem16 ZR0,TEXT              ; 書き込み先
   loadAY16 512*IMAGE_BUFFER_SECS  ; 数セクタをバッファに読み込み
-  syscall FS_READ_BYTS2           ; ロード
+  syscall FS_READ_BYTS            ; ロード
   BCS @CLOSE
   ; 読み取ったセクタ数をバッファ出力ループのイテレータに
   TYA
