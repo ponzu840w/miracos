@@ -409,9 +409,10 @@ FUNC_UPPER_STR:
 ; -------------------------------------------------------------------
 ; BCOS 20                    アドレス取得
 ; -------------------------------------------------------------------
-; input     : Y   = 0*2 : ZP_RND16      16bit乱数
-;                 = 1*2 : TXTVRAM768    テキストVRAM
-;                 = 2*2 : FONT2048      フォントグリフエリア
+; input     : Y   = 0*2 : ZP_RND16            16bit乱数
+;                 = 1*2 : TXTVRAM768          テキストVRAM
+;                 = 2*2 : FONT2048            フォントグリフエリア
+;                 = 3*3 : ZP_CON_DEV_CFG      コンソールデバイス設定
 ; output    : AY = ptr
 ; -------------------------------------------------------------------
 FUNC_GET_ADDR:
@@ -422,7 +423,8 @@ FUNC_GET_ADDR:
   RTS
 
 OPEN_ADDR_TABLE:
-  .WORD ZP_RND16    ; 0
-  .WORD TXTVRAM768  ; 1
-  .WORD FONT2048    ; 2
+  .WORD ZP_RND16          ; 0
+  .WORD TXTVRAM768        ; 1
+  .WORD FONT2048          ; 2
+  .WORD ZP_CON_DEV_CFG    ; 3
 
