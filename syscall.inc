@@ -28,4 +28,5 @@ GET_ADDR            = 20
   BHY_GET_ADDR_zprand16       = 0
   BHY_GET_ADDR_txtvram768     = 1*2
   BHY_GET_ADDR_font2048       = 2*2
+  BHY_GET_ADDR_condevcfg      = 3*2
 
