@@ -151,7 +151,6 @@ PRT_S:
   LDA #' '
   JMP PRT_C_CALL
 
-
 BYT2ASC:
   ; Aで与えられたバイト値をASCII値AYにする
   ; Aから先に表示すると良い

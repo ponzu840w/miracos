@@ -45,98 +45,228 @@ INIT:
   RTS
 
 ; -------------------------------------------------------------------
-; BCOS 18                 ファイル読み取り
+; BCOS 15                 ファイル読み取り
 ; -------------------------------------------------------------------
 ; input :ZR1=fd, AY=len, ZR0=bfptr
 ; output:AY=actual_len、C=EOF
-; 基本動作：与えられたファイル記述子のファイルを既存シーク位置で
-;   固有バッファに展開し、与えられたバイト数を与えられたバッファに
-;   コピーする。
 ; -------------------------------------------------------------------
 FUNC_FS_READ_BYTS:
-  STA ZR2
-  STY ZR2+1                       ; ZR2=len
+; 32bit値をコピーする
+.macro long_long_copy dst,src
+  LDA src
+  STA dst
+  LDA src+1
+  STA dst+1
+  LDA src+2
+  STA dst+2
+  LDA src+3
+  STA dst+3
+.endmac
+; 32bit値を減算する
+.macro long_long_sub dst,left,right
+  SEC
+  LDA left
+  SBC right
+  STA dst
+  LDA left+1
+  SBC right+1
+  STA dst+1
+  LDA left+2
+  SBC right+2
+  STA dst+2
+  LDA left+3
+  SBC right+3
+  STA dst+3
+.endmac
+; 32bit値と16bit値とを比較する
+.macro long_short_cmp left,right
+  .local @EXIT
+  .local @LEFT_GREAT
+  .local @EQUAL
+  .local @LEFT_SMALL
+  ; byte 3, 2 の比較
+  LDA left+3
+  ORA left+2
+  BNE @LEFT_GREAT ; 左の上位半分がゼロでなかったら右は敵わない
+  ; byte 1
+  LDA left+1
+  CMP right+1
+  BNE @EXIT       ; 16bit中上位8bitが同じでなかったら比較結果が出ている
+  ; byte 0
+  LDA left
+  CMP right
+  BRA @EXIT
+@LEFT_GREAT:
+  LDA #2
+  CMP #1          ; 2-1
+@EXIT:
+.endmac
+; 32bit値に16bit値を加算する
+.macro long_short_add dst,left,right
+  CLC
+  LDA left
+  ADC right
+  STA dst
+  LDA left+1
+  ADC right+1
+  STA dst+1
+  LDA left+2
+  ADC #0
+  STA dst+2
+  LDA left+3
+  ADC #0
+  STA dst+3
+.endmac
+  ; ---------------------------------------------------------------
+  ;   サブルーチンローカル変数の定義
+  @ZR2_LENGTH         = ZR2       ; 読みたいバイト長=>読まれたバイト長
+  @ZR34_TMP32         = ZR3       ; 32bit計算用、読まれたバイト長が求まった時点で破棄
+  @ZR3_BFPTR          = ZR3       ; 書き込み先のアドレス
+  @ZR4_ITR            = ZR4       ; イテレータ
+  ; ---------------------------------------------------------------
+  ;   引数の格納
+  storeAY16 @ZR2_LENGTH
   LDA ZR1
-  PHA                             ; fd退避
-  LDA ZR0
-  LDY ZR0+1
-  PHA
-  PHY                             ; 書き込み先を退避
-  STZ ZR3
-  STZ ZR3+1                       ; ZR3を実際に読み取ったバイト数のカウンタとして初期化
-  LDA ZR1                         ; FDをAに
-  JSR LOAD_FWK_MAKEREALSEC        ; FDからFCTRL構造体をロード、リアルセクタ作成
+  PHA                             ; fdをプッシュ
+  pushmem16 ZR0                   ; 書き込み先アドレス退避
+  LDA ZR1
+  ; ---------------------------------------------------------------
+  ;   LENGTHの算出
+  ;   ファイルの残りより多く要求されていた場合、ファイルの残りにする
+  JSR LOAD_FWK_MAKEREALSEC        ; AのfdからFCTRL構造体をロード、リアルセクタ作成
+  LDA FWK+FCTRL::SIZ
+  long_long_sub   @ZR34_TMP32, FWK+FCTRL::SIZ, FWK+FCTRL::SEEK_PTR   ; tmp=siz-seek
+  long_short_cmp  @ZR34_TMP32, @ZR2_LENGTH                           ; tmp<=>length @ZR34_TMP32の破棄
+  BEQ @SKP_PARTIAL_LENGTH
+  BCS @SKP_PARTIAL_LENGTH         ; 要求lengthがファイルの残りより小さければそのままで問題なし
+  ; lengthをファイルの残りに変更
+  mem2mem16 @ZR2_LENGTH,@ZR34_TMP32
+@SKP_PARTIAL_LENGTH:
+  ; lengthが0になったら強制終了
+  LDA @ZR2_LENGTH
+  ORA @ZR2_LENGTH+1
+  BNE @SKP_EOF
+  ; length=0
+  PLX                             ; fd回収
+  PLX                             ; fd回収
+  PLX                             ; fd回収
+  SEC
+  RTS
+@SKP_EOF:
+  pullmem16 @ZR3_BFPTR            ; 書き込み先アドレスをスタックから復帰
+  ; ---------------------------------------------------------------
+  ;   モード分岐
+  ; SEEKはセクタアライメントされているか？
+  LDA FWK+FCTRL::SEEK_PTR
+  BNE @NOT_SECALIGN
+  LDA FWK+FCTRL::SEEK_PTR+1
+  LSR
+  BCS @NOT_SECALIGN
+  ; SEEKがセクタアライン
+  ; LENGTHはセクタアライメントされているか？
+  LDA @ZR2_LENGTH                 ; 下位
+  BNE @NOT_SECALIGN
+  LDA @ZR2_LENGTH+1               ; 上位
+  LSR                             ; C=bit0
+  BCS @NOT_SECALIGN               ; ページ境界だがセクタ境界でない残念な場合
+  ; LENGTHもセクタアライン、A=読み取りセクタ数
+  JMP @READ_BY_SEC
+@NOT_SECALIGN:
+  ; SEEKがセクタアライメントされていなかった
+  ; ---------------------------------------------------------------
+  ;   バイト単位リード
+@READ_BY_BYT:
+  ; 読み取り長さの上位をイテレータに
+  LDA @ZR2_LENGTH+1
+  STA @ZR4_ITR
   JSR RDSEC                       ; セクタ読み取り、SDSEEKは起点
-  ; シークポインタの初期位置を計算
+  ; SDSEEKの初期位置をシークポインタから計算
   LDA FWK+FCTRL::SEEK_PTR+1       ; 第1バイト
   LSR                             ; bit 0 をキャリーに
   BCC @SKP_INCPAGE                ; C=0 上部 $03 ？ 逆では
   INC ZP_SDSEEK_VEC16+1           ; C=1 下部 $04
 @SKP_INCPAGE:
   LDA FWK+FCTRL::SEEK_PTR         ; 第0バイト
-  CLC
-  ADC ZP_SDSEEK_VEC16
-  STA ZP_SDSEEK_VEC16             ; 下位バイトを加算
-  PLA
-  STA ZR0+1
-  PLA
-  STA ZR0                         ; 書き込み先を復帰
-  loadreg16 FWK+FCTRL::SIZ        ; サイズ
-  JSR AX_SRC                      ; 比較もとに
-  loadreg16 FWK+FCTRL::SEEK_PTR   ; シークポインタ
-  JSR AX_DST                      ; 書き込み先に
-  JSR L_CMP                       ; SIZとSEEK_PTRを比較
-  SEC                             ; C=最終バイトフラグ
-  BEQ @END                        ; （始まる前から）最終バイト読み取り完了につき終了
-  ; 一文字づつ読み取り
-@LOOP:
-  LDA #$FF                        ; 全ビットを見る
-  BIT ZR2+1                       ; 上位桁がゼロか  -len
-  BNE @NZ
-  BIT ZR2                         ; 下位桁がゼロか
-  BNE @NZ                         ; まだ残ってるなら読み取りを実行、そうでなければ要求完了
-  CLC                             ; 最終バイトフラグを折る
-@END:
-  PLA                             ; 終了処理、現在ファイル記述子復帰
-  PHP
-  JSR PUT_FWK
-  LDA ZR3                         ; 実際に読み込んだバイト数をロード
-  LDY ZR3+1
-  PLP
-  RTS
-@NZ:                              ; どちらかがゼロではない
-  LDA (ZP_SDSEEK_VEC16)           ; データを1バイト取得
-  STA (ZR0)                       ; データを書き込み
-  JSR L_CMP                       ; SIZとSEEK_PTRを比較
-  SEC                             ; C=最終バイトフラグ
-  BEQ @END                        ; 最終バイト読み取り完了につき終了
-  INC ZP_SDSEEK_VEC16             ; 下位をインクリメント
-  BNE @SKP_INCH
-  INC ZP_SDSEEK_VEC16+1           ; 上位をインクリメント
-  LDA ZP_SDSEEK_VEC16+1
-  CMP #(>SECBF512)+2              ; 読み切ったらEQ
-  BNE @SKP_INCH                   ; NOTE:次のセクタに行くときのBP
+  STA ZP_SDSEEK_VEC16
+  ; 1文字ずつ、固定バッファロード->指定バッファに移送
+  LDX @ZR2_LENGTH                 ; ページ端数部分を初回ループカウンタに
+  BEQ @SKP_INC_ITR                ; 下位がゼロでないとき、
+  INC @ZR4_ITR                    ; DECでゼロ検知したいので1つ足す
+@SKP_INC_ITR:
+  LDY #0                          ; BFPTRインデックス
+@LOOP_BYT:
+  LDA (ZP_SDSEEK_VEC16)           ; 固定バッファからデータをロード
+  STA (@ZR3_BFPTR),Y              ; 指定バッファにデータをストア
+  ; BFPTRの更新
+  INY                             ; Yインクリメント
+  BNE @SKP_BF_NEXT_PAGE           ; Yが0に戻った=BFPTRのページ跨ぎ発生
+  ; BFPTRのページを進める
+  INC @ZR3_BFPTR+1                ; 書き込み先の上位インクリメント
+  ; - BFPTRのページ進め終了
+@SKP_BF_NEXT_PAGE:                ; <-BFPTRページ跨ぎがない
+  ; SDSEEKの更新
+  INC ZP_SDSEEK_VEC16             ; 下位インクリメント
+  BNE @SKP_SDSEEK_NEXT_PAGE       ; 下位のインクリメントがゼロに=SDSEEKのページ跨ぎ
+  ;BNE @LOOP_BYT                   ; 下位のインクリメントがゼロに=SDSEEKのページ跨ぎ
+  ; SDSEEKのページを進める
+  LDA ZP_SDSEEK_VEC16+1           ; 上位
+  CMP #>SECBF512
+  BEQ @SKP_SDSEEK_LOOP            ; 固定バッファの前半分だったらINCのみ
+  ; SDSEEKのページを巻き戻し、次のセクタをロード
+  LDA #>(SECBF512)                ; ページを先頭に
+  STA ZP_SDSEEK_VEC16+1           ; 上位更新
+  PHX
+  PHY
   JSR NEXTSEC                     ; 次のセクタに移行
   JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る
-@SKP_INCH:
-  loadreg16 FWK+FCTRL::SEEK_PTR   ; シークポインタ
-  JSR AX_DST                      ; 書き込み先に
-  LDA #1
-  JSR L_ADD_BYT                   ; SEEK_PTRをインクリメント
-  INC ZR0                         ; ZR0下位をインクリメント -書き込み先
-  BNE @SKP_INCH0
-  INC ZR0+1                       ; ZR0上位をインクリメント
-@SKP_INCH0:
-  INC ZR3                         ; ZR3下位をインクリメント -読み取りバイト数
-  BNE @SKP_INCH3
-  INC ZR3+1                       ; ZR3上位をインクリメント
-@SKP_INCH3:
-  DEC ZR2                         ; ZR2下位をデクリメント   -len
-  LDA ZR2
-  CMP #$FF
-  BNE @LOOP
-  DEC ZR2+1                       ; ZR2上位をデクリメント
-  BRA @LOOP
+  PLY
+  PLX
+  BRA @SKP_INC_SDSEEK
+  ;BRA @LOOP_BYT
+  ; - SDSEEKのページ巻き戻し終了
+@SKP_SDSEEK_LOOP:                 ; <-ページ巻き戻しが不要
+  INC ZP_SDSEEK_VEC16+1           ; 上位インクリメント
+@SKP_INC_SDSEEK:                  ; <-ページ巻き戻し終了（特別やることがないので実際には直接LOOP_BYTへ）
+@SKP_SDSEEK_NEXT_PAGE:            ; <-SDSEEKページ跨ぎなし（特別やることがないので実際には直接LOOP_BYTへ）
+  ; 残りチェック
+  DEX
+  BNE @SKP_NOKORI
+  ; 残りページ数チェック
+  DEC @ZR4_ITR                    ; 読み取り長さ上位イテレータ
+  BEQ @END                        ; イテレータが0ならもう読むべきものはない
+@SKP_NOKORI:
+  BRA @LOOP_BYT                   ; 次の文字へ
+  ; ---------------------------------------------------------------
+  ;   セクタ単位リード
+@READ_BY_SEC:
+  ; 残りセクタ数をイテレータに
+  STA @ZR4_ITR
+  ; rdsec
+  mem2mem16 ZP_SDSEEK_VEC16  ,  @ZR3_BFPTR      ; 書き込み先をBFPTRに（初回のみ）
+  loadmem16 ZP_SDCMDPRM_VEC16,  FWK_REAL_SEC    ; リアルセクタをコマンドパラメータに
+@LOOP_SEC:
+  JSR SD::RDSEC                   ; 実際にロード
+  JSR NEXTSEC                     ; 次弾装填
+  INC ZP_SDSEEK_VEC16+1           ; 書き込み先ページの更新
+  DEC @ZR4_ITR                    ; 残りセクタ数を減算
+  BNE @LOOP_SEC                   ; 残りセクタが0でなければ次を読む
+  ; エラー処理省略
+  ; ---------------------------------------------------------------
+  ;   終了処理
+@END:
+  ; fctrl::seekを進める
+  long_short_add FWK+FCTRL::SEEK_PTR, FWK+FCTRL::SEEK_PTR, @ZR2_LENGTH ; seek=seek+length
+  ; FWKを反映
+  PLA                             ; fd
+  JSR PUT_FWK
+@SKP_SEC:
+  ; 実際に読み込んだバイト長をAYで帰す
+  mem2AY16 @ZR2_LENGTH
+  CLC
+  ; debug
+  ;mem2mem16 ZR0,ZP_SDSEEK_VEC16
+  ;loadAY16 FWK                    ; 実験用にFCTRLを開放
+  RTS
 
 ; -------------------------------------------------------------------
 ; BCOS 9                   ファイル検索                エラーハンドル
