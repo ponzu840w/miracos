@@ -26,9 +26,10 @@ BFPTR   = BUFFER
   FD_SAV:         .RES 1  ; ファイル記述子
   FINFO_SAV:      .RES 2  ; FINFO
   FCTRL_SAV:      .RES 2
-  TMP32:          .RES 4
   ACTLEN:         .RES 2
   REQLEN:         .RES 2
+  SDSEEK:         .RES 2
+  BFPTR_NEW:          .RES 2
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -94,8 +95,8 @@ START:
   syscall FS_READ_BYTS2           ; コール
   storeAY16 FCTRL_SAV             ; FCTRLを取得
   mem2mem16 ACTLEN,ZR2            ; 16bit値を保存
-  mem2mem16 TMP32,ZR3
-  mem2mem16 TMP32+2,ZR4           ; 32bit値を保存
+  mem2mem16 SDSEEK,ZR0
+  mem2mem16 BFPTR_NEW,ZR3
   ; FCTRL表示
   ; FCTRL_SIZラベル
   loadAY16 STR_FCTRL_SIZ
@@ -113,18 +114,27 @@ START:
   ADC FCTRL_SAV
   LDY FCTRL_SAV+1
   JSR PRT_LONG_LF
-  ; TMP32ラベル
-  loadAY16 STR_TMP32
-  syscall CON_OUT_STR
-  ; TMP32
-  loadAY16 TMP32
-  JSR PRT_LONG_LF
   ; ACTLENラベル
   loadAY16 STR_ACTLEN
   syscall CON_OUT_STR
   ; ACTLEN
   loadAY16 ACTLEN
   JSR PRT_SHORT_LF
+  ; SDSEEKラベル
+  loadAY16 STR_SDSEEK
+  syscall CON_OUT_STR
+  ; SDSEEK
+  loadAY16 SDSEEK
+  JSR PRT_SHORT_LF
+  ; BFPTRラベル
+  loadAY16 STR_BFPTR
+  syscall CON_OUT_STR
+  ; BFPTR
+  loadAY16 BFPTR_NEW
+  JSR PRT_SHORT_LF
+  ; 受信文字列
+  loadAY16 BUFFER
+  syscall CON_OUT_STR
   ; ファイルクローズ
   LDA FD_SAV
   syscall FS_CLOSE
@@ -299,13 +309,17 @@ PATH_DATA:
   .ASCIIZ "A:/TEST.TXT"
 
 STR_HELLO:      .BYT "New FS_READ syscall dev tool",$A,$0
-STR_LENGTH:     .BYT "Length?   :     $",$0
+STR_LENGTH:     .BYT "Length?   : $",$0
 STR_GOT_FD:     .BYT "File Dscr.:       $",$0
 STR_FCTRL_SIZ:  .BYT "FCTRL_SIZE: $",$0
 STR_FCTRL_SEEK: .BYT "FCTRL_SEEK: $",$0
-STR_TMP32:      .BYT "TMP32     : $",$0
 STR_ACTLEN:     .BYT "ACTLEN    :     $",$0
+STR_SDSEEK:     .BYT "SDSEEK    : $",$0
+STR_BFPTR:      .BYT "BFPTR     : $",$0
 
 INSTR_BF: .RES 8
+.DATA
+AAA:
+.res 200
 BUFFER:
 
