@@ -60,3 +60,17 @@
   PLA
 .endmac
 
+.macro pushmem16 src
+  LDA src
+  PHA
+  LDA src+1
+  PHA
+.endmac
+
+.macro pullmem16 src
+  PLA
+  STA src+1
+  PLA
+  STA src
+.endmac
+
