@@ -92,7 +92,7 @@ START:
   STA ZR1
   loadmem16 ZR0,BFPTR
   mem2AY16 REQLEN
-  syscall FS_READ_BYTS2           ; コール
+  syscall FS_READ_BYTS            ; コール
   BCC @SKP_EOF
   JMP @EOF
 @SKP_EOF:

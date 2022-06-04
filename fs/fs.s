@@ -45,12 +45,12 @@ INIT:
   RTS
 
 ; -------------------------------------------------------------------
-; BCOS 21                 新ファイル読み取り
+; BCOS 15                 ファイル読み取り
 ; -------------------------------------------------------------------
 ; input :ZR1=fd, AY=len, ZR0=bfptr
 ; output:AY=actual_len、C=EOF
 ; -------------------------------------------------------------------
-FUNC_FS_READ_BYTS2:
+FUNC_FS_READ_BYTS:
 ; 32bit値をコピーする
 .macro long_long_copy dst,src
   LDA src
@@ -179,7 +179,6 @@ FUNC_FS_READ_BYTS2:
   ; 読み取り長さの上位をイテレータに
   LDA @ZR2_LENGTH+1
   STA @ZR4_ITR
-  INC @ZR4_ITR                    ; DECでゼロ検知したいので1つ足す
   JSR RDSEC                       ; セクタ読み取り、SDSEEKは起点
   ; SDSEEKの初期位置をシークポインタから計算
   LDA FWK+FCTRL::SEEK_PTR+1       ; 第1バイト
@@ -191,17 +190,13 @@ FUNC_FS_READ_BYTS2:
   STA ZP_SDSEEK_VEC16
   ; 1文字ずつ、固定バッファロード->指定バッファに移送
   LDX @ZR2_LENGTH                 ; ページ端数部分を初回ループカウンタに
+  BEQ @SKP_INC_ITR                ; 下位がゼロでないとき、
+  INC @ZR4_ITR                    ; DECでゼロ検知したいので1つ足す
+@SKP_INC_ITR:
   LDY #0                          ; BFPTRインデックス
 @LOOP_BYT:
   LDA (ZP_SDSEEK_VEC16)           ; 固定バッファからデータをロード
   STA (@ZR3_BFPTR),Y              ; 指定バッファにデータをストア
-  ; 残りチェック
-  DEX
-  BNE @SKP_NOKORI
-  ; 残りページ数チェック
-  DEC @ZR4_ITR                    ; 読み取り長さ上位イテレータ
-  BEQ @END                        ; イテレータが0ならもう読むべきものはない
-@SKP_NOKORI:
   ; BFPTRの更新
   INY                             ; Yインクリメント
   BNE @SKP_BF_NEXT_PAGE           ; Yが0に戻った=BFPTRのページ跨ぎ発生
@@ -211,8 +206,8 @@ FUNC_FS_READ_BYTS2:
 @SKP_BF_NEXT_PAGE:                ; <-BFPTRページ跨ぎがない
   ; SDSEEKの更新
   INC ZP_SDSEEK_VEC16             ; 下位インクリメント
-  ;BNE @SKP_SDSEEK_NEXT_PAGE       ; 下位のインクリメントがゼロに=SDSEEKのページ跨ぎ
-  BNE @LOOP_BYT                   ; 下位のインクリメントがゼロに=SDSEEKのページ跨ぎ
+  BNE @SKP_SDSEEK_NEXT_PAGE       ; 下位のインクリメントがゼロに=SDSEEKのページ跨ぎ
+  ;BNE @LOOP_BYT                   ; 下位のインクリメントがゼロに=SDSEEKのページ跨ぎ
   ; SDSEEKのページを進める
   LDA ZP_SDSEEK_VEC16+1           ; 上位
   CMP #>SECBF512
@@ -226,13 +221,20 @@ FUNC_FS_READ_BYTS2:
   JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る
   PLY
   PLX
-  ;BRA @SKP_INC_SDSEEK
-  BRA @LOOP_BYT
+  BRA @SKP_INC_SDSEEK
+  ;BRA @LOOP_BYT
   ; - SDSEEKのページ巻き戻し終了
 @SKP_SDSEEK_LOOP:                 ; <-ページ巻き戻しが不要
   INC ZP_SDSEEK_VEC16+1           ; 上位インクリメント
-;@SKP_INC_SDSEEK:                  ; <-ページ巻き戻し終了（特別やることがないので実際には直接LOOP_BYTへ）
-;@SKP_SDSEEK_NEXT_PAGE:            ; <-SDSEEKページ跨ぎなし（特別やることがないので実際には直接LOOP_BYTへ）
+@SKP_INC_SDSEEK:                  ; <-ページ巻き戻し終了（特別やることがないので実際には直接LOOP_BYTへ）
+@SKP_SDSEEK_NEXT_PAGE:            ; <-SDSEEKページ跨ぎなし（特別やることがないので実際には直接LOOP_BYTへ）
+  ; 残りチェック
+  DEX
+  BNE @SKP_NOKORI
+  ; 残りページ数チェック
+  DEC @ZR4_ITR                    ; 読み取り長さ上位イテレータ
+  BEQ @END                        ; イテレータが0ならもう読むべきものはない
+@SKP_NOKORI:
   BRA @LOOP_BYT                   ; 次の文字へ
   ; ---------------------------------------------------------------
   ;   セクタ単位リード
@@ -265,100 +267,6 @@ FUNC_FS_READ_BYTS2:
   ;mem2mem16 ZR0,ZP_SDSEEK_VEC16
   ;loadAY16 FWK                    ; 実験用にFCTRLを開放
   RTS
-
-; -------------------------------------------------------------------
-; BCOS 18                 ファイル読み取り
-; -------------------------------------------------------------------
-; input :ZR1=fd, AY=len, ZR0=bfptr
-; output:AY=actual_len、C=EOF
-; 基本動作：与えられたファイル記述子のファイルを既存シーク位置で
-;   固有バッファに展開し、与えられたバイト数を与えられたバッファに
-;   コピーする。
-; -------------------------------------------------------------------
-FUNC_FS_READ_BYTS:
-  STA ZR2
-  STY ZR2+1                       ; ZR2=len
-  LDA ZR1
-  PHA                             ; fd退避
-  LDA ZR0
-  LDY ZR0+1
-  PHA
-  PHY                             ; 書き込み先を退避
-  STZ ZR3
-  STZ ZR3+1                       ; ZR3を実際に読み取ったバイト数のカウンタとして初期化
-  LDA ZR1                         ; FDをAに
-  JSR LOAD_FWK_MAKEREALSEC        ; FDからFCTRL構造体をロード、リアルセクタ作成
-  JSR RDSEC                       ; セクタ読み取り、SDSEEKは起点
-  ; シークポインタの初期位置を計算
-  LDA FWK+FCTRL::SEEK_PTR+1       ; 第1バイト
-  LSR                             ; bit 0 をキャリーに
-  BCC @SKP_INCPAGE                ; C=0 上部 $03 ？ 逆では
-  INC ZP_SDSEEK_VEC16+1           ; C=1 下部 $04
-@SKP_INCPAGE:
-  LDA FWK+FCTRL::SEEK_PTR         ; 第0バイト
-  CLC
-  ADC ZP_SDSEEK_VEC16
-  STA ZP_SDSEEK_VEC16             ; 下位バイトを加算
-  PLA
-  STA ZR0+1
-  PLA
-  STA ZR0                         ; 書き込み先を復帰
-  loadreg16 FWK+FCTRL::SIZ        ; サイズ
-  JSR AX_SRC                      ; 比較もとに
-  loadreg16 FWK+FCTRL::SEEK_PTR   ; シークポインタ
-  JSR AX_DST                      ; 書き込み先に
-  JSR L_CMP                       ; SIZとSEEK_PTRを比較
-  SEC                             ; C=最終バイトフラグ
-  BEQ @END                        ; （始まる前から）最終バイト読み取り完了につき終了
-  ; 一文字づつ読み取り
-@LOOP:
-  LDA #$FF                        ; 全ビットを見る
-  BIT ZR2+1                       ; 上位桁がゼロか  -len
-  BNE @NZ
-  BIT ZR2                         ; 下位桁がゼロか
-  BNE @NZ                         ; まだ残ってるなら読み取りを実行、そうでなければ要求完了
-  CLC                             ; 最終バイトフラグを折る
-@END:
-  PLA                             ; 終了処理、現在ファイル記述子復帰
-  PHP
-  JSR PUT_FWK
-  LDA ZR3                         ; 実際に読み込んだバイト数をロード
-  LDY ZR3+1
-  PLP
-  RTS
-@NZ:                              ; どちらかがゼロではない
-  LDA (ZP_SDSEEK_VEC16)           ; データを1バイト取得
-  STA (ZR0)                       ; データを書き込み
-  JSR L_CMP                       ; SIZとSEEK_PTRを比較
-  SEC                             ; C=最終バイトフラグ
-  BEQ @END                        ; 最終バイト読み取り完了につき終了
-  INC ZP_SDSEEK_VEC16             ; 下位をインクリメント
-  BNE @SKP_INCH
-  INC ZP_SDSEEK_VEC16+1           ; 上位をインクリメント
-  LDA ZP_SDSEEK_VEC16+1
-  CMP #(>SECBF512)+2              ; 読み切ったらEQ
-  BNE @SKP_INCH                   ; NOTE:次のセクタに行くときのBP
-  JSR NEXTSEC                     ; 次のセクタに移行
-  JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る
-@SKP_INCH:
-  loadreg16 FWK+FCTRL::SEEK_PTR   ; シークポインタ
-  JSR AX_DST                      ; 書き込み先に
-  LDA #1
-  JSR L_ADD_BYT                   ; SEEK_PTRをインクリメント
-  INC ZR0                         ; ZR0下位をインクリメント -書き込み先
-  BNE @SKP_INCH0
-  INC ZR0+1                       ; ZR0上位をインクリメント
-@SKP_INCH0:
-  INC ZR3                         ; ZR3下位をインクリメント -読み取りバイト数
-  BNE @SKP_INCH3
-  INC ZR3+1                       ; ZR3上位をインクリメント
-@SKP_INCH3:
-  DEC ZR2                         ; ZR2下位をデクリメント   -len
-  LDA ZR2
-  CMP #$FF
-  BNE @LOOP
-  DEC ZR2+1                       ; ZR2上位をデクリメント
-  BRA @LOOP
 
 ; -------------------------------------------------------------------
 ; BCOS 9                   ファイル検索                エラーハンドル
