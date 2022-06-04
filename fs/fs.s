@@ -122,8 +122,7 @@ FUNC_FS_READ_BYTS2:
   @ZR2_LENGTH         = ZR2       ; 読みたいバイト長=>読まれたバイト長
   @ZR34_TMP32         = ZR3       ; 32bit計算用、読まれたバイト長が求まった時点で破棄
   @ZR3_BFPTR          = ZR3       ; 書き込み先のアドレス
-  @ZR4_EOF_FLAG       = ZR4       ; EOFを含むと非ゼロ
-  @ZR5_ITR            = ZR5       ; イテレータ
+  @ZR4_ITR            = ZR4       ; イテレータ
   ; ---------------------------------------------------------------
   ;   引数の格納
   storeAY16 @ZR2_LENGTH
@@ -138,13 +137,22 @@ FUNC_FS_READ_BYTS2:
   LDA FWK+FCTRL::SIZ
   long_long_sub   @ZR34_TMP32, FWK+FCTRL::SIZ, FWK+FCTRL::SEEK_PTR   ; tmp=siz-seek
   long_short_cmp  @ZR34_TMP32, @ZR2_LENGTH                           ; tmp<=>length @ZR34_TMP32の破棄
-  STZ @ZR4_EOF_FLAG               ; ZR4が使えるようになったのでフラグにする
   BEQ @SKP_PARTIAL_LENGTH
   BCS @SKP_PARTIAL_LENGTH         ; 要求lengthがファイルの残りより小さければそのままで問題なし
-  ; lengthをファイルの残りに変更、EOFを含む
-  INC @ZR4_EOF_FLAG               ; EOFフラグ
+  ; lengthをファイルの残りに変更
   mem2mem16 @ZR2_LENGTH,@ZR34_TMP32
 @SKP_PARTIAL_LENGTH:
+  ; lengthが0になったら強制終了
+  LDA @ZR2_LENGTH
+  ORA @ZR2_LENGTH+1
+  BNE @SKP_EOF
+  ; length=0
+  PLX                             ; fd回収
+  PLX                             ; fd回収
+  PLX                             ; fd回収
+  SEC
+  RTS
+@SKP_EOF:
   pullmem16 @ZR3_BFPTR            ; 書き込み先アドレスをスタックから復帰
   ; ---------------------------------------------------------------
   ;   モード分岐
@@ -170,8 +178,8 @@ FUNC_FS_READ_BYTS2:
 @READ_BY_BYT:
   ; 読み取り長さの上位をイテレータに
   LDA @ZR2_LENGTH+1
-  STA @ZR5_ITR
-  INC @ZR5_ITR                    ; DECでゼロ検知したいので1つ足す
+  STA @ZR4_ITR
+  INC @ZR4_ITR                    ; DECでゼロ検知したいので1つ足す
   JSR RDSEC                       ; セクタ読み取り、SDSEEKは起点
   ; SDSEEKの初期位置をシークポインタから計算
   LDA FWK+FCTRL::SEEK_PTR+1       ; 第1バイト
@@ -191,7 +199,7 @@ FUNC_FS_READ_BYTS2:
   DEX
   BNE @SKP_NOKORI
   ; 残りページ数チェック
-  DEC @ZR5_ITR                    ; 読み取り長さ上位イテレータ
+  DEC @ZR4_ITR                    ; 読み取り長さ上位イテレータ
   BEQ @END                        ; イテレータが0ならもう読むべきものはない
 @SKP_NOKORI:
   ; BFPTRの更新
@@ -230,7 +238,7 @@ FUNC_FS_READ_BYTS2:
   ;   セクタ単位リード
 @READ_BY_SEC:
   ; 残りセクタ数をイテレータに
-  STA @ZR5_ITR
+  STA @ZR4_ITR
   ; rdsec
   mem2mem16 ZP_SDSEEK_VEC16  ,  @ZR3_BFPTR      ; 書き込み先をBFPTRに（初回のみ）
   loadmem16 ZP_SDCMDPRM_VEC16,  FWK_REAL_SEC    ; リアルセクタをコマンドパラメータに
@@ -238,7 +246,7 @@ FUNC_FS_READ_BYTS2:
   JSR SD::RDSEC                   ; 実際にロード
   JSR NEXTSEC                     ; 次弾装填
   INC ZP_SDSEEK_VEC16+1           ; 書き込み先ページの更新
-  DEC @ZR5_ITR                    ; 残りセクタ数を減算
+  DEC @ZR4_ITR                    ; 残りセクタ数を減算
   BNE @LOOP_SEC                   ; 残りセクタが0でなければ次を読む
   ; エラー処理省略
   ; ---------------------------------------------------------------
@@ -249,14 +257,10 @@ FUNC_FS_READ_BYTS2:
   ; FWKを反映
   PLA                             ; fd
   JSR PUT_FWK
-  ; EOFフラグのキャリーへの反映
-  CLC
-  LDA @ZR4_EOF_FLAG
-  BEQ @SKP_SEC
-  SEC
-@SKP_SEC
+@SKP_SEC:
   ; 実際に読み込んだバイト長をAYで帰す
   mem2AY16 @ZR2_LENGTH
+  CLC
   ; debug
   ;mem2mem16 ZR0,ZP_SDSEEK_VEC16
   ;loadAY16 FWK                    ; 実験用にFCTRLを開放
