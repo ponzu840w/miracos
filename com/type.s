@@ -56,12 +56,17 @@ LOOP:
   loadmem16 ZR0,TEXT              ; 書き込み先
   loadAY16 256
   syscall FS_READ_BYTS            ; ロード
-  PHP                             ; 最終バイトがあるかの情報Cを退避
+  BCS @CLOSE
+  TAX                             ; 読み取ったバイト数
+  CPY #1                          ; 256バイト読んだか？
+  BEQ @SKP_EOF
+  LDA #0
+  STZ TEXT,X
+@SKP_EOF:
   ; 出力
   loadAY16 TEXT
   syscall CON_OUT_STR
-  PLP                             ; 最終バイトがあるか
-  BCC LOOP                        ; 最終バイトを含んでいなければ次へ
+  BRA LOOP
   ; 最終バイトがあるとき
   ; クローズ
 @CLOSE:
@@ -136,6 +141,6 @@ STR_NOTFOUND:
 ; -------------------------------------------------------------------
 ;                             データ領域
 ; -------------------------------------------------------------------
-.DATA
+.BSS
 TEXT:
 
