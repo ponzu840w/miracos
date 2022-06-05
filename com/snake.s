@@ -23,8 +23,16 @@ RIGHT =%1000
 CHR_BLANK =' '
 CHR_HEAD  ='O'
 CHR_TAIL  ='o'
-CHR_WALL  ='#'
+CHR_WALL  =$1F
 CHR_APPLE ='@'
+CHR_YOKOBO=$10
+CHR_TATEBO=$11
+CHR_HIDARI_UE=$12
+CHR_MIGI_UE=$13
+CHR_HIDARI_SITA=$15
+CHR_MIGI_SITA=$14
+CHR_ALLOWL=$C1
+CHR_ALLOWR=$C0
 
 ; -------------------------------------------------------------------
 ;                             ZP領域
@@ -45,6 +53,7 @@ ZP_SNK_TAIL_Y:            .RES 1
 ZP_SNK_HEAD_PTR8:         .RES 1  ; 向きキューの頭のインデックス
 ZP_SNK_TAIL_PTR8:         .RES 1  ; 向きキューの尾のインデックス
 ZP_SNK_LENGTH:            .RES 1  ; 蛇の長さ 1...
+ZP_SNK_LENGTHR:           .RES 1  ; 蛇の長さ 1...レコード
 ZP_SNK_DIREC:             .RES 1  ; 次の向き
 ZP_INPUT:                 .RES 1  ; キー入力バッファ
 ZP_RND_ADDR16:            .RES 2  ; カーネルが乱数をくれるはずのアドレス
@@ -58,9 +67,8 @@ ZP_MM:                    .RES 1  ; 経過分数（デシマル
 ZP_SS:                    .RES 1  ; 経過秒数（デシマル
 ZP_MMR:                   .RES 1  ; レコード経過分数（デシマル
 ZP_SSR:                   .RES 1  ; レコード経過秒数（デシマル
-ZP_COMCOM:                .RES 1
 ZP_TICK_FLAG:             .RES 1  ; 0=ティック待機期間 非0=ティック発生
-;ZP_GAME_STATE:            .RES 1 ; 割込み処理を制御するために考えたが、ルーチンを切り替えればよい
+ZP_SELECTOR_STATE:        .RES 1  ; メニュー状態
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -77,18 +85,39 @@ START:
   LDY #BCOS::BHY_GET_ADDR_zprand16    ; RND
   syscall GET_ADDR
   storeAY16 ZP_RND_ADDR16
+  ; レコード記録リセット
+  STZ ZP_MMR
+  STZ ZP_SSR
+  STZ ZP_SNK_LENGTHR
+  JSR TITLE
+GAME:
+  JSR CLEAR_TXTVRAM                   ; 画面クリア
+  ; 速度メータ表示
+  LDA #']'
+  LDX #7
+  LDY #23
+  JSR XY_PUT
+  LDA #'['
+  LDX #0
+  JSR XY_PUT
+  LDA ZP_VB_PAR_TICK
+  STA ZP_ITR
+@SPEED_LOOP:
+  LDA #'>'
+  INX
+  JSR XY_PUT
+  LDA ZP_ITR
+  INC
+  STA ZP_ITR
+  CMP #8
+  BNE @SPEED_LOOP
   ; 割り込みハンドラの登録
   SEI
   loadAY16 VBLANK
   syscall IRQ_SETHNDR_VB
   storeAY16 ZP_VB_STUB
   CLI
-INIT:
-  JSR CLEAR_TXTVRAM                   ; 画面クリア
   ; ゲーム情報の初期化
-  ; 速度難易度
-  LDA #5
-  STA ZP_VB_PAR_TICK
   STZ ZP_TICK_FLAG
   ; 長さ
   LDA #1
@@ -108,17 +137,30 @@ INIT:
   STA ZP_SNK_TAIL_Y
   ; Length
   loadmem16 ZR0,STR_LENGTH
-  LDX #7
+  LDX #10
   LDY #22
   JSR XY_PRT_STR
+  ; Record
+  loadmem16 ZR0,STR_RECORD
+  LDX #10
+  INY
+  JSR XY_PRT_STR
+  ; RecordTime
+  LDA ZP_MMR
+  STA ZP_MM
+  LDA ZP_SSR
+  STA ZP_SS
+  LDX #27
+  LDY #23
+  JSR XY_PRT_TIME
   ; Time
   STZ ZP_MM
   STZ ZP_SS
   LDX #27
   LDY #22
-  loadmem16 ZR0,STR_TIME
-  JSR XY_PRT_STR
-  ; Record
+  JSR XY_PRT_TIME
+  JSR DRAW_LENGTH                     ; LENGTH描画
+  JSR DRAW_LENGTHR                    ; LENGTHR描画
   JSR DRAW_FRAME                      ; 枠の描画
   JSR DRAW_ALLLINE                    ; 全部描画
   ; 初期リンゴ
@@ -171,6 +213,224 @@ EXIT:
   RTS
 
 ; -------------------------------------------------------------------
+;                             タイトル
+; -------------------------------------------------------------------
+TITLE_Y=(24/2)-2
+TITLE_DIF_Y=TITLE_Y+3
+TITLE_DIF_X=12
+TITLE_PROMPT_Y=23-3
+TITLE_PROMPT_EXIT_X=9
+TITLE_PROMPT_START_X=18
+TITLE_MENU_SPEED=0
+TITLE_MENU_EXIT=1
+TITLE_MENU_START=2
+TITLE:
+  ; STARTにポイント
+  LDA #TITLE_MENU_START
+  STA ZP_SELECTOR_STATE
+  ; 速度難易度のデフォ値
+  LDA #5
+  STA ZP_VB_PAR_TICK
+  ; タイトル画面の描画
+  JSR CLEAR_TXTVRAM                   ; 画面クリア
+  ; ヘヒ゛ ケ゛ーム (8)
+  loadmem16 ZR0,STR_TITLE_SNAKEGAME
+  LDX #12             ; 中央寄せ
+  LDY #TITLE_Y        ; 中央寄せ
+  JSR XY_PRT_STR
+  ; 難易度の調整ウィンドウ
+  ; 0
+  loadmem16 ZR0,STR_TITLE_DIF0
+  LDX #TITLE_DIF_X
+  LDY #TITLE_DIF_Y+1
+  JSR XY_PRT_STR
+  ; 1
+  loadmem16 ZR0,STR_TITLE_DIF1
+  LDX #TITLE_DIF_X
+  LDY #TITLE_DIF_Y+2
+  JSR XY_PRT_STR
+  ; 2
+  loadmem16 ZR0,STR_TITLE_DIF2
+  LDX #TITLE_DIF_X
+  LDY #TITLE_DIF_Y+3
+  JSR XY_PRT_STR
+  ; 3
+  loadmem16 ZR0,STR_TITLE_DIF3
+  LDX #TITLE_DIF_X
+  LDY #TITLE_DIF_Y+4
+  JSR XY_PRT_STR
+  ; EXIT
+  loadmem16 ZR0,STR_TITLE_EXIT
+  LDX #TITLE_PROMPT_EXIT_X
+  LDY #TITLE_PROMPT_Y
+  JSR XY_PRT_STR
+  ; START
+  loadmem16 ZR0,STR_TITLE_START
+  LDX #TITLE_PROMPT_START_X
+  LDY #TITLE_PROMPT_Y
+  JSR XY_PRT_STR
+  ; 描画
+  JSR DRAW_ALLLINE
+@LOOP:
+  ; キー入力駆動
+  LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
+  syscall CON_RAWIN
+  ; キーごとの処理
+@W:
+  ; Wキー
+  ; EXIT/STARTにあるとき、SPEEDに移動する
+  ; それ以外では何もしない
+  CMP #'w'
+  BNE @S
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_SPEED         ; SPEEDか？
+  BEQ @LOOP                     ; SPEEDなら無視
+  ; SPEEDに移動
+  LDA #TITLE_MENU_SPEED
+  STA ZP_SELECTOR_STATE         ; 状態のセット
+  LDA #' '                      ; *の塗りつぶし
+  LDY #TITLE_PROMPT_Y
+  LDX #TITLE_PROMPT_EXIT_X
+  JSR XY_PUT
+  ;LDA #' '                      ; *の塗りつぶし
+  LDX #TITLE_PROMPT_START_X
+  JSR XY_PUT_DRAW
+  LDA #CHR_ALLOWL               ; ←
+  LDX #TITLE_DIF_X-1
+  LDY #TITLE_DIF_Y+3
+  JSR XY_PUT
+  LDA #CHR_ALLOWR               ; →
+  LDX #TITLE_DIF_X+2+6
+  JSR XY_PUT_DRAW
+  BRA @LOOP
+@S:
+  ; Sキー
+  ; SPEEDにあるとき、STARTに移動する
+  CMP #'s'
+  BNE @A
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_SPEED         ; SPEEDか？
+  BNE @LOOP                     ; EXIT/STARTなら無視
+  ; STARTに移動
+  LDA #TITLE_MENU_START
+  STA ZP_SELECTOR_STATE         ; 状態のセット
+  LDA #' '                      ; ←
+  LDX #TITLE_DIF_X-1
+  LDY #TITLE_DIF_Y+3
+  JSR XY_PUT
+  LDA #' '                      ; →
+  LDX #TITLE_DIF_X+2+6
+  JSR XY_PUT_DRAW
+  LDA #'*'                      ; *START
+  LDY #TITLE_PROMPT_Y
+  LDX #TITLE_PROMPT_START_X
+  JSR XY_PUT_DRAW
+  BRA @LOOP
+@A:
+  ; Aキー
+  ; STARTにあるとき、EXITにする
+  ; SPEEDにあるとき、臓側する
+  CMP #'a'
+  BNE @D
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_START         ; STARTか？
+  BNE @A_NOT_START
+  ; STARTをEXITに
+  LDA #TITLE_MENU_EXIT
+  STA ZP_SELECTOR_STATE         ; 状態のセット
+  LDA #'*'                      ; *EXIT
+  LDY #TITLE_PROMPT_Y
+  LDX #TITLE_PROMPT_EXIT_X
+  JSR XY_PUT
+  LDA #' '                      ; *STARTの塗りつぶし
+  LDX #TITLE_PROMPT_START_X
+  JSR XY_PUT_DRAW
+  BRA @LOOP
+@A_NOT_START:
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_SPEED         ; SPEEDか？
+  BNE @LOOP2
+  ; 減速
+  LDA ZP_VB_PAR_TICK            ; 速度基準のチェック
+  CMP #7
+  BEQ @LOOP2                    ; 最低速度の7[/TICK]なら中断
+  INC                           ; ++
+  STA ZP_VB_PAR_TICK            ; 速度格納
+  ; ヘビが一つ引っ込む
+  LDA #TITLE_DIF_X+2+6
+  SEC
+  SBC ZP_VB_PAR_TICK            ; 減算により、新しい頭の座標が求まるはず
+  TAX
+  LDY #TITLE_DIF_Y+3
+  LDA #CHR_HEAD
+  JSR XY_PUT
+  INX                           ; 古い頭を削除
+  LDA #' '
+  JSR XY_PUT_DRAW
+  BRA @LOOP2
+@D:
+  ; Dキー
+  ; EXITにあるとき、STARTにする
+  ; SPEEDにあるとき、減速する
+  CMP #'d'
+  BNE @SKP_WASD
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_EXIT         ; EXITか？
+  BNE @D_NOT_EXIT
+  ; START
+  LDA #TITLE_MENU_START
+  STA ZP_SELECTOR_STATE         ; 状態のセット
+  LDA #'*'                      ; *EXIT
+  LDY #TITLE_PROMPT_Y
+  LDX #TITLE_PROMPT_START_X
+  JSR XY_PUT
+  LDA #' '                      ; *STARTの塗りつぶし
+  LDX #TITLE_PROMPT_EXIT_X
+  JSR XY_PUT_DRAW
+  BRA @LOOP2
+@D_NOT_EXIT:
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_SPEED         ; SPEEDか？
+  BNE @LOOP2
+  ; 増速
+  LDA ZP_VB_PAR_TICK            ; 速度基準のチェック
+  CMP #2
+  BEQ @LOOP2                    ; 最高速度の2[/TICK]なら中断
+  DEC                           ; --
+  STA ZP_VB_PAR_TICK            ; 速度格納
+  ; ヘビが一つ引っ込む
+  LDA #TITLE_DIF_X+2+6
+  SEC
+  SBC ZP_VB_PAR_TICK            ; 減算により、新しい頭の座標が求まるはず
+  TAX
+  LDY #TITLE_DIF_Y+3
+  LDA #CHR_HEAD
+  JSR XY_PUT
+  DEX                           ; 胴を設置
+  LDA #CHR_TAIL
+  JSR XY_PUT_DRAW
+  BRA @LOOP2
+@SKP_WASD:
+  ; エンターキー
+@ENTER:
+  CMP #10
+  BNE @SKP_ENTER
+  LDA ZP_SELECTOR_STATE
+  CMP #TITLE_MENU_EXIT
+  BNE @SKP_EXIT
+  PLA
+  PLA
+  RTS
+@SKP_EXIT:
+  CMP #TITLE_MENU_START
+  BNE @SKP_START
+  RTS
+@SKP_START:
+@SKP_ENTER:
+@LOOP2:
+  JMP @LOOP
+
+; -------------------------------------------------------------------
 ;                        垂直同期割り込み
 ; -------------------------------------------------------------------
 VBLANK:
@@ -189,6 +449,14 @@ VBLANK:
   LDA ZP_SS
   CLC
   ADC #1
+  CMP #$60
+  BNE @SKP_NEXT_MM
+  LDA ZP_MM
+  CLC
+  ADC #1
+  STA ZP_MM
+  LDA #0
+@SKP_NEXT_MM:
   STA ZP_SS
   LDX #27
   LDY #22
@@ -290,19 +558,67 @@ MOVE_HEAD:
   PLP
   RTS
 
-GAMEOVER:
-  JMP INIT
-
 DRAW_LENGTH:
   LDA ZP_SNK_LENGTH
   LDY #22
-  LDX #15
+  LDX #15+3
   JSR XY_PRT_BYT
   RTS
 
+DRAW_LENGTHR:
+  LDA ZP_SNK_LENGTHR
+  LDY #23
+  LDX #15+3
+  JSR XY_PRT_BYT
+  RTS
 
 ; -------------------------------------------------------------------
-;                           尾を動かす
+;                                衝突
+; -------------------------------------------------------------------
+GAMEOVER:
+  ; 割り込みハンドラの登録抹消
+  SEI
+  mem2AY16 ZP_VB_STUB
+  syscall IRQ_SETHNDR_VB
+  CLI
+  loadmem16 ZR0,STR_GAMEOVER
+  LDX #11                             ; 中央寄せ
+  LDY #TITLE_Y                        ; 中央寄せ
+  JSR XY_PRT_STR
+  loadmem16 ZR0,STR_GAMEOVER_PROM
+  LDX #2                              ; 中央寄せ
+  LDY #TITLE_Y+2                      ; 中央寄せ
+  JSR XY_PRT_STR
+  ; レコード処理
+  LDA ZP_SNK_LENGTH
+  CMP ZP_SNK_LENGTHR
+  BMI @SKP_NEWRECORD                  ; 記録-レコード=負なら更新ならず
+  STA ZP_SNK_LENGTHR
+  LDA ZP_MM
+  STA ZP_MMR
+  LDA ZP_SS
+  STA ZP_SSR
+@SKP_NEWRECORD:
+  JSR DRAW_ALLLINE                    ; 全部描画
+@LOOP:
+  ; キー入力駆動
+  LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
+  syscall CON_RAWIN
+  CMP #10
+  BNE @SKP_GAME
+  JMP GAME
+@SKP_GAME:
+  CMP #$1B
+  BNE @SKP_ESC
+  PLA
+  PLA
+  PLA
+  JMP START
+@SKP_ESC:
+  BRA @LOOP
+
+; -------------------------------------------------------------------
+;                             尾を動かす
 ; -------------------------------------------------------------------
 MOVE_TAIL:
   ; 現在の尾を消す
@@ -654,14 +970,52 @@ XY_PRT_TIME:
   PLX
   INX
   INX
+  LDA #':'
+  JSR XY_PUT
   INX
   LDA ZP_SS
   JSR XY_PRT_BYT
   RTS
 
-STR_LENGTH: .ASCIIZ "Length: 01"
-STR_RECORD: .ASCIIZ "Record: 01"
-STR_TIME:   .ASCIIZ "00:00"
+STR_LENGTH: .ASCIIZ         "Length:"
+STR_RECORD: .ASCIIZ         "Record:"
+STR_TITLE_SNAKEGAME: .BYT   $AD,$EB,$BE,' ',$D9,$BE,$90,$F1,$0
+;STR_TITLE_DIFNUMS: .ASCIIZ  "123456"
+;STR_TITLE_DIFSNK:  .ASCIIZ  "ooO"
+;  ********     0
+;  *123456*     1
+; ←*ooO   *→    2
+;  ********     3
+STR_TITLE_DIF0:
+  .BYT CHR_HIDARI_UE
+  .REPEAT 6
+    .BYT CHR_YOKOBO
+  .ENDREPEAT
+  .BYT CHR_MIGI_UE
+  .BYT 0
+STR_TITLE_DIF1:
+  .BYT CHR_TATEBO,"123456",CHR_TATEBO
+  .BYT 0
+STR_TITLE_DIF2:
+  ;.BYT CHR_ALLOWL,CHR_TATEBO,"ooO   ",CHR_TATEBO,CHR_ALLOWR
+  .BYT CHR_TATEBO,"ooO   ",CHR_TATEBO
+  .BYT 0
+STR_TITLE_DIF3:
+  .BYT CHR_HIDARI_SITA
+  .REPEAT 6
+    .BYT CHR_YOKOBO
+  .ENDREPEAT
+  .BYT CHR_MIGI_SITA
+  .BYT 0
+
+STR_TITLE_EXIT:
+  .ASCIIZ " EXIT"
+STR_TITLE_START:
+  .ASCIIZ "*START"
+STR_GAMEOVER:
+  .ASCIIZ "GAME OVER"
+STR_GAMEOVER_PROM:
+  .ASCIIZ "Esc to Quit / Enter to Retry"
 
 SNAKE_DATA256:  .RES 256
 
