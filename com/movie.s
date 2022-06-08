@@ -26,6 +26,7 @@ IMAGE_BUFFER_SECS = 32 ; 何セクタをバッファに使うか？ 48の約数
   ZP_READ_VEC16:    .RES 2
   ZP_VMAV:          .RES 1
   ZP_VISIBLE_FLAME: .RES 1  ; 可視フレーム
+  ZP_IMAGE_NUM16:   .RES 2  ; いま何枚目？1..
 
 ; -------------------------------------------------------------------
 ;                              変数領域
@@ -46,12 +47,12 @@ IMAGE_BUFFER_SECS = 32 ; 何セクタをバッファに使うか？ 48の約数
   ; 塗りつぶし
   ; f0
   STZ CRTC::WF
-  LDA #$00
+  LDA #$FF
   JSR FILL
   ; f1
   LDA #$1
   STA CRTC::WF
-  LDA #$00
+  LDA #$FF
   JSR FILL
   ; 表示フレーム
   LDA #%01010101
@@ -64,21 +65,31 @@ IMAGE_BUFFER_SECS = 32 ; 何セクタをバッファに使うか？ 48の約数
 
 .CODE
 START:
-  ; nullチェック
-  storeAY16 ZR0
-  TAX
-  LDA (ZR0)
-  BNE @SKP_NOTFOUND
-@NOTFOUND2:
-  ;JMP NOTFOUND
-@SKP_NOTFOUND:
-  TXA
-  ; オープン
+  ; コマンドライン引数を受け付けない
+  ; 初期化
   init_crtc                       ; crtcの初期化
+@MOVIE_LOOP:
+  loadmem16 ZP_IMAGE_NUM16,0001   ; 0001から始める
+  LDA #'0'
+  STA PATH_FNAME
+  STA PATH_FNAME+1
+  STA PATH_FNAME+2
+  INC
+  STA PATH_FNAME+3
+  ; ファイルオープン
 @NEXT_IMAGE:
   loadAY16 PATH_FNAME
   syscall FS_FIND_FST             ; 検索
-  BCS @NOTFOUND2                  ; 見つからなかったらあきらめる
+  BCC @SKP_NOTFOUND2
+@NOTFOUND2:
+  ; 画像ファイルが見つからない！
+  DEC ZP_IMAGE_NUM16              ; 一桁目をデクリメント
+  LDA ZP_IMAGE_NUM16
+  ORA ZP_IMAGE_NUM16+1            ; 二桁目とOR
+  BNE @MOVIE_LOOP                 ; 途中で途切れたのであればループする
+  JMP NOTFOUND                    ; 0001が見つからないのであればこの世の終わり
+@SKP_NOTFOUND2:
+  ; 画像ファイルが存在する！
   storeAY16 FINFO_SAV             ; FINFOを格納
   syscall FS_OPEN                 ; ファイルをオープン
   BCS @NOTFOUND2                  ; オープンできなかったらあきらめる
@@ -145,6 +156,10 @@ START:
   ;RTS
 @PICINC:
   ; 探す画像の番号を増やす
+  INC ZP_IMAGE_NUM16
+  BNE @SKP_IMAGENUMH
+  INC ZP_IMAGE_NUM16+1
+@SKP_IMAGENUMH:
   LDY #4
   loadmem16 ZR0,(PATH_FNAME-1)
   LDA #1
@@ -219,8 +234,8 @@ FILL_LOOP_H:
   RTS
 
 STR_NOTFOUND:
-  .BYT "Input File Not Found.",$A,$0
+  .BYT "Movie Images Not Found.",$A,$0
 
 PATH_FNAME:
-  .BYT "0001.BIN",$0
+  .BYT "0001.???",$0
 
