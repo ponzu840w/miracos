@@ -420,6 +420,7 @@ TITLE:
   BNE @SKP_EXIT
   ; 大政奉還コード
   LDX ZP_SP
+  TXS
   RTS
 @SKP_EXIT:
   CMP #TITLE_MENU_START
