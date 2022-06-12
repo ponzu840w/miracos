@@ -69,12 +69,15 @@ ZP_MMR:                   .RES 1  ; レコード経過分数（デシマル
 ZP_SSR:                   .RES 1  ; レコード経過秒数（デシマル
 ZP_TICK_FLAG:             .RES 1  ; 0=ティック待機期間 非0=ティック発生
 ZP_SELECTOR_STATE:        .RES 1  ; メニュー状態
+ZP_SP:                    .RES 1
 
 ; -------------------------------------------------------------------
 ;                             実行領域
 ; -------------------------------------------------------------------
 .CODE
 START:
+  TSX
+  STX ZP_SP
   ; アドレス類を取得
   LDY #BCOS::BHY_GET_ADDR_txtvram768  ; TRAM
   syscall GET_ADDR
@@ -208,9 +211,6 @@ GAME:
   BEQ @TICK_WAIT
   STZ ZP_TICK_FLAG
   BRA @LOOP
-EXIT:
-  ; 大政奉還コード
-  RTS
 
 ; -------------------------------------------------------------------
 ;                             タイトル
@@ -418,8 +418,8 @@ TITLE:
   LDA ZP_SELECTOR_STATE
   CMP #TITLE_MENU_EXIT
   BNE @SKP_EXIT
-  PLA
-  PLA
+  ; 大政奉還コード
+  LDX ZP_SP
   RTS
 @SKP_EXIT:
   CMP #TITLE_MENU_START
