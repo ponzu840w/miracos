@@ -1,7 +1,7 @@
 /* hello.c
  * hello,worldする
  */
-extern void __fastcall__ couts(char *str);
+extern void couts(char *str);
 
 int main(){
   int i;
