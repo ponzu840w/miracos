@@ -18,6 +18,7 @@
 ; -------------------------------------------------------------------
 .ZEROPAGE
 ZP_PADSTAT:          .RES 2
+ZP_ATTR:          .RES 2
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -55,27 +56,48 @@ LOOP:
   DEX
   BNE LOOP
   ; 状態表示
-  LDX #8
   LDA ZP_PADSTAT
-  PHA
-LOOP2:
-  PLA
-  ROL
-  PHA
-  LDA #'0'
-  BCC NOTSET              ; キャリーに含んだデータによって'1'にINCする否か分岐
-SET:
-  INC
-NOTSET:
-  PHX
-  syscall CON_OUT_CHR
-  PLX
-  DEX
-  BNE LOOP2
-  PLA
+  STA ZP_ATTR
+
+LOW:
+  LDY #0
+@ATTRLOOP:
+  ASL ZP_ATTR                   ; C=ビット情報
+  BCC @ATTR_CHR
+  LDA #'-'                      ; そのビットが立っていないときはハイフンを表示
+  BRA @SKP_ATTR_CHR
+@ATTR_CHR:
+  LDA STR_ATTR,Y                ; 属性文字を表示
+@SKP_ATTR_CHR:
+  PHY
+  syscall CON_OUT_CHR           ; 属性文字/-を表示
+  PLY
+  INY
+  CPY #8
+  BNE @ATTRLOOP
+  JSR PRT_S                     ; 区切りスペース
+
+  LDA ZP_PADSTAT+1
+  STA ZP_ATTR
+HIGH:
+  LDY #0
+@ATTRLOOP:
+  ASL ZP_ATTR                   ; C=ビット情報
+  BCC @ATTR_CHR
+  LDA #'-'                      ; そのビットが立っていないときはハイフンを表示
+  BRA @SKP_ATTR_CHR
+@ATTR_CHR:
+  LDA STR_ATTRH,Y                ; 属性文字を表示
+@SKP_ATTR_CHR:
+  PHY
+  syscall CON_OUT_CHR           ; 属性文字/-を表示
+  PLY
+  INY
+  CPY #8
+  BNE @ATTRLOOP
+
   JSR PRT_LF
-  BRA START
-  RTS
+  JMP START
 
 ; -------------------------------------------------------------------
 ;                          汎用関数群
@@ -99,5 +121,11 @@ PRT_C_CALL:
   syscall CON_OUT_CHR
   RTS
 
-STR_ATTR: .BYT  "advshr"
+UE      = $C2
+SHITA   = $C3
+LEFT    = $C1
+RIGHT   = $C0
+
+STR_ATTR: .BYT  "BY#$",UE,SHITA,LEFT,RIGHT
+STR_ATTRH:.BYT  "AXLR****"
 
