@@ -17,7 +17,7 @@
 ;                             ZP領域
 ; -------------------------------------------------------------------
 .ZEROPAGE
-ZP_ATTR:          .RES 1
+ZP_PADSTAT:          .RES 2
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -29,28 +29,51 @@ START:
   ORA #(VIA::PAD_CLK|VIA::PAD_PTS)
   AND #<~(VIA::PAD_DAT)
   STA VIA::PAD_DDR
-  ; 双方下げる
-  LDA VIA::PAD_REG
-  AND #<~(VIA::PAD_CLK|VIA::PAD_PTS)
-  STA VIA::PAD_REG
   ; 双方上げる
   LDA VIA::PAD_REG
   ORA #VIA::PAD_CLK|VIA::PAD_PTS
   STA VIA::PAD_REG
-  ; 双方下げる
+  ; P/S下げる
   LDA VIA::PAD_REG
-  AND #<~(VIA::PAD_CLK|VIA::PAD_PTS)
+  AND #<~VIA::PAD_PTS
   STA VIA::PAD_REG
-  ; B読み取り
-  LDA VIA::PAD_REG
-  BIT #VIA::PAD_DAT
-  BEQ TMP
-  LDA #'b'
-  BRA TMP2
-TMP:
-  LDA #'B'
-TMP2:
+  ; 読み取りループ
+  LDX #16
+LOOP:
+  LDA VIA::PAD_REG        ; データ読み取り
+  ; クロック下げる
+  AND #<~VIA::PAD_CLK
+  STA VIA::PAD_REG
+  ; 16bit値として格納
+  ROR
+  ROL ZP_PADSTAT+1
+  ROL ZP_PADSTAT
+  ; クロック上げる
+  LDA VIA::PAD_REG        ; データ読み取り
+  ORA #VIA::PAD_CLK
+  STA VIA::PAD_REG
+  DEX
+  BNE LOOP
+  ; 状態表示
+  LDX #8
+  LDA ZP_PADSTAT
+  PHA
+LOOP2:
+  PLA
+  ROL
+  PHA
+  LDA #'0'
+  BCC NOTSET              ; キャリーに含んだデータによって'1'にINCする否か分岐
+SET:
+  INC
+NOTSET:
+  PHX
   syscall CON_OUT_CHR
+  PLX
+  DEX
+  BNE LOOP2
+  PLA
+  JSR PRT_LF
   BRA START
   RTS
 
