@@ -17,9 +17,10 @@
 ;                             ZP領域
 ; -------------------------------------------------------------------
 .ZEROPAGE
-ZP_PADSTAT:          .RES 2
-ZP_PRE_PADSTAT:          .RES 2
-ZP_ATTR:          .RES 2
+ZP_PADSTAT:               .RES 2
+ZP_PRE_PADSTAT:           .RES 2
+ZP_SHIFTER:               .RES 1
+  ; キャラクタ表示モジュール
 ZP_TXTVRAM768_16:         .RES 2  ; カーネルのワークエリアを借用するためのアドレス
 ZP_FONT2048_16:           .RES 2  ; カーネルのワークエリアを借用するためのアドレス
 ZP_TRAM_VEC16:            .RES 2  ; TRAM操作用ベクタ
@@ -33,6 +34,8 @@ ZP_DRAWTMP_Y:             .RES 1  ; 描画用
 ; -------------------------------------------------------------------
 .CODE
 START:
+  ; 初期化
+  STZ ZP_PRE_PADSTAT+1                ; 変化前の状態をありえない値にして、初回強制上書き
   ; アドレス類を取得
   LDY #BCOS::BHY_GET_ADDR_txtvram768  ; TRAM
   syscall GET_ADDR
@@ -40,10 +43,11 @@ START:
   LDY #BCOS::BHY_GET_ADDR_font2048    ; FONT
   syscall GET_ADDR
   storeAY16 ZP_FONT2048_16
-  ; 格納された文字列の表示
+  ; ボタン値位置参考を表示
+  JSR PRT_LF
   LDX #1
-  LDY #1
-  loadmem16 ZR0,STR_ATTR
+  LDY #22
+  loadmem16 ZR0,STR_BUTTON_NAMES
   JSR XY_PRT_STR
   JSR DRAW_LINE
   ; ポートの設定
@@ -52,10 +56,14 @@ START:
   AND #<~(VIA::PAD_DAT)
   STA VIA::PAD_DDR
 READ:
-  mem2mem16 ZP_PRE_PADSTAT,ZP_PADSTAT
-  ; 双方上げる
+  LDA #BCOS::BHA_CON_RAWIN_NoWaitNoEcho  ; キー入力チェック
+  syscall CON_RAWIN
+  BEQ @SKP_RTS
+  RTS
+@SKP_RTS:
+  ; P/S下げる
   LDA VIA::PAD_REG
-  ORA #VIA::PAD_CLK|VIA::PAD_PTS
+  ORA #VIA::PAD_PTS
   STA VIA::PAD_REG
   ; P/S下げる
   LDA VIA::PAD_REG
@@ -86,46 +94,49 @@ LOOP:
   CMP ZP_PADSTAT+1
   BEQ READ
 
+; 状態表示
 PRINT:
-  ; 状態表示
+  mem2mem16 ZP_PRE_PADSTAT,ZP_PADSTAT ; 表示するときすなわち状態変化があったとき、前回状態更新
+  ; 下位8bit、上位4bitに分けて文字列を生成
+  ; 下位8bit
   LDA ZP_PADSTAT
-  STA ZP_ATTR
+  STA ZP_SHIFTER
 LOW:
   LDY #0
 @ATTRLOOP:
-  ASL ZP_ATTR                   ; C=ビット情報
+  ASL ZP_SHIFTER           ; C=ビット情報
   BCC @ATTR_CHR
-  LDA #'-'                      ; そのビットが立っていないときはハイフンを表示
+  LDA #'-'                 ; そのビットが立っていないときはハイフンを表示
   BRA @SKP_ATTR_CHR
 @ATTR_CHR:
-  LDA STR_ATTR,Y                ; 属性文字を表示
+  LDA STR_BUTTON_NAMES,Y   ; 属性文字を表示
 @SKP_ATTR_CHR:
-  STA STR_WORK_ATTR,Y           ; 属性文字/-を格納
+  STA STR_WORK,Y           ; 属性文字/-を格納
   INY
   CPY #8
   BNE @ATTRLOOP
-
+  ; 上位4bit
   LDA ZP_PADSTAT+1
-  STA ZP_ATTR
+  STA ZP_SHIFTER
 HIGH:
   LDY #0
 @ATTRLOOP:
-  ASL ZP_ATTR                   ; C=ビット情報
+  ASL ZP_SHIFTER                ; C=ビット情報
   BCC @ATTR_CHR
   LDA #'-'                      ; そのビットが立っていないときはハイフンを表示
   BRA @SKP_ATTR_CHR
 @ATTR_CHR:
-  LDA STR_ATTRH,Y                ; 属性文字を表示
+  LDA STR_BUTTON_NAMES+8,Y      ; 属性文字を表示
 @SKP_ATTR_CHR:
-  STA STR_WORK_ATTRH,Y
+  STA STR_WORK+8,Y
   INY
   CPY #4
   BNE @ATTRLOOP
 
   ; 格納された文字列の表示
   LDX #1
-  LDY #2
-  loadmem16 ZR0,STR_WORK_ATTR
+  LDY #23
+  loadmem16 ZR0,STR_WORK
   JSR XY_PRT_STR
   JSR DRAW_LINE
   JMP READ
@@ -319,8 +330,6 @@ SHITA   = $C3
 LEFT    = $C1
 RIGHT   = $C0
 
-STR_ATTR: .BYT  "BY#$",UE,SHITA,LEFT,RIGHT
-STR_ATTRH:.BYT  "AXLR",0
-STR_WORK_ATTR: .BYT  "BY#$",UE,SHITA,LEFT,RIGHT
-STR_WORK_ATTRH:.BYT  "AXLR",0
+STR_BUTTON_NAMES: .BYT  "BY#$",UE,SHITA,LEFT,RIGHT,"AXLR",0
+STR_WORK: .BYT  "BY#$",UE,SHITA,LEFT,RIGHT,"AXLR",0
 
