@@ -36,6 +36,9 @@ PLAYER_SPEED = 2
   ; SNESPAD
   ZP_PADSTAT:               .RES 2
   ZP_SHIFTER:               .RES 1
+  ; VBLANK
+  ZP_VB_STUB:               .RES 2  ; 割り込み終了処理
+  ;ZP_VB_PAR_TICK:           .RES 1  ; ティック当たり垂直同期割込み数。難易度を担う。
 
 ; -------------------------------------------------------------------
 ;                              変数領域
@@ -87,6 +90,22 @@ START:
 
   STZ ZP_PLAYER_X
   STZ ZP_PLAYER_Y
+
+  ; 割り込みハンドラの登録
+  SEI
+  loadAY16 VBLANK
+  syscall IRQ_SETHNDR_VB
+  storeAY16 ZP_VB_STUB
+  CLI
+
+  ; 完全垂直同期割り込み駆動？
+MAIN:
+  BRA MAIN
+
+; -------------------------------------------------------------------
+;                        垂直同期割り込み
+; -------------------------------------------------------------------
+VBLANK:
 
 LOOP:
   ; ブラックリストポインタ作成
@@ -210,8 +229,9 @@ ANLLOOP:
   STA ZP_VISIBLE_FLAME
   STA CRTC::RF
 
-  JSR WAIT
-  JMP LOOP
+  ;JSR WAIT
+  ;JMP LOOP
+  JMP (ZP_VB_STUB)           ; 片付けはBCOSにやらせる
 
 ; 背景色で正方形領域を塗りつぶす
 ; 妙に汎用的にすると重そうなので8x8固定
@@ -327,9 +347,6 @@ WAIT:
   SBC #0
   BNE @WAIT_A
   RTS
-
-STR_NOTFOUND:
-  .BYT "Input File Not Found.",$A,$0
 
 CHAR_DAT:
   .INCBIN "../../ChDzUtl/images/reimu88.bin"
