@@ -21,24 +21,21 @@ PLAYER_SPEED = 2
 ;                               ZP領域
 ; -------------------------------------------------------------------
 .ZEROPAGE
-  ZP_TMP_X:           .RES 1
-  ZP_TMP_Y:           .RES 1
-  ZP_VISIBLE_FLAME:   .RES 1
-  ZP_TMP0:            .RES 1
-  ZP_BLACKLIST_PTR:   .RES 2
-  ZP_CHAR_PTR:        .RES 2
-  ZP_PLAYER_X:        .RES 1
+  ZP_TMP_X:           .RES 1        ; X座標汎用
+  ZP_TMP_Y:           .RES 1        ; Y座標汎用
+  ZP_VISIBLE_FLAME:   .RES 1        ; 可視フレームバッファ
+  ZP_BLACKLIST_PTR:   .RES 2        ; 塗りつぶしリスト用のポインタ
+  ZP_CHAR_PTR:        .RES 2        ; キャラクタデータ用のポインタ
+  ZP_PLAYER_X:        .RES 1        ; プレイヤ座標
   ZP_PLAYER_Y:        .RES 1
-  ZP_ANT_NZP_X:        .RES 1
-  ZP_ANT_NZP_Y:        .RES 1
-  ZP_DX:              .RES 1
-  ZP_DY:              .RES 1
+  ZP_ANT_NZ_Y:        .RES 1        ; アンチ・ノイズY座標
+  ZP_DX:              .RES 1        ; プレイヤX軸速度
+  ZP_DY:              .RES 1        ; プレイヤY軸速度
   ; SNESPAD
-  ZP_PADSTAT:               .RES 2
-  ZP_SHIFTER:               .RES 1
+  ZP_PADSTAT:               .RES 2  ; ゲームパッドの状態が収まる
+  ZP_SHIFTER:               .RES 1  ; ゲームパッド読み取り処理用
   ; VBLANK
   ZP_VB_STUB:               .RES 2  ; 割り込み終了処理
-  ;ZP_VB_PAR_TICK:           .RES 1  ; ティック当たり垂直同期割込み数。難易度を担う。
 
 ; -------------------------------------------------------------------
 ;                              変数領域
@@ -47,6 +44,10 @@ PLAYER_SPEED = 2
   FD_SAV:         .RES 1  ; ファイル記述子
   FINFO_SAV:      .RES 2  ; FINFO
 
+  ; ブラックに塗りつぶすべき座標のリスト（命名がわるい
+  ; 2バイトで座標が表現され、それを原点に8x8が黒で塗られる
+  ; $FFが番人
+  ; X,Y,X,Y,..,$FF
   ; 二つのリストは、アライメントせずとも隣接すべし
   BLACKLIST1:     .RES 256
   BLACKLIST2:     .RES 256
@@ -61,10 +62,10 @@ START:
   ORA #(VIA::PAD_CLK|VIA::PAD_PTS)
   AND #<~(VIA::PAD_DAT)
   STA VIA::PAD_DDR
-  LDA #$FF
+  LDA #$FF        ; ブラックリスト用番人
   STA BLACKLIST1  ; 番人設定
   STA BLACKLIST2  ; 番人設定
-  LDA #0          ; 速度初期値
+  LDA #0          ; プレイヤ速度初期値
   STA ZP_DX
   STA ZP_DY
   ; コンフィグレジスタの初期化
@@ -76,30 +77,29 @@ START:
   ; 出力も書き込みも全部ゼロに初期化
   STZ CRTC::VMAV
   STZ CRTC::VMAH
-  LDA #%01010101
+  LDA #%01010101  ; フレームバッファ1
   STA ZP_VISIBLE_FLAME
-  STA CRTC::RF
-  STA CRTC::WF
+  STA CRTC::RF    ; FB1を表示
+  STA CRTC::WF    ; FB1を書き込み先に
   ; 背景色で塗りつぶしておく
   LDA #BGC
-  JSR FILL
-  LDA #2
+  JSR FILL        ; FB1塗りつぶし
+  LDA #2          ; FB2を書き込み先に
   STA CRTC::WF
   LDA #BGC
-  JSR FILL
-
-  STZ ZP_PLAYER_X
+  JSR FILL        ; FB2塗りつぶし
+  STZ ZP_PLAYER_X ; プレイヤー初期座標
   STZ ZP_PLAYER_Y
-
   ; 割り込みハンドラの登録
   SEI
   loadAY16 VBLANK
   syscall IRQ_SETHNDR_VB
   storeAY16 ZP_VB_STUB
   CLI
-
   ; 完全垂直同期割り込み駆動？
 MAIN:
+  ; 無限ループ
+  ; 実際には下記の割り込みが走る
   BRA MAIN
 
 ; -------------------------------------------------------------------
@@ -107,10 +107,9 @@ MAIN:
 ; -------------------------------------------------------------------
 VBLANK:
 
-LOOP:
+TICK:
   ; ブラックリストポインタ作成
-  LDA #0
-  STA ZP_BLACKLIST_PTR
+  STZ ZP_BLACKLIST_PTR
   LDA ZP_VISIBLE_FLAME
   CMP #$AA
   BNE @F2
@@ -120,30 +119,28 @@ LOOP:
 @F2:
   LDA #>BLACKLIST2
 @SKP_F2:
-  STA ZP_BLACKLIST_PTR+1 ; $0800 or $0900
+  STA ZP_BLACKLIST_PTR+1 ; $0800 or $0900 昔の話
   LDA #<BLACKLIST1
   STA ZP_BLACKLIST_PTR   ; アライメントしないので下位も設定
-
   ; ブラックリストに沿って画面上エンティティ削除
   LDY #0
   LDA (ZP_BLACKLIST_PTR),Y
   CMP #$FF
-  BEQ BL_END
+  BEQ @BL_END
   TAX
   INY
   LDA (ZP_BLACKLIST_PTR),Y
   TAY
   JSR DEL_SQ8
-BL_END:
-
+@BL_END:
   ; ノイズ対策に行ごと消去
   LDA #0
   STA CRTC::VMAH
-  LDA ZP_ANT_NZP_Y
+  LDA ZP_ANT_NZ_Y
   STA CRTC::VMAV
   LDX #$20
   LDA #BGC
-ANLLOOP:
+@ANLLOOP:
   STA CRTC::WDBF
   STA CRTC::WDBF
   STA CRTC::WDBF
@@ -153,11 +150,10 @@ ANLLOOP:
   STA CRTC::WDBF
   STA CRTC::WDBF
   DEX
-  BNE ANLLOOP
-  INC ZP_ANT_NZP_Y
-
+  BNE @ANLLOOP
+  INC ZP_ANT_NZ_Y
   ; パッド状態処理
-  JSR READ
+  JSR PAD_READ
   ; 右
   LDA ZP_PADSTAT
   BIT #%00000001
@@ -188,7 +184,6 @@ ANLLOOP:
   LDA #PLAYER_SPEED
   STA ZP_DY
 @SKP_DOWN:
-
   ; プレイヤ移動
   LDA ZP_PLAYER_X
   CLC
@@ -198,8 +193,7 @@ ANLLOOP:
   CLC
   ADC ZP_DY
   STA ZP_PLAYER_Y
-
-  ; プレイヤー描画
+  ; プレイヤ描画
   LDY #0
   LDA #<CHAR_DAT
   STA ZP_CHAR_PTR
@@ -214,12 +208,10 @@ ANLLOOP:
   STA ZP_TMP_Y
   STA (ZP_BLACKLIST_PTR),Y
   JSR DRAW_CHAR8
-
   ; ブラックリスト終端
   INY
   LDA #$FF
   STA (ZP_BLACKLIST_PTR),Y
-
   ; フレーム交換
   LDA ZP_VISIBLE_FLAME
   STA CRTC::WF
@@ -228,9 +220,7 @@ ANLLOOP:
   ADC #0
   STA ZP_VISIBLE_FLAME
   STA CRTC::RF
-
-  ;JSR WAIT
-  ;JMP LOOP
+  ; ティック終端
   JMP (ZP_VB_STUB)           ; 片付けはBCOSにやらせる
 
 ; 背景色で正方形領域を塗りつぶす
@@ -302,7 +292,8 @@ FILL_LOOP_H:
   BNE FILL_LOOP_V
   RTS
 
-READ:
+
+PAD_READ:
   LDA #BCOS::BHA_CON_RAWIN_NoWaitNoEcho  ; キー入力チェック
   syscall CON_RAWIN
   BEQ @SKP_RTS
@@ -333,19 +324,6 @@ READ:
   STA VIA::PAD_REG
   DEX
   BNE @LOOP
-  RTS
-
-; --- デバッグ用ウェイト
-WAIT:
-  LDA #$FF
-@WAIT_A:
-  LDX #$10
-@WAIT_X:
-  DEX
-  BNE @WAIT_X
-  CLC
-  SBC #0
-  BNE @WAIT_A
   RTS
 
 CHAR_DAT:
