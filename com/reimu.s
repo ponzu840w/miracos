@@ -31,11 +31,12 @@ PLAYER_SPEED = 2
   ZP_ANT_NZ_Y:        .RES 1        ; アンチ・ノイズY座標
   ZP_DX:              .RES 1        ; プレイヤX軸速度
   ZP_DY:              .RES 1        ; プレイヤY軸速度
+  ZP_PL_COOLDOWN:     .RES 1
   ; SNESPAD
-  ZP_PADSTAT:               .RES 2  ; ゲームパッドの状態が収まる
-  ZP_SHIFTER:               .RES 1  ; ゲームパッド読み取り処理用
+  ZP_PADSTAT:         .RES 2  ; ゲームパッドの状態が収まる
+  ZP_SHIFTER:         .RES 1  ; ゲームパッド読み取り処理用
   ; VBLANK
-  ZP_VB_STUB:               .RES 2  ; 割り込み終了処理
+  ZP_VB_STUB:         .RES 2  ; 割り込み終了処理
 
 ; -------------------------------------------------------------------
 ;                              変数領域
@@ -51,6 +52,9 @@ PLAYER_SPEED = 2
   ; 二つのリストは、アライメントせずとも隣接すべし
   BLACKLIST1:     .RES 256
   BLACKLIST2:     .RES 256
+  ; プレイヤの発射した弾丸
+  ; 位置だけを保持する
+  BLT_PL_LST:     .RES 32
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -64,10 +68,13 @@ START:
   STA VIA::PAD_DDR
   LDA #$FF        ; ブラックリスト用番人
   STA BLACKLIST1  ; 番人設定
-  STA BLACKLIST2  ; 番人設定
+  STA BLACKLIST2
+  STA BLT_PL_LST
   LDA #0          ; プレイヤ速度初期値
   STA ZP_DX
   STA ZP_DY
+  LDA #1
+  STA ZP_PL_COOLDOWN
   ; コンフィグレジスタの初期化
   LDA #%00000001  ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ有効
   STA CRTC::CFG
@@ -124,14 +131,19 @@ TICK:
   STA ZP_BLACKLIST_PTR   ; アライメントしないので下位も設定
   ; ブラックリストに沿って画面上エンティティ削除
   LDY #0
-  LDA (ZP_BLACKLIST_PTR),Y
+@BL_DEL_LOOP:
+  LDA (ZP_BLACKLIST_PTR),Y  ; X座標取得
   CMP #$FF
   BEQ @BL_END
+  LSR
   TAX
   INY
-  LDA (ZP_BLACKLIST_PTR),Y
+  LDA (ZP_BLACKLIST_PTR),Y  ; Y座標取得
+  PHY
   TAY
-  JSR DEL_SQ8
+  JSR DEL_SQ8               ; 塗りつぶす
+  PLY
+  BRA @BL_DEL_LOOP
 @BL_END:
   ; ノイズ対策に行ごと消去
   LDA #0
@@ -184,6 +196,28 @@ TICK:
   LDA #PLAYER_SPEED
   STA ZP_DY
 @SKP_DOWN:
+  ; B
+  DEC ZP_PL_COOLDOWN
+  BNE @SKP_B
+  LDA ZP_PADSTAT
+  BIT #%10000000
+  BNE @SKP_B
+  LDA #5
+  STA ZP_PL_COOLDOWN
+  ; PL弾生成
+  LDY #$FF
+@MK_BLTPL_LOOP:
+  INY
+  LDA BLT_PL_LST,Y
+  CMP #$FF
+  BNE @MK_BLTPL_LOOP    ; 終端発見までループ
+  LDA ZP_PLAYER_X
+  STA BLT_PL_LST,Y      ; X
+  LDA ZP_PLAYER_Y
+  STA BLT_PL_LST+1,Y    ; Y
+  LDA #$FF
+  STA BLT_PL_LST+2,Y    ; 終端
+@SKP_B:
   ; プレイヤ移動
   LDA ZP_PLAYER_X
   CLC
@@ -201,15 +235,40 @@ TICK:
   STA ZP_CHAR_PTR+1
   LDA ZP_PLAYER_X
   STA ZP_TMP_X
-  LSR
   STA (ZP_BLACKLIST_PTR),Y
   INY
   LDA ZP_PLAYER_Y
   STA ZP_TMP_Y
   STA (ZP_BLACKLIST_PTR),Y
-  JSR DRAW_CHAR8
-  ; ブラックリスト終端
   INY
+  PHY
+  JSR DRAW_CHAR8
+  PLY
+  ; PL弾移動と描画
+  LDX #$0                   ; X:PL弾リスト用インデックス
+@DRAWPLBL:
+  LDA BLT_PL_LST,X          ; データ先頭取得（X座標
+  CMP #$FF
+  BEQ @END_DRAWPLBL         ; PL弾をすべて処理したならPL弾処理終了
+  ADC #10                   ; 新しい弾の位置
+  STA BLT_PL_LST,X          ; リストに格納
+  STA ZP_TMP_X              ; 描画用座標
+  STA (ZP_BLACKLIST_PTR),Y  ; BL格納
+  INX                       ; Y座標へ
+  INY
+  LDA BLT_PL_LST,X          ; Y座標取得（信頼している
+  STA ZP_TMP_Y              ; 描画用座標
+  STA (ZP_BLACKLIST_PTR),Y  ; BL格納
+  INX                       ; 次のデータにインデックスを合わせる
+  INY
+  PHY
+  PHX
+  JSR DRAW_CHAR8            ; 描画する
+  PLX
+  PLY
+  BRA @DRAWPLBL             ; PL弾処理ループ
+@END_DRAWPLBL:
+  ; ブラックリスト終端
   LDA #$FF
   STA (ZP_BLACKLIST_PTR),Y
   ; フレーム交換
@@ -291,7 +350,6 @@ FILL_LOOP_H:
   DEY
   BNE FILL_LOOP_V
   RTS
-
 
 PAD_READ:
   LDA #BCOS::BHA_CON_RAWIN_NoWaitNoEcho  ; キー入力チェック
