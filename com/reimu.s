@@ -33,6 +33,7 @@ PLAYER_SPEED = 2
   ZP_DY:              .RES 1        ; プレイヤY軸速度
   ZP_PL_COOLDOWN:     .RES 1
   ZP_BL_INDEX:        .RES 1        ; ブラックリストのYインデックス退避
+  ZP_PLBLT_TERMPTR:   .RES 1        ; BLT_PL_LSTの終端を指す
   ; SNESPAD
   ZP_PADSTAT:         .RES 2  ; ゲームパッドの状態が収まる
   ZP_SHIFTER:         .RES 1  ; ゲームパッド読み取り処理用
@@ -63,15 +64,15 @@ PLAYER_SPEED = 2
 .CODE
 START:
   ; ポートの設定
-  LDA VIA::PAD_DDR         ; 0で入力、1で出力
+  LDA VIA::PAD_DDR          ; 0で入力、1で出力
   ORA #(VIA::PAD_CLK|VIA::PAD_PTS)
   AND #<~(VIA::PAD_DAT)
   STA VIA::PAD_DDR
-  LDA #$FF        ; ブラックリスト用番人
-  STA BLACKLIST1  ; 番人設定
+  LDA #$FF                  ; ブラックリスト用番人
+  STA BLACKLIST1            ; 番人設定
   STA BLACKLIST2
-  STA BLT_PL_LST
-  LDA #0          ; プレイヤ速度初期値
+  STZ ZP_PLBLT_TERMPTR      ; PLBLT終端ポインタ
+  LDA #0                    ; プレイヤ速度初期値
   STA ZP_DX
   STA ZP_DY
   LDA #1
@@ -190,19 +191,28 @@ MAIN:
 
 ; PL弾生成
 .macro make_pl_blt
-  LDY #$FF
-@MK_BLTPL_LOOP:
-  INY
-  LDA BLT_PL_LST,Y
-  CMP #$FF
-  BNE @MK_BLTPL_LOOP    ; 終端発見までループ
+  LDY ZP_PLBLT_TERMPTR
   LDA ZP_PLAYER_X
   STA BLT_PL_LST,Y      ; X
   LDA ZP_PLAYER_Y
   STA BLT_PL_LST+1,Y    ; Y
-  LDA #$FF
-  STA BLT_PL_LST+2,Y    ; 終端
+  INY
+  INY
+  STY ZP_PLBLT_TERMPTR
 .endmac
+
+; PL弾削除
+; 対象インデックスはXで与えられる
+DEL_PL_BLT:
+  LDY ZP_PLBLT_TERMPTR  ; Y:終端インデックス
+  LDA BLT_PL_LST-2,Y    ; 終端部データX取得
+  STA BLT_PL_LST,X      ; 対象Xに格納
+  LDA BLT_PL_LST-1,Y    ; 終端部データY取得
+  STA BLT_PL_LST+1,X    ; 対象Yに格納
+  DEY
+  DEY
+  STY ZP_PLBLT_TERMPTR  ; 縮小した終端インデックス
+  RTS
 
 ; エンティティティック処理
 ; プレイヤティック
@@ -235,12 +245,26 @@ MAIN:
 .macro tick_pl_blt
   .local @DRAWPLBL
   .local @END_DRAWPLBL
+  .local @SKP_Hamburg
   LDX #$0                   ; X:PL弾リスト用インデックス
 @DRAWPLBL:
-  LDA BLT_PL_LST,X          ; データ先頭取得（X座標
-  CMP #$FF
-  BEQ @END_DRAWPLBL         ; PL弾をすべて処理したならPL弾処理終了
+  CPX ZP_PLBLT_TERMPTR
+  BCS @END_DRAWPLBL         ; PL弾をすべて処理したならPL弾処理終了
+  LDA BLT_PL_LST,X
   ADC #10                   ; 新しい弾の位置
+  BCC @SKP_Hamburg          ; 右にオーバーしたか
+  CMP #255-8
+  BCS @SKP_Hamburg          ; 右にオーバーしたか
+  ; 弾丸削除
+  PHY
+  PHX
+  JSR DEL_PL_BLT
+  PLX
+  PLY
+  INX
+  INX
+  BRA @DRAWPLBL
+@SKP_Hamburg:
   STA BLT_PL_LST,X          ; リストに格納
   STA ZP_TMP_X              ; 描画用座標
   STA (ZP_BLACKLIST_PTR),Y  ; BL格納
@@ -269,11 +293,12 @@ MAIN:
 ;                        垂直同期割り込み
 ; -------------------------------------------------------------------
 VBLANK:
-
 TICK:
-  make_blacklist_ptr ; ブラックリストポインタ作成
-  anti_noise         ; ノイズ対策に行ごと消去
-  JSR PAD_READ       ; パッド状態更新
+  ; 塗りつぶし
+  make_blacklist_ptr          ; ブラックリストポインタ作成
+  anti_noise                  ; ノイズ対策に行ごと消去
+  ; キー操作
+  JSR PAD_READ                ; パッド状態更新
   STZ ZP_DY
   STZ ZP_DX
   LDX #256-PLAYER_SPEED
@@ -291,19 +316,20 @@ TICK:
   STY ZP_DX
 @SKP_RIGHT:
   BBS7 ZP_PADSTAT,@SKP_B      ; B button
-  DEC ZP_PL_COOLDOWN    ; クールダウンチェック
+  DEC ZP_PL_COOLDOWN          ; クールダウンチェック
   BNE @SKP_B
   LDA #5
-  STA ZP_PL_COOLDOWN    ; クールダウン更新
-  make_pl_blt           ; PL弾生成
+  STA ZP_PL_COOLDOWN          ; クールダウン更新
+  make_pl_blt                 ; PL弾生成
 @SKP_B:
-  tick_player           ; プレイヤ処理
+  ; ティック処理
+  tick_player                 ; プレイヤ処理
   LDY #2
-  tick_pl_blt           ; PL弾移動と描画
-  term_blacklist        ; ブラックリスト終端
-  exchange_frame        ; フレーム交換
+  tick_pl_blt                 ; PL弾移動と描画
+  term_blacklist              ; ブラックリスト終端
+  exchange_frame              ; フレーム交換
   ; ティック終端
-  JMP (ZP_VB_STUB)      ; 片付けはBCOSにやらせる
+  JMP (ZP_VB_STUB)            ; 片付けはBCOSにやらせる
 
 ; 背景色で正方形領域を塗りつぶす
 ; 妙に汎用的にすると重そうなので8x8固定
