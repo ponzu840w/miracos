@@ -251,18 +251,15 @@ DEL_PL_BLT:
   CPX ZP_PLBLT_TERMPTR
   BCS @END_DRAWPLBL         ; PL弾をすべて処理したならPL弾処理終了
   LDA BLT_PL_LST,X
-  ADC #10                   ; 新しい弾の位置
+  ADC #4                    ; 新しい弾の位置
   BCC @SKP_Hamburg          ; 右にオーバーしたか
-  CMP #255-8
-  BCS @SKP_Hamburg          ; 右にオーバーしたか
+@DEL:
   ; 弾丸削除
   PHY
   PHX
   JSR DEL_PL_BLT
   PLX
   PLY
-  INX
-  INX
   BRA @DRAWPLBL
 @SKP_Hamburg:
   STA BLT_PL_LST,X          ; リストに格納
@@ -357,10 +354,12 @@ DRAW_SQ_LOOP:
 DRAW_CHAR8:
   LSR ZP_TMP_X
   LDA ZP_TMP_X
+  CMP #$7F-3
+  BCS @END            ; 左右をまたぎそうならキャンセル
   STA CRTC::VMAH
   LDY #0
   LDX #32
-DRAW_CHAR8_LOOP0:
+@DRAW_CHAR8_LOOP0:
   LDA ZP_TMP_Y
   STA CRTC::VMAV
   LDA ZP_TMP_X
@@ -377,11 +376,12 @@ DRAW_CHAR8_LOOP0:
   LDA (ZP_CHAR_PTR),Y
   STA CRTC::WDBF
   INY
-DRAW_CHAR8_SKP_9:
+@DRAW_CHAR8_SKP_9:
   INC ZP_TMP_Y
   STX ZR0
   CPY ZR0
-  BNE DRAW_CHAR8_LOOP0
+  BNE @DRAW_CHAR8_LOOP0
+@END:
   RTS
 
 ; 画面全体をAの値で埋め尽くす
