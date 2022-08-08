@@ -218,6 +218,19 @@ MAIN:
 
 ; PL弾削除
 ; 対象インデックスはXで与えられる
+DEL_ENEM1:
+  LDY ZP_ENEM1_TERMPTR  ; Y:終端インデックス
+  LDA ENEM1_LST-2,Y    ; 終端部データX取得
+  STA ENEM1_LST,X      ; 対象Xに格納
+  LDA ENEM1_LST-1,Y    ; 終端部データY取得
+  STA ENEM1_LST+1,X    ; 対象Yに格納
+  DEY
+  DEY
+  STY ZP_ENEM1_TERMPTR  ; 縮小した終端インデックス
+  RTS
+
+; PL弾削除
+; 対象インデックスはXで与えられる
 DEL_PL_BLT:
   LDY ZP_PLBLT_TERMPTR  ; Y:終端インデックス
   LDA BLT_PL_LST-2,Y    ; 終端部データX取得
@@ -262,23 +275,41 @@ TICK_ENEM1:
   .local @DRAWPLBL
   .local @END_DRAWPLBL
   .local @SKP_Hamburg
-  LDX #$0                   ; X:PL弾リスト用インデックス
+  LDX #$0                   ; X:敵リスト用インデックス
 @DRAWPLBL:
   CPX ZP_ENEM1_TERMPTR
-  BCS @END_DRAWPLBL         ; PL弾をすべて処理したならPL弾処理終了
+  BCS @END_DRAWPLBL         ; 敵をすべて処理したなら敵処理終了
+  PHY
+  LDY #$FE                  ; PL弾インデックス
+@COL_PLBLT_LOOP:
+  INY
+  INY
+  CPY ZP_PLBLT_TERMPTR
+  BEQ @END_COL_PLBLT
+  ; X
+  LDA ENEM1_LST,X           ; 敵X座標取得
+  SEC
+  SBC BLT_PL_LST,Y          ; PL弾X座標を減算
+  ADC #8                    ; -8が0に
+  CMP #16
+  BCS @COL_PLBLT_LOOP
+  ; Y
+  LDA ENEM1_LST+1,X
+  SEC
+  SBC BLT_PL_LST+1,Y
+  ADC #8                    ; -8が0に
+  CMP #16
+  BCS @COL_PLBLT_LOOP
+@DEL:
+  ; 敵削除
+  PHX
+  JSR DEL_ENEM1
+  PLX
+  PLY
+  BRA @DRAWPLBL
+@END_COL_PLBLT:
+  PLY
   LDA ENEM1_LST,X
-;  ADC #4                    ; 新しい弾の位置
-;  BCC @SKP_Hamburg          ; 右にオーバーしたか
-;@DEL:
-;  ; 弾丸削除
-;  PHY
-;  PHX
-;  JSR DEL_PL_BLT
-;  PLX
-;  PLY
-;  BRA @DRAWPLBL
-;@SKP_Hamburg:
-;  STA BLT_PL_LST,X          ; リストに格納
   STA ZP_TMP_X              ; 描画用座標
   STA (ZP_BLACKLIST_PTR),Y  ; BL格納
   INX                       ; Y座標へ
