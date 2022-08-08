@@ -14,7 +14,7 @@
 .INCLUDE "../syscall.mac"
 
 ; --- 定数定義 ---
-BGC = $00
+BGC = $33
 PLAYER_SPEED = 2
 
 ; -------------------------------------------------------------------
@@ -34,6 +34,7 @@ PLAYER_SPEED = 2
   ZP_PL_COOLDOWN:     .RES 1
   ZP_BL_INDEX:        .RES 1        ; ブラックリストのYインデックス退避
   ZP_PLBLT_TERMPTR:   .RES 1        ; BLT_PL_LSTの終端を指す
+  ZP_ENEM1_TERMPTR:   .RES 1        ; BLT_PL_LSTの終端を指す
   ; SNESPAD
   ZP_PADSTAT:         .RES 2  ; ゲームパッドの状態が収まる
   ZP_SHIFTER:         .RES 1  ; ゲームパッド読み取り処理用
@@ -57,6 +58,7 @@ PLAYER_SPEED = 2
   ; プレイヤの発射した弾丸
   ; 位置だけを保持する
   BLT_PL_LST:     .RES 32
+  ENEM1_LST:      .RES 32
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -72,6 +74,7 @@ START:
   STA BLACKLIST1            ; 番人設定
   STA BLACKLIST2
   STZ ZP_PLBLT_TERMPTR      ; PLBLT終端ポインタ
+  STZ ZP_ENEM1_TERMPTR      ; ENEM1終端ポインタ
   LDA #0                    ; プレイヤ速度初期値
   STA ZP_DX
   STA ZP_DY
@@ -201,6 +204,18 @@ MAIN:
   STY ZP_PLBLT_TERMPTR
 .endmac
 
+; 敵生成
+.macro make_enem1
+  LDY ZP_ENEM1_TERMPTR
+  LDA #200
+  STA ENEM1_LST,Y      ; X
+  LDA ZP_PLAYER_Y
+  STA ENEM1_LST+1,Y    ; Y
+  INY
+  INY
+  STY ZP_ENEM1_TERMPTR
+.endmac
+
 ; PL弾削除
 ; 対象インデックスはXで与えられる
 DEL_PL_BLT:
@@ -241,8 +256,50 @@ DEL_PL_BLT:
   JSR DRAW_CHAR8
 .endmac
 
+; ENEM1
+.macro tick_enem1
+TICK_ENEM1:
+  .local @DRAWPLBL
+  .local @END_DRAWPLBL
+  .local @SKP_Hamburg
+  LDX #$0                   ; X:PL弾リスト用インデックス
+@DRAWPLBL:
+  CPX ZP_ENEM1_TERMPTR
+  BCS @END_DRAWPLBL         ; PL弾をすべて処理したならPL弾処理終了
+  LDA ENEM1_LST,X
+;  ADC #4                    ; 新しい弾の位置
+;  BCC @SKP_Hamburg          ; 右にオーバーしたか
+;@DEL:
+;  ; 弾丸削除
+;  PHY
+;  PHX
+;  JSR DEL_PL_BLT
+;  PLX
+;  PLY
+;  BRA @DRAWPLBL
+;@SKP_Hamburg:
+;  STA BLT_PL_LST,X          ; リストに格納
+  STA ZP_TMP_X              ; 描画用座標
+  STA (ZP_BLACKLIST_PTR),Y  ; BL格納
+  INX                       ; Y座標へ
+  INY
+  LDA ENEM1_LST,X          ; Y座標取得（信頼している
+  STA ZP_TMP_Y              ; 描画用座標
+  STA (ZP_BLACKLIST_PTR),Y  ; BL格納
+  INX                       ; 次のデータにインデックスを合わせる
+  INY
+  PHY
+  PHX
+  JSR DRAW_CHAR8            ; 描画する
+  PLX
+  PLY
+  BRA @DRAWPLBL             ; PL弾処理ループ
+@END_DRAWPLBL:
+.endmac
+
 ; PL弾
 .macro tick_pl_blt
+TICK_PL_BLT:
   .local @DRAWPLBL
   .local @END_DRAWPLBL
   .local @SKP_Hamburg
@@ -315,13 +372,21 @@ TICK:
   BBS7 ZP_PADSTAT,@SKP_B      ; B button
   DEC ZP_PL_COOLDOWN          ; クールダウンチェック
   BNE @SKP_B
-  LDA #5
+  LDA #10
   STA ZP_PL_COOLDOWN          ; クールダウン更新
   make_pl_blt                 ; PL弾生成
 @SKP_B:
+  BBS6 ZP_PADSTAT,@SKP_Y      ; B button
+  DEC ZP_PL_COOLDOWN          ; クールダウンチェック
+  BNE @SKP_Y
+  LDA #10
+  STA ZP_PL_COOLDOWN          ; クールダウン更新
+  make_enem1                 ; PL弾生成
+@SKP_Y:
   ; ティック処理
   tick_player                 ; プレイヤ処理
   LDY #2
+  tick_enem1
   tick_pl_blt                 ; PL弾移動と描画
   term_blacklist              ; ブラックリスト終端
   exchange_frame              ; フレーム交換
