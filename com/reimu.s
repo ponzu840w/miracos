@@ -309,7 +309,7 @@ TICK_ENEM1:
   ; 敵削除
   PHX
   JSR DEL_ENEM1             ; 敵削除
-  LDX #SE2_NUMBER
+  LDA #SE2_NUMBER
   JSR PLAY_SE               ; 撃破効果音
   PLX
   PLY
@@ -389,12 +389,9 @@ TICK_PL_BLT:
   STA YMZ::DATA
 .endmac
 
-; Xで与えられた番号のSEを鳴らす
+; Aで与えられた番号のSEを鳴らす
 PLAY_SE:
-  LDA ZP_SE_STATE         ; 効果音状態
-  BNE @END                ; 何か鳴ってるならキャンセル
-  STX ZP_SE_STATE
-  TXA
+  STA ZP_SE_STATE
   LSR
   TAX
   LDA SE_LENGTH_TABLE-1,X
@@ -430,8 +427,8 @@ SE1_TICK:
   CMP #SE1_LENGTH
   BNE @a
   set_ymzreg #YMZ::IA_MIX,#%00111110
-  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/400)
-  set_ymzreg #YMZ::IA_FRQ,#<(125000/400)
+  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/800)
+  set_ymzreg #YMZ::IA_FRQ,#<(125000/800)
   set_ymzreg #YMZ::IA_VOL,#$0F
   JMP TICK_SE_RETURN
 @a:
@@ -496,7 +493,7 @@ TICK:
   LDA #10
   STA ZP_PL_COOLDOWN          ; クールダウン更新
   make_pl_blt                 ; PL弾生成
-  LDX #SE1_NUMBER
+  LDA #SE1_NUMBER
   JSR PLAY_SE                 ; 発射音再生
 @SKP_B:
   BBS6 ZP_PADSTAT,@SKP_Y      ; B button
