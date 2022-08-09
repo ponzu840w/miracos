@@ -308,7 +308,9 @@ TICK_ENEM1:
 @DEL:
   ; 敵削除
   PHX
-  JSR DEL_ENEM1
+  JSR DEL_ENEM1             ; 敵削除
+  LDX #SE2_NUMBER
+  JSR PLAY_SE               ; 撃破効果音
   PLX
   PLY
   BRA @DRAWPLBL
@@ -416,19 +418,51 @@ TICK_SE_END:
 .endmac
 
 SE_LENGTH_TABLE:
-  .BYTE $5 ; 1
+  .BYTE SE1_LENGTH      ; 1
+  .BYTE SE2_LENGTH      ; 2
 
 SE_TICK_JT:
   .WORD SE1_TICK
+  .WORD SE2_TICK
 
 SE1_TICK:
+  LDA ZP_SE_TIMER
+  CMP #SE1_LENGTH
+  BNE @a
   set_ymzreg #YMZ::IA_MIX,#%00111110
   set_ymzreg #YMZ::IA_FRQ+1,#>(125000/400)
   set_ymzreg #YMZ::IA_FRQ,#<(125000/400)
   set_ymzreg #YMZ::IA_VOL,#$0F
   JMP TICK_SE_RETURN
+@a:
+  LDX #YMZ::IA_VOL
+  STX YMZ::ADDR
+  ASL                       ; タイマーの左シフト、最大8
+  ADC #4
+  STA YMZ::DATA
+  JMP TICK_SE_RETURN
 
-SE1 = 1*2
+SE2_TICK:
+  LDA ZP_SE_TIMER
+  CMP #SE1_LENGTH
+  ;BNE @a
+  set_ymzreg #YMZ::IA_MIX,#%00111110
+  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/400)
+  set_ymzreg #YMZ::IA_FRQ,#<(125000/400)
+  set_ymzreg #YMZ::IA_VOL,#$0F
+  JMP TICK_SE_RETURN
+@a:
+  LDX #YMZ::IA_VOL
+  STX YMZ::ADDR
+  ASL                       ; タイマーの左シフト、最大8
+  ADC #7
+  STA YMZ::DATA
+  JMP TICK_SE_RETURN
+
+SE1_LENGTH = 5
+SE1_NUMBER = 1*2
+SE2_LENGTH = 5
+SE2_NUMBER = 2*2
 
 ; -------------------------------------------------------------------
 ;                        垂直同期割り込み
@@ -462,8 +496,8 @@ TICK:
   LDA #10
   STA ZP_PL_COOLDOWN          ; クールダウン更新
   make_pl_blt                 ; PL弾生成
-  LDX #SE1
-  JSR PLAY_SE
+  LDX #SE1_NUMBER
+  JSR PLAY_SE                 ; 発射音再生
 @SKP_B:
   BBS6 ZP_PADSTAT,@SKP_Y      ; B button
   DEC ZP_PL_COOLDOWN          ; クールダウンチェック
