@@ -12,26 +12,6 @@
 .ENDPROC
 .INCLUDE "../syscall.mac"
 
-; YMZ294
-YMZ_BASE = $E400
-YMZ_ADDR = YMZ_BASE
-YMZ_DATA = YMZ_BASE+1
-
-; --- 定数定義 ---
-; YMZ294内部アドレス
-; 各チャンネル周波数
-YMZ_INNADDR_FRQ = $00
-; ノイズ音周波数
-YMZ_INNADDR_NOISE_FRQ = $06
-; ミキサ設定
-YMZ_INNADDR_MIX = $07
-; 各チャンネル音量
-YMZ_INNADDR_VOL = $08
-; エンベロープ周波数
-YMZ_INNADDR_EVLP_FRQ = $0B
-; エンベロープ形状
-YMZ_INNADDR_EVLP_SHAPE = $0D
-
 ; -------------------------------------------------------------------
 ;                               変数領域
 ; -------------------------------------------------------------------
@@ -46,25 +26,25 @@ YMZ_INNADDR_EVLP_SHAPE = $0D
 .macro setSound frq,efrq,shape,mix,vol
   ; 音は出さない
   ; ミキシング設定
-  LDA #YMZ_INNADDR_MIX
+  LDA #YMZ::IA_MIX
   LDX #%00111111
   JSR SET_YMZREG
   LDA mix
   STA TMP_MIX
   ; 音階上位
-  LDA #YMZ_INNADDR_FRQ+1
+  LDA #YMZ::IA_FRQ+1
   LDX #>(125000/frq)
   JSR SET_YMZREG
   ; 音階下位
-  LDA #YMZ_INNADDR_FRQ
+  LDA #YMZ::IA_FRQ
   LDX #<(125000/frq)
   JSR SET_YMZREG
   ; エンベ上位
-  LDA #YMZ_INNADDR_EVLP_FRQ+1
+  LDA #YMZ::IA_EVLP_FRQ+1
   LDX #>(244000/efrq)
   JSR SET_YMZREG
   ; エンベ下位
-  LDA #YMZ_INNADDR_EVLP_FRQ
+  LDA #YMZ::IA_EVLP_FRQ
   LDX #<(244000/efrq)
   JSR SET_YMZREG
   ; 形状
@@ -98,13 +78,13 @@ POYO:
   RTS
 
 SOUND:
-  LDA #YMZ_INNADDR_MIX
+  LDA #YMZ::IA_MIX
   LDX TMP_MIX
   JSR SET_YMZREG
-  LDA #YMZ_INNADDR_EVLP_SHAPE
+  LDA #YMZ::IA_EVLP_SHAPE
   LDX TMP_SHAPE
   JSR SET_YMZREG
-  LDA #YMZ_INNADDR_VOL
+  LDA #YMZ::IA_VOL
   LDX TMP_VOL
   JSR SET_YMZREG
   RTS
@@ -115,7 +95,7 @@ SOUND:
 ; この通り呼ぶ意味はあまりない
 ; *
 SET_YMZREG:
-  STA YMZ_ADDR
-  STX YMZ_DATA
+  STA YMZ::ADDR
+  STX YMZ::DATA
   RTS
 
