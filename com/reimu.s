@@ -14,7 +14,7 @@
 .INCLUDE "../syscall.mac"
 
 ; --- 定数定義 ---
-BGC = $33
+BGC = $00
 PLAYER_SPEED = 2
 
 ; -------------------------------------------------------------------
@@ -260,10 +260,7 @@ DEL_PL_BLT:
   ADC ZP_DY
   STA ZP_PLAYER_Y
   ; プレイヤ描画
-  LDA #<CHAR_DAT
-  STA ZP_CHAR_PTR
-  LDA #>CHAR_DAT
-  STA ZP_CHAR_PTR+1
+  loadmem16 ZP_CHAR_PTR,CHAR_DAT_ZIKI
   LDA ZP_PLAYER_X
   STA ZP_TMP_X
   STA (ZP_BLACKLIST_PTR)
@@ -328,6 +325,7 @@ TICK_ENEM1:
   INY
   PHY
   PHX
+  loadmem16 ZP_CHAR_PTR,CHAR_DAT_TEKI1
   JSR DRAW_CHAR8            ; 描画する
   PLX
   PLY
@@ -369,6 +367,7 @@ TICK_PL_BLT:
   INY
   PHY
   PHX
+  loadmem16 ZP_CHAR_PTR,CHAR_DAT_ZITAMA1
   JSR DRAW_CHAR8            ; 描画する
   PLX
   PLY
@@ -440,20 +439,9 @@ SE1_TICK:
   JMP TICK_SE_RETURN
 
 SE2_TICK:
-  LDA ZP_SE_TIMER
-  CMP #SE1_LENGTH
-  ;BNE @a
-  set_ymzreg #YMZ::IA_MIX,#%00111110
-  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/400)
-  set_ymzreg #YMZ::IA_FRQ,#<(125000/400)
+  set_ymzreg #YMZ::IA_MIX,#%00110111
+  set_ymzreg #YMZ::IA_NOISE_FRQ,#>(125000/400)
   set_ymzreg #YMZ::IA_VOL,#$0F
-  JMP TICK_SE_RETURN
-@a:
-  LDX #YMZ::IA_VOL
-  STX YMZ::ADDR
-  ASL                       ; タイマーの左シフト、最大8
-  ADC #7
-  STA YMZ::DATA
   JMP TICK_SE_RETURN
 
 SE1_LENGTH = 5
@@ -619,6 +607,15 @@ PAD_READ:
   BNE @LOOP
   RTS
 
-CHAR_DAT:
-  .INCBIN "../../ChDzUtl/images/reimu88.bin"
+;CHAR_DAT:
+;  .INCBIN "../../ChDzUtl/images/reimu88.bin"
+
+CHAR_DAT_ZIKI:
+  .INCBIN "../../ChDzUtl/images/ziki1-88.bin"
+
+CHAR_DAT_ZITAMA1:
+  .INCBIN "../../ChDzUtl/images/zitama88.bin"
+
+CHAR_DAT_TEKI1:
+  .INCBIN "../../ChDzUtl/images/teki1-88.bin"
 
