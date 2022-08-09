@@ -79,3 +79,8 @@ ROMBASE = $F000
   TCP  = CRTCBASE+$7  ; 2色モード色選択
                           ;   (0) 3 2 1 0 | (1) 3 2 1 0
 .ENDPROC
+
+; YMZ
+.PROC YMZ
+.ENDPROC
+
