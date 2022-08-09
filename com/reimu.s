@@ -36,10 +36,13 @@ PLAYER_SPEED = 2
   ZP_PLBLT_TERMPTR:   .RES 1        ; BLT_PL_LSTの終端を指す
   ZP_ENEM1_TERMPTR:   .RES 1        ; BLT_PL_LSTの終端を指す
   ; SNESPAD
-  ZP_PADSTAT:         .RES 2  ; ゲームパッドの状態が収まる
-  ZP_SHIFTER:         .RES 1  ; ゲームパッド読み取り処理用
+  ZP_PADSTAT:         .RES 2        ; ゲームパッドの状態が収まる
+  ZP_SHIFTER:         .RES 1        ; ゲームパッド読み取り処理用
   ; VBLANK
-  ZP_VB_STUB:         .RES 2  ; 割り込み終了処理
+  ZP_VB_STUB:         .RES 2        ; 割り込み終了処理
+  ; SOUND
+  ZP_SE_STATE:        .RES 1        ; 効果音の状態
+  ZP_SE_TIMER:        .RES 1
 
 ; -------------------------------------------------------------------
 ;                              変数領域
@@ -102,6 +105,8 @@ START:
   JSR FILL        ; FB2塗りつぶし
   STZ ZP_PLAYER_X ; プレイヤー初期座標
   STZ ZP_PLAYER_Y
+  ; サウンドの初期化
+  STZ ZP_SE_STATE
   ; 割り込みハンドラの登録
   SEI
   loadAY16 VBLANK
@@ -374,6 +379,57 @@ TICK_PL_BLT:
   STA (ZP_BLACKLIST_PTR),Y
 .endmac
 
+; 内部レジスタに値を格納する
+.macro set_ymzreg addr,dat
+  LDA addr
+  STA YMZ::ADDR
+  LDA dat
+  STA YMZ::DATA
+.endmac
+
+; Xで与えられた番号のSEを鳴らす
+PLAY_SE:
+  LDA ZP_SE_STATE         ; 効果音状態
+  BNE @END                ; 何か鳴ってるならキャンセル
+  STX ZP_SE_STATE
+  TXA
+  LSR
+  TAX
+  LDA SE_LENGTH_TABLE-1,X
+  STA ZP_SE_TIMER
+@END:
+  RTS
+
+; 効果音ティック処理
+.macro tick_se
+TICK_SE:
+  LDX ZP_SE_STATE       ; 効果音状態
+  BEQ TICK_SE_END       ; 何も鳴ってないなら無視
+  JMP (SE_TICK_JT-2,X)  ; 鳴っているので効果音種類ごとの処理に跳ぶ
+TICK_SE_RETURN:         ; ここに帰ってくる
+  DEC ZP_SE_TIMER       ; タイマー減算
+  BNE TICK_SE_END
+  ; 0になった
+  set_ymzreg #YMZ::IA_MIX,#%00111111
+  STZ ZP_SE_STATE
+TICK_SE_END:
+.endmac
+
+SE_LENGTH_TABLE:
+  .BYTE $5 ; 1
+
+SE_TICK_JT:
+  .WORD SE1_TICK
+
+SE1_TICK:
+  set_ymzreg #YMZ::IA_MIX,#%00111110
+  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/400)
+  set_ymzreg #YMZ::IA_FRQ,#<(125000/400)
+  set_ymzreg #YMZ::IA_VOL,#$0F
+  JMP TICK_SE_RETURN
+
+SE1 = 1*2
+
 ; -------------------------------------------------------------------
 ;                        垂直同期割り込み
 ; -------------------------------------------------------------------
@@ -406,6 +462,8 @@ TICK:
   LDA #10
   STA ZP_PL_COOLDOWN          ; クールダウン更新
   make_pl_blt                 ; PL弾生成
+  LDX #SE1
+  JSR PLAY_SE
 @SKP_B:
   BBS6 ZP_PADSTAT,@SKP_Y      ; B button
   DEC ZP_PL_COOLDOWN          ; クールダウンチェック
@@ -420,6 +478,7 @@ TICK:
   tick_enem1
   tick_pl_blt                 ; PL弾移動と描画
   term_blacklist              ; ブラックリスト終端
+  tick_se                     ; 効果音
   exchange_frame              ; フレーム交換
   ; ティック終端
   JMP (ZP_VB_STUB)            ; 片付けはBCOSにやらせる
