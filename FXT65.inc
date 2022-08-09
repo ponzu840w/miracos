@@ -82,5 +82,14 @@ ROMBASE = $F000
 
 ; YMZ
 .PROC YMZ
+  ADDR = YMZBASE
+  DATA = YMZBASE+1
+  ; IR:Internal Address
+  IA_FRQ = $00        ; 各チャンネル周波数
+  IA_NOISE_FRQ = $06  ; ノイズ音周波数
+  IA_MIX = $07        ; ミキサ設定
+  IA_VOL = $08        ; 各チャンネル音量
+  IA_EVLP_FRQ = $0B   ; エンベロープ周波数
+  IA_EVLP_SHAPE = $0D ; エンベロープ形状
 .ENDPROC
 
