@@ -482,7 +482,7 @@ TICK:
   BBS7 ZP_PADSTAT,@SKP_B      ; B button
   DEC ZP_PL_COOLDOWN          ; クールダウンチェック
   BNE @SKP_B
-  LDA #10
+  LDA #PLAYER_SHOOTRATE
   STA ZP_PL_COOLDOWN          ; クールダウン更新
   make_pl_blt                 ; PL弾生成
   LDA #SE1_NUMBER
@@ -491,7 +491,7 @@ TICK:
   BBS6 ZP_PADSTAT,@SKP_Y      ; B button
   DEC ZP_PL_COOLDOWN          ; クールダウンチェック
   BNE @SKP_Y
-  LDA #10
+  LDA #PLAYER_SHOOTRATE
   STA ZP_PL_COOLDOWN          ; クールダウン更新
   make_enem1                 ; PL弾生成
 @SKP_Y:
