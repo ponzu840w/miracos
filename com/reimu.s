@@ -16,9 +16,10 @@
 ; --- 定数定義 ---
 BGC = $00
 DEBUG_BGC = $88
-PLAYER_SPEED = 3
+PLAYER_SPEED = 1
 PLAYER_SHOOTRATE = 8
 PLBLT_SPEED = 8
+PLAYER_X = 31 ; 30だと現象が起こるが表示は同じ
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -106,7 +107,8 @@ START:
   STA CRTC::WF
   LDA #BGC
   JSR FILL        ; FB2塗りつぶし
-  STZ ZP_PLAYER_X ; プレイヤー初期座標
+  LDA #PLAYER_X
+  STA ZP_PLAYER_X ; プレイヤー初期座標
   STZ ZP_PLAYER_Y
   ; サウンドの初期化
   STZ ZP_SE_STATE
@@ -338,7 +340,7 @@ TICK_ENEM1:
 @END_DRAWPLBL:
 .endmac
 
-; PL弾
+; PL弾ティック処理
 .macro tick_pl_blt
 TICK_PL_BLT:
   .local @DRAWPLBL
