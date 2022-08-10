@@ -15,7 +15,9 @@
 
 ; --- 定数定義 ---
 BGC = $00
+DEBUG_BGC = $88
 PLAYER_SPEED = 2
+PLAYER_SHOOTRATE = 10
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -81,7 +83,7 @@ START:
   LDA #0                    ; プレイヤ速度初期値
   STA ZP_DX
   STA ZP_DY
-  LDA #1
+  LDA #PLAYER_SHOOTRATE
   STA ZP_PL_COOLDOWN
   ; コンフィグレジスタの初期化
   LDA #%00000001  ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ有効
@@ -146,9 +148,8 @@ MAIN:
   LDA #<BLACKLIST1
   STA ZP_BLACKLIST_PTR   ; アライメントしないので下位も設定
   ; ブラックリストに沿って画面上エンティティ削除
-  STZ ZP_BL_INDEX
+  LDY #0
 @BL_DEL_LOOP:
-  LDY ZP_BL_INDEX
   LDA (ZP_BLACKLIST_PTR),Y  ; X座標取得
   CMP #$FF
   BEQ @BL_END
@@ -156,11 +157,14 @@ MAIN:
   TAX
   INY
   LDA (ZP_BLACKLIST_PTR),Y  ; Y座標取得
-  STY ZP_BL_INDEX
+  PHY
   TAY
   JSR DEL_SQ8               ; 塗りつぶす
+  PLY
+  INY
   BRA @BL_DEL_LOOP
 @BL_END:
+  STY ZP_BL_INDEX
 .endmac
 
 ; アンチノイズ水平消去
@@ -510,7 +514,8 @@ DEL_SQ8:
   CLC
   ADC #8
   STA ZP_TMP_Y
-  LDA #BGC
+  ;LDA #BGC
+  LDA #DEBUG_BGC              ; どこを四角く塗りつぶしたかがわかる
 DRAW_SQ_LOOP:
   STX CRTC::VMAH
   STY CRTC::VMAV
