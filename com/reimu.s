@@ -16,8 +16,9 @@
 ; --- 定数定義 ---
 BGC = $00
 DEBUG_BGC = $88
-PLAYER_SPEED = 2
-PLAYER_SHOOTRATE = 10
+PLAYER_SPEED = 3
+PLAYER_SHOOTRATE = 8
+PLBLT_SPEED = 8
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -348,14 +349,12 @@ TICK_PL_BLT:
   CPX ZP_PLBLT_TERMPTR
   BCS @END_DRAWPLBL         ; PL弾をすべて処理したならPL弾処理終了
   LDA BLT_PL_LST,X
-  ADC #4                    ; 新しい弾の位置
+  ADC #PLBLT_SPEED          ; 新しい弾の位置
   BCC @SKP_Hamburg          ; 右にオーバーしたか
 @DEL:
   ; 弾丸削除
   PHY
-  PHX
   JSR DEL_PL_BLT
-  PLX
   PLY
   BRA @DRAWPLBL
 @SKP_Hamburg:
