@@ -473,11 +473,13 @@ TICK_DMK1:
 @LOOP:
   CPX ZP_DMK1_TERMIDX
   BCS @END                  ; PL弾をすべて処理したならPL弾処理終了
+  ; ---------------------------------------------------------------
+  ;   X
   LDA DMK1_LST,X
-  ADC #$80
+  ADC #$80                  ; 半分ずらした状態で加算して戻すことで、Vフラグで跨ぎ判定
   CLC
   ADC DMK1_LST+2,X          ; dX加算
-  BVC @SKP_Hamburg          ; 右にオーバーしたか
+  BVC @SKP_Hamburg          ; 左右端を跨ぐなら削除
 @DEL:
   ; 弾丸削除
   PHY
@@ -490,30 +492,33 @@ TICK_DMK1:
   STA DMK1_LST,X            ; リストに格納
   STA ZP_CANVAS_X           ; 描画用座標
   STA (ZP_BLACKLIST_PTR),Y  ; BL格納
-  ;INX                       ; Y座標へ
-  ;INY
+  ; ---------------------------------------------------------------
+  ;   Y
   LDA DMK1_LST+1,X          ; Y座標取得（信頼している
   ADC #$80
   CLC
   ADC DMK1_LST+3,X          ; dY加算
-  BVS @DEL
+  BVS @DEL                  ; 上下端を跨ぐなら削除
   SEC
   SBC #$80
   STA DMK1_LST+1,X          ; リストに格納
   STA ZP_CANVAS_Y           ; 描画用座標
   INY
   STA (ZP_BLACKLIST_PTR),Y  ; BL格納
-  INX                       ; 次のデータにインデックスを合わせる
-  INX
-  INX
-  INX
+  ; ---------------------------------------------------------------
+  ;   インデックス更新
+  TXA
+  CLC
+  ADC #4                    ; TAXとするとINX*4にサイクル数まで等価
+  PHA                       ; しかしスタック退避を考慮するとこっちが有利
   INY
+  ; ---------------------------------------------------------------
+  ;   実際の描画
   PHY
-  PHX
   loadmem16 ZP_CHAR_PTR,CHAR_DAT_ZITAMA1
   JSR DRAW_CHAR8            ; 描画する
-  PLX
   PLY
+  PLX
   BRA @LOOP                 ; PL弾処理ループ
 @END:
 .endmac
