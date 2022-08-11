@@ -375,15 +375,14 @@ TICK_ENEM1:
   STA DMK1_LST,Y            ; X
   LDA ENEM1_LST+1,X
   STA DMK1_LST+1,Y          ; Y
-  LDA #256-1
+  LDA #256-2
   STA DMK1_LST+2,Y          ; dX
-  LDA #256-1
+  LDA #256-4
   STA DMK1_LST+3,Y          ; dY
-  INY
-  INY
-  INY
-  INY
-  STY ZP_DMK1_TERMIDX       ; DMK1終端更新
+  TYA
+  CLC
+  ADC #4
+  STA ZP_DMK1_TERMIDX       ; DMK1終端更新
   LDA #SE1_NUMBER
   PHX
   JSR PLAY_SE               ; 発射音再生 X使用
