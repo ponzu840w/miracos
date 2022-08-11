@@ -43,12 +43,12 @@ PLAYER_X = 31         ; 30だと現象が起こるが表示は同じ
   ZP_PLAYER_X:        .RES 1        ; プレイヤ座標
   ZP_PLAYER_Y:        .RES 1
   ZP_ANT_NZ_Y:        .RES 1        ; アンチ・ノイズY座標
-  ZP_PL_DX:              .RES 1        ; プレイヤX軸速度
-  ZP_PL_DY:              .RES 1        ; プレイヤY軸速度
+  ZP_PL_DX:           .RES 1        ; プレイヤX軸速度
+  ZP_PL_DY:           .RES 1        ; プレイヤY軸速度
   ZP_PL_COOLDOWN:     .RES 1
   ZP_BL_INDEX:        .RES 1        ; ブラックリストのYインデックス退避
-  ZP_PLBLT_TERMPTR:   .RES 1        ; PLBLT_LSTの終端を指す
-  ZP_ENEM1_TERMPTR:   .RES 1        ; PLBLT_LSTの終端を指す
+  ZP_PLBLT_TERMIDX:   .RES 1        ; PLBLT_LSTの終端を指す
+  ZP_ENEM1_TERMIDX:   .RES 1        ; PLBLT_LSTの終端を指す
 
 ; -------------------------------------------------------------------
 ;                              変数領域
@@ -100,11 +100,12 @@ INIT:
   LDA #$FF                  ; ブラックリスト用番人
   STA BLACKLIST1            ; 番人設定
   STA BLACKLIST2
-  STZ ZP_PLBLT_TERMPTR      ; PLBLT終端ポインタ
-  STZ ZP_ENEM1_TERMPTR      ; ENEM1終端ポインタ
-  STZ ZP_PL_DX                 ; プレイヤ速度初期値
-  STZ ZP_PL_DY                 ; プレイヤ速度初期値
-  STZ ZP_PL_COOLDOWN
+  LDA #1
+  STA ZP_PL_COOLDOWN
+  STZ ZP_PLBLT_TERMIDX      ; PLBLT終端ポインタ
+  STZ ZP_ENEM1_TERMIDX      ; ENEM1終端ポインタ
+  STZ ZP_PL_DX              ; プレイヤ速度初期値
+  STZ ZP_PL_DY              ; プレイヤ速度初期値
   ; ---------------------------------------------------------------
   ;   画面の初期化
   LDA #BGC
@@ -153,6 +154,7 @@ MAIN:
   STA ZP_BLACKLIST_PTR+1
   LDA #<BLACKLIST1
   STA ZP_BLACKLIST_PTR   ; アライメントしないので下位も設定
+.endmac
 
 ; -------------------------------------------------------------------
 ;           ブラックリストに沿って画面上エンティティ削除
@@ -199,7 +201,6 @@ MAIN:
   DEX
   BNE @ANLLOOP
   INC ZP_ANT_NZ_Y
-  INC ZP_ANT_NZ_Y
 .endmac
 
 ; -------------------------------------------------------------------
@@ -219,28 +220,28 @@ MAIN:
 ;                             PL弾生成
 ; -------------------------------------------------------------------
 .macro make_pl_blt
-  LDY ZP_PLBLT_TERMPTR
+  LDY ZP_PLBLT_TERMIDX
   LDA ZP_PLAYER_X
   STA PLBLT_LST,Y      ; X
   LDA ZP_PLAYER_Y
   STA PLBLT_LST+1,Y    ; Y
   INY
   INY
-  STY ZP_PLBLT_TERMPTR
+  STY ZP_PLBLT_TERMIDX
 .endmac
 
 ; -------------------------------------------------------------------
 ;                             敵生成
 ; -------------------------------------------------------------------
 .macro make_enem1
-  LDY ZP_ENEM1_TERMPTR
+  LDY ZP_ENEM1_TERMIDX
   LDA #200
   STA ENEM1_LST,Y      ; X
   LDA ZP_PLAYER_Y
   STA ENEM1_LST+1,Y    ; Y
   INY
   INY
-  STY ZP_ENEM1_TERMPTR
+  STY ZP_ENEM1_TERMIDX
 .endmac
 
 ; -------------------------------------------------------------------
@@ -248,14 +249,14 @@ MAIN:
 ; -------------------------------------------------------------------
 ; 対象インデックスはXで与えられる
 DEL_ENEM1:
-  LDY ZP_ENEM1_TERMPTR  ; Y:終端インデックス
+  LDY ZP_ENEM1_TERMIDX  ; Y:終端インデックス
   LDA ENEM1_LST-2,Y    ; 終端部データX取得
   STA ENEM1_LST,X      ; 対象Xに格納
   LDA ENEM1_LST-1,Y    ; 終端部データY取得
   STA ENEM1_LST+1,X    ; 対象Yに格納
   DEY
   DEY
-  STY ZP_ENEM1_TERMPTR  ; 縮小した終端インデックス
+  STY ZP_ENEM1_TERMIDX  ; 縮小した終端インデックス
   RTS
 
 ; -------------------------------------------------------------------
@@ -263,14 +264,14 @@ DEL_ENEM1:
 ; -------------------------------------------------------------------
 ; 対象インデックスはXで与えられる
 DEL_PL_BLT:
-  LDY ZP_PLBLT_TERMPTR  ; Y:終端インデックス
+  LDY ZP_PLBLT_TERMIDX  ; Y:終端インデックス
   LDA PLBLT_LST-2,Y    ; 終端部データX取得
   STA PLBLT_LST,X      ; 対象Xに格納
   LDA PLBLT_LST-1,Y    ; 終端部データY取得
   STA PLBLT_LST+1,X    ; 対象Yに格納
   DEY
   DEY
-  STY ZP_PLBLT_TERMPTR  ; 縮小した終端インデックス
+  STY ZP_PLBLT_TERMIDX  ; 縮小した終端インデックス
   RTS
 
 ; エンティティティック処理
@@ -309,14 +310,14 @@ TICK_ENEM1:
   .local @SKP_Hamburg
   LDX #$0                   ; X:敵リスト用インデックス
 @DRAWPLBL:
-  CPX ZP_ENEM1_TERMPTR
+  CPX ZP_ENEM1_TERMIDX
   BCS @END_DRAWPLBL         ; 敵をすべて処理したなら敵処理終了
   PHY
   LDY #$FE                  ; PL弾インデックス
 @COL_PLBLT_LOOP:
   INY
   INY
-  CPY ZP_PLBLT_TERMPTR
+  CPY ZP_PLBLT_TERMIDX
   BEQ @END_COL_PLBLT
   ; X
   LDA ENEM1_LST,X           ; 敵X座標取得
@@ -373,7 +374,7 @@ TICK_PL_BLT:
   .local @SKP_Hamburg
   LDX #$0                   ; X:PL弾リスト用インデックス
 @DRAWPLBL:
-  CPX ZP_PLBLT_TERMPTR
+  CPX ZP_PLBLT_TERMIDX
   BCS @END_DRAWPLBL         ; PL弾をすべて処理したならPL弾処理終了
   LDA PLBLT_LST,X
   ADC #PLBLT_SPEED          ; 新しい弾の位置
