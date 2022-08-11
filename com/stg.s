@@ -537,11 +537,10 @@ DEL_DMK1:
   STA DMK1_LST+2,X     ; 対象Xに格納
   LDA DMK1_LST-1,Y     ; 終端部データX取得
   STA DMK1_LST+3,X     ; 対象Xに格納
-  DEY
-  DEY
-  DEY
-  DEY
-  STY ZP_DMK1_TERMIDX  ; 縮小した終端インデックス
+  TYA
+  SEC
+  SBC #4
+  STA ZP_DMK1_TERMIDX  ; 縮小した終端インデックス
   RTS
 
 
