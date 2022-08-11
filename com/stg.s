@@ -549,7 +549,7 @@ TICK_DMK1:
   ; ---------------------------------------------------------------
   ;   実際の描画
   PHY
-  loadmem16 ZP_CHAR_PTR,CHAR_DAT_ZITAMA1
+  loadmem16 ZP_CHAR_PTR,CHAR_DAT_DMK1
   JSR DRAW_CHAR8            ; 描画する
   PLY
   PLX
@@ -846,3 +846,5 @@ CHAR_DAT_ZITAMA1:
 CHAR_DAT_TEKI1:
   .INCBIN "../../ChDzUtl/images/teki1-88.bin"
 
+CHAR_DAT_DMK1:
+  .INCBIN "../../ChDzUtl/images/dmk1.bin"
