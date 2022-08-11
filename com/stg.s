@@ -377,7 +377,7 @@ TICK_ENEM1:
   STA DMK1_LST+1,Y          ; Y
   LDA #256-2
   STA DMK1_LST+2,Y          ; dX
-  LDA #256-4
+  LDA #256-2
   STA DMK1_LST+3,Y          ; dY
   TYA
   CLC
@@ -494,6 +494,7 @@ TICK_DMK1:
   ; ---------------------------------------------------------------
   ;   Y
   LDA DMK1_LST+1,X          ; Y座標取得（信頼している
+  CLC
   ADC #$80
   CLC
   ADC DMK1_LST+3,X          ; dY加算
