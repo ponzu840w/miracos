@@ -105,6 +105,7 @@ INIT:
   STA ZP_PL_COOLDOWN
   STZ ZP_PLBLT_TERMIDX      ; PLBLT終端ポインタ
   STZ ZP_ENEM1_TERMIDX      ; ENEM1終端ポインタ
+  STZ ZP_DMK1_TERMIDX       ; DMK1終端ポインタ
   STZ ZP_PL_DX              ; プレイヤ速度初期値
   STZ ZP_PL_DY              ; プレイヤ速度初期値
   ; ---------------------------------------------------------------
@@ -312,16 +313,19 @@ DEL_PL_BLT:
 ; -------------------------------------------------------------------
 ; Yはブラックリストインデックス
 .macro tick_enem1
-TICK_ENEM1:
+  .local @TICK_ENEM1
   .local @DRAWPLBL
-  .local @END_DRAWPLBL
+  .local @END
   .local @SKP_Hamburg
+TICK_ENEM1:
   ; ---------------------------------------------------------------
   ;   ENEM1リストループ
   LDX #$0                   ; X:敵リスト用インデックス
 @DRAWPLBL:
   CPX ZP_ENEM1_TERMIDX
-  BCS @END_DRAWPLBL         ; 敵をすべて処理したなら敵処理終了
+  BCC @SKP_END
+  JMP @END                  ; 敵をすべて処理したなら敵処理終了
+@SKP_END:
   ; ---------------------------------------------------------------
   ;   PLBLTとの当たり判定
   PHY                       ; BLIDX退避
@@ -359,6 +363,33 @@ TICK_ENEM1:
   BRA @DRAWPLBL
 @END_COL_PLBLT:
   ; ---------------------------------------------------------------
+  ;   射撃判定
+  DEC ENEM1_LST+2,X         ; T減算
+  BNE @SKP_SHOT
+  LDA #ENEM1_SHOOTRATE
+  STA ENEM1_LST+2,X         ; クールダウン更新
+  ; ---------------------------------------------------------------
+  ;   射撃
+  LDY ZP_DMK1_TERMIDX       ; Y:DMK1インデックス
+  LDA ENEM1_LST,X
+  STA DMK1_LST,Y            ; X
+  LDA ENEM1_LST+1,X
+  STA DMK1_LST+1,Y          ; Y
+  LDA #256-1
+  STA DMK1_LST+2,Y          ; dX
+  LDA #256-1
+  STA DMK1_LST+3,Y          ; dY
+  INY
+  INY
+  INY
+  INY
+  STY ZP_DMK1_TERMIDX       ; DMK1終端更新
+  LDA #SE1_NUMBER
+  PHX
+  JSR PLAY_SE               ; 発射音再生 X使用
+  PLX
+@SKP_SHOT:
+  ; ---------------------------------------------------------------
   ;   PLBLTループを抜け、描画処理
   PLY                       ; BLIDX復帰
   LDA ENEM1_LST,X
@@ -380,22 +411,24 @@ TICK_ENEM1:
   JSR DRAW_CHAR8            ; 描画する
   PLX
   PLY
-  BRA @DRAWPLBL             ; PL弾処理ループ
-@END_DRAWPLBL:
+  JMP @DRAWPLBL             ; PL弾処理ループ
+@END:
 .endmac
 
 ; -------------------------------------------------------------------
 ;                           PL弾ティック
 ; -------------------------------------------------------------------
 .macro tick_pl_blt
-TICK_PL_BLT:
+  .local TICK_PL_BLT
   .local @DRAWPLBL
-  .local @END_DRAWPLBL
+  .local @END
   .local @SKP_Hamburg
+  .local @DEL
+TICK_PL_BLT:
   LDX #$0                   ; X:PL弾リスト用インデックス
 @DRAWPLBL:
   CPX ZP_PLBLT_TERMIDX
-  BCS @END_DRAWPLBL         ; PL弾をすべて処理したならPL弾処理終了
+  BCS @END                  ; PL弾をすべて処理したならPL弾処理終了
   LDA PLBLT_LST,X
   ADC #PLBLT_SPEED          ; 新しい弾の位置
   BCC @SKP_Hamburg          ; 右にオーバーしたか
@@ -406,13 +439,13 @@ TICK_PL_BLT:
   PLY
   BRA @DRAWPLBL
 @SKP_Hamburg:
-  STA PLBLT_LST,X          ; リストに格納
-  STA ZP_CANVAS_X              ; 描画用座標
+  STA PLBLT_LST,X           ; リストに格納
+  STA ZP_CANVAS_X           ; 描画用座標
   STA (ZP_BLACKLIST_PTR),Y  ; BL格納
   INX                       ; Y座標へ
   INY
-  LDA PLBLT_LST,X          ; Y座標取得（信頼している
-  STA ZP_CANVAS_Y              ; 描画用座標
+  LDA PLBLT_LST,X           ; Y座標取得（信頼している
+  STA ZP_CANVAS_Y           ; 描画用座標
   STA (ZP_BLACKLIST_PTR),Y  ; BL格納
   INX                       ; 次のデータにインデックスを合わせる
   INY
@@ -423,8 +456,89 @@ TICK_PL_BLT:
   PLX
   PLY
   BRA @DRAWPLBL             ; PL弾処理ループ
-@END_DRAWPLBL:
+@END:
 .endmac
+
+; -------------------------------------------------------------------
+;                           DMK1ティック
+; -------------------------------------------------------------------
+.macro tick_dmk1
+  .local TICK_DMK1
+  .local @LOOP
+  .local @END
+  .local @SKP_Hamburg
+  .local @DEL
+TICK_DMK1:
+  LDX #$0                   ; X:DMK1リスト用インデックス
+@LOOP:
+  CPX ZP_DMK1_TERMIDX
+  BCS @END                  ; PL弾をすべて処理したならPL弾処理終了
+  LDA DMK1_LST,X
+  ADC #$80
+  CLC
+  ADC DMK1_LST+2,X          ; dX加算
+  BVC @SKP_Hamburg          ; 右にオーバーしたか
+@DEL:
+  ; 弾丸削除
+  PHY
+  JSR DEL_DMK1
+  PLY
+  BRA @LOOP
+@SKP_Hamburg:
+  SEC
+  SBC #$80
+  STA DMK1_LST,X            ; リストに格納
+  STA ZP_CANVAS_X           ; 描画用座標
+  STA (ZP_BLACKLIST_PTR),Y  ; BL格納
+  ;INX                       ; Y座標へ
+  ;INY
+  LDA DMK1_LST+1,X          ; Y座標取得（信頼している
+  ADC #$80
+  CLC
+  ADC DMK1_LST+3,X          ; dY加算
+  BVS @DEL
+  SEC
+  SBC #$80
+  STA DMK1_LST+1,X          ; リストに格納
+  STA ZP_CANVAS_Y           ; 描画用座標
+  INY
+  STA (ZP_BLACKLIST_PTR),Y  ; BL格納
+  INX                       ; 次のデータにインデックスを合わせる
+  INX
+  INX
+  INX
+  INY
+  PHY
+  PHX
+  loadmem16 ZP_CHAR_PTR,CHAR_DAT_ZITAMA1
+  JSR DRAW_CHAR8            ; 描画する
+  PLX
+  PLY
+  BRA @LOOP                 ; PL弾処理ループ
+@END:
+.endmac
+
+; -------------------------------------------------------------------
+;                            DMK1削除
+; -------------------------------------------------------------------
+; 対象インデックスはXで与えられる
+DEL_DMK1:
+  LDY ZP_DMK1_TERMIDX  ; Y:終端インデックス
+  LDA DMK1_LST-4,Y     ; 終端部データX取得
+  STA DMK1_LST,X       ; 対象Xに格納
+  LDA DMK1_LST-3,Y     ; 終端部データX取得
+  STA DMK1_LST+1,X     ; 対象Xに格納
+  LDA DMK1_LST-2,Y     ; 終端部データX取得
+  STA DMK1_LST+2,X     ; 対象Xに格納
+  LDA DMK1_LST-1,Y     ; 終端部データX取得
+  STA DMK1_LST+3,X     ; 対象Xに格納
+  DEY
+  DEY
+  DEY
+  DEY
+  STY ZP_DMK1_TERMIDX  ; 縮小した終端インデックス
+  RTS
+
 
 ; -------------------------------------------------------------------
 ;                   ブラックリストを終端する
@@ -570,6 +684,7 @@ TICK:
   LDY #2
   tick_enem1
   tick_pl_blt                 ; PL弾移動と描画
+  tick_dmk1
   term_blacklist              ; ブラックリスト終端
   tick_se                     ; 効果音
   exchange_frame              ; フレーム交換
