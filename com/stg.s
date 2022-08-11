@@ -20,6 +20,7 @@ PLAYER_SPEED = 3      ; PL速度
 PLAYER_SHOOTRATE = 5  ; 射撃クールダウンレート
 PLBLT_SPEED = 8       ; PLBLT速度
 PLAYER_X = 31         ; 30だと現象が起こるが表示は同じ
+ENEM1_SHOOTRATE = 10
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -66,7 +67,7 @@ PLAYER_X = 31         ; 30だと現象が起こるが表示は同じ
   ; プレイヤの発射した弾丸
   PLBLT_LST:     .RES 32  ; (X,Y),(X,Y),...
   ; 敵1
-  ENEM1_LST:     .RES 32  ; (X,Y),(X,Y),...
+  ENEM1_LST:     .RES 32  ; (X,Y,T),(X,Y,T),...
   ; 弾幕1
   DMK1_LST:      .RES 256 ; (X,Y,dX,dY),...
 
@@ -236,9 +237,12 @@ MAIN:
 .macro make_enem1
   LDY ZP_ENEM1_TERMIDX
   LDA #200
-  STA ENEM1_LST,Y      ; X
+  STA ENEM1_LST,Y       ; X
   LDA ZP_PLAYER_Y
-  STA ENEM1_LST+1,Y    ; Y
+  STA ENEM1_LST+1,Y     ; Y
+  LDA #ENEM1_SHOOTRATE
+  STA ENEM1_LST+2,Y     ; T
+  INY
   INY
   INY
   STY ZP_ENEM1_TERMIDX
@@ -250,10 +254,13 @@ MAIN:
 ; 対象インデックスはXで与えられる
 DEL_ENEM1:
   LDY ZP_ENEM1_TERMIDX  ; Y:終端インデックス
-  LDA ENEM1_LST-2,Y    ; 終端部データX取得
+  LDA ENEM1_LST-3,Y    ; 終端部データX取得
   STA ENEM1_LST,X      ; 対象Xに格納
-  LDA ENEM1_LST-1,Y    ; 終端部データY取得
+  LDA ENEM1_LST-2,Y    ; 終端部データY取得
   STA ENEM1_LST+1,X    ; 対象Yに格納
+  LDA ENEM1_LST-1,Y    ; 終端部データT取得
+  STA ENEM1_LST+2,X    ; 対象Tに格納
+  DEY
   DEY
   DEY
   STY ZP_ENEM1_TERMIDX  ; 縮小した終端インデックス
@@ -303,38 +310,46 @@ DEL_PL_BLT:
 ; -------------------------------------------------------------------
 ;                           敵ティック
 ; -------------------------------------------------------------------
+; Yはブラックリストインデックス
 .macro tick_enem1
 TICK_ENEM1:
   .local @DRAWPLBL
   .local @END_DRAWPLBL
   .local @SKP_Hamburg
+  ; ---------------------------------------------------------------
+  ;   ENEM1リストループ
   LDX #$0                   ; X:敵リスト用インデックス
 @DRAWPLBL:
   CPX ZP_ENEM1_TERMIDX
   BCS @END_DRAWPLBL         ; 敵をすべて処理したなら敵処理終了
-  PHY
+  ; ---------------------------------------------------------------
+  ;   PLBLTとの当たり判定
+  PHY                       ; BLIDX退避
   LDY #$FE                  ; PL弾インデックス
 @COL_PLBLT_LOOP:
   INY
   INY
-  CPY ZP_PLBLT_TERMIDX
+  CPY ZP_PLBLT_TERMIDX      ; PL弾インデックスの終端確認
   BEQ @END_COL_PLBLT
-  ; X
+  ; ---------------------------------------------------------------
+  ;   X判定
   LDA ENEM1_LST,X           ; 敵X座標取得
   SEC
-  SBC PLBLT_LST,Y          ; PL弾X座標を減算
+  SBC PLBLT_LST,Y           ; PL弾X座標を減算
   ADC #8                    ; -8が0に
   CMP #16
   BCS @COL_PLBLT_LOOP
-  ; Y
+  ; ---------------------------------------------------------------
+  ;   Y判定
   LDA ENEM1_LST+1,X
   SEC
   SBC PLBLT_LST+1,Y
   ADC #8                    ; -8が0に
   CMP #16
   BCS @COL_PLBLT_LOOP
+  ; ---------------------------------------------------------------
+  ;   敵削除
 @DEL:
-  ; 敵削除
   PHX
   JSR DEL_ENEM1             ; 敵削除
   LDA #SE2_NUMBER
@@ -343,17 +358,22 @@ TICK_ENEM1:
   PLY
   BRA @DRAWPLBL
 @END_COL_PLBLT:
-  PLY
+  ; ---------------------------------------------------------------
+  ;   PLBLTループを抜け、描画処理
+  PLY                       ; BLIDX復帰
   LDA ENEM1_LST,X
-  STA ZP_CANVAS_X              ; 描画用座標
+  STA ZP_CANVAS_X           ; 描画用座標
   STA (ZP_BLACKLIST_PTR),Y  ; BL格納
   INX                       ; Y座標へ
   INY
-  LDA ENEM1_LST,X          ; Y座標取得（信頼している
-  STA ZP_CANVAS_Y              ; 描画用座標
+  LDA ENEM1_LST,X           ; Y座標取得
+  STA ZP_CANVAS_Y           ; 描画用座標
   STA (ZP_BLACKLIST_PTR),Y  ; BL格納
   INX                       ; 次のデータにインデックスを合わせる
+  INX                       ; Tスキップ
   INY
+  ; ---------------------------------------------------------------
+  ;   実際の描画
   PHY
   PHX
   loadmem16 ZP_CHAR_PTR,CHAR_DAT_TEKI1
