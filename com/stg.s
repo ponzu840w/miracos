@@ -15,9 +15,9 @@
 
 ; --- 定数定義 ---
 BGC = $00             ; 背景色 黒以外ではノイズがひどい
-DEBUG_BGC = $88       ; オルタナティブ背景色
-PLAYER_SPEED = 1      ; PL速度
-PLAYER_SHOOTRATE = 8  ; 射撃クールダウンレート
+DEBUG_BGC = $00       ; オルタナティブ背景色
+PLAYER_SPEED = 3      ; PL速度
+PLAYER_SHOOTRATE = 5  ; 射撃クールダウンレート
 PLBLT_SPEED = 8       ; PLBLT速度
 PLAYER_X = 31         ; 30だと現象が起こるが表示は同じ
 
