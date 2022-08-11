@@ -98,8 +98,8 @@ INIT:
   ; ---------------------------------------------------------------
   ;   変数初期化
   LDA #$FF                  ; ブラックリスト用番人
-  STA BLACKLIST1            ; 番人設定
-  STA BLACKLIST2
+  STA BLACKLIST1+1          ; 番人設定
+  STA BLACKLIST2+1
   LDA #1
   STA ZP_PL_COOLDOWN
   STZ ZP_PLBLT_TERMIDX      ; PLBLT終端ポインタ
@@ -163,12 +163,12 @@ MAIN:
   LDY #0
 @BL_DEL_LOOP:
   LDA (ZP_BLACKLIST_PTR),Y  ; X座標取得
-  CMP #$FF
-  BEQ @BL_END
   LSR
   TAX
   INY
   LDA (ZP_BLACKLIST_PTR),Y  ; Y座標取得
+  CMP #$FF
+  BEQ @BL_END
   PHY
   TAY
   JSR DEL_SQ8               ; 塗りつぶす
@@ -411,6 +411,7 @@ TICK_PL_BLT:
 ; -------------------------------------------------------------------
 .macro term_blacklist
   LDA #$FF
+  INY
   STA (ZP_BLACKLIST_PTR),Y
 .endmac
 
