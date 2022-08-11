@@ -20,7 +20,7 @@ PLAYER_SPEED = 3      ; PL速度
 PLAYER_SHOOTRATE = 5  ; 射撃クールダウンレート
 PLBLT_SPEED = 8       ; PLBLT速度
 PLAYER_X = 31         ; 30だと現象が起こるが表示は同じ
-ENEM1_SHOOTRATE = 10
+ENEM1_SHOOTRATE = 30
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -371,13 +371,25 @@ TICK_ENEM1:
   ; ---------------------------------------------------------------
   ;   射撃
   LDY ZP_DMK1_TERMIDX       ; Y:DMK1インデックス
+  ; X
   LDA ENEM1_LST,X
   STA DMK1_LST,Y            ; X
+  ; dX
+  CMP ZP_PLAYER_X           ; PL-Xと比較
+  LDA #1
+  BCC @SKP_ADC256a
+  LDA #256-1
+  @SKP_ADC256a:
+  STA DMK1_LST+2,Y          ; dX
+  ; Y
   LDA ENEM1_LST+1,X
   STA DMK1_LST+1,Y          ; Y
-  LDA #256-2
-  STA DMK1_LST+2,Y          ; dX
-  LDA #256-2
+  ; dY
+  CMP ZP_PLAYER_Y           ; PL-Xと比較
+  LDA #1
+  BCC @SKP_ADC256b
+  LDA #256-1
+  @SKP_ADC256b:
   STA DMK1_LST+3,Y          ; dY
   TYA
   CLC
