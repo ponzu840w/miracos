@@ -21,6 +21,7 @@ PLAYER_SHOOTRATE = 5  ; 射撃クールダウンレート
 PLBLT_SPEED = 8       ; PLBLT速度
 PLAYER_X = 31         ; 30だと現象が起こるが表示は同じ
 ENEM1_SHOOTRATE = 30
+TOP_MARGIN = 8*3
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -514,16 +515,17 @@ TICK_DMK1:
   ;   Y
   LDA DMK1_LST+1,X          ; Y座標取得（信頼している
   CLC
-  ADC #$80
-  CLC
   ADC DMK1_LST+3,X          ; dY加算
-  BVS @DEL                  ; 上下端を跨ぐなら削除
-  SEC
-  SBC #$80
   STA DMK1_LST+1,X          ; リストに格納
   STA ZP_CANVAS_Y           ; 描画用座標
   INY
   STA (ZP_BLACKLIST_PTR),Y  ; BL格納
+  DEY                       ; DELに備えて戻しておく
+  SEC
+  SBC #TOP_MARGIN
+  CMP #192-TOP_MARGIN
+  BCS @DEL
+  INY                       ; DELは回避された
   ; ---------------------------------------------------------------
   ;   Y当たり判定
   BBS7 ZR0,@SKP_COL_Y       ; XがヒットしてなければY判定もスキップ
