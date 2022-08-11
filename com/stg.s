@@ -48,7 +48,8 @@ PLAYER_X = 31         ; 30だと現象が起こるが表示は同じ
   ZP_PL_COOLDOWN:     .RES 1
   ZP_BL_INDEX:        .RES 1        ; ブラックリストのYインデックス退避
   ZP_PLBLT_TERMIDX:   .RES 1        ; PLBLT_LSTの終端を指す
-  ZP_ENEM1_TERMIDX:   .RES 1        ; PLBLT_LSTの終端を指す
+  ZP_ENEM1_TERMIDX:   .RES 1        ; ENEM1_LSTの終端を指す
+  ZP_DMK1_TERMIDX:    .RES 1        ; DMK1_LSTの終端を指す
 
 ; -------------------------------------------------------------------
 ;                              変数領域
@@ -58,15 +59,16 @@ PLAYER_X = 31         ; 30だと現象が起こるが表示は同じ
   FINFO_SAV:      .RES 2  ; FINFO
   ; ブラックに塗りつぶすべき座標のリスト（命名がわるい
   ; 2バイトで座標が表現され、それを原点に8x8が黒で塗られる
-  ; $FFが番人
-  ; X,Y,X,Y,..,$FF
-  ; 二つのリストは、アライメントせずとも隣接すべし
+  ; "Yの場所の"$FFが番人
+  ; X,Y,X,Y,..,$??,$FF
   BLACKLIST1:     .RES 256
   BLACKLIST2:     .RES 256
   ; プレイヤの発射した弾丸
-  ; 位置だけを保持する
-  PLBLT_LST:     .RES 32
-  ENEM1_LST:     .RES 32
+  PLBLT_LST:     .RES 32  ; (X,Y),(X,Y),...
+  ; 敵1
+  ENEM1_LST:     .RES 32  ; (X,Y),(X,Y),...
+  ; 弾幕1
+  DMK1_LST:      .RES 256 ; (X,Y,dX,dY),...
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -89,8 +91,6 @@ INIT:
   ;   CRTC
   LDA #%00000001            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ有効
   STA CRTC::CFG
-  ;STZ CRTC::VMAV
-  ;STZ CRTC::VMAH
   LDA #%01010101            ; フレームバッファ1
   STA ZP_VISIBLE_FLAME
   STA CRTC::RF              ; FB1を表示
