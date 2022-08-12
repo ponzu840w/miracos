@@ -529,6 +529,7 @@ TICK_DMK1:
   ; ---------------------------------------------------------------
   ;   Y当たり判定
   BBS7 ZR0,@SKP_COL_Y       ; XがヒットしてなければY判定もスキップ
+  LDA ZP_CANVAS_Y
   SEC
   SBC ZP_PLAYER_Y
   ADC #6
@@ -689,8 +690,17 @@ TICK:
   JSR PAD_READ                ; パッド状態更新
   STZ ZP_PL_DY
   STZ ZP_PL_DX
-  LDX #256-PLAYER_SPEED
-  LDY #PLAYER_SPEED
+  ;LDX #256-PLAYER_SPEED
+  ;LDY #PLAYER_SPEED
+  LDA #PLAYER_SPEED
+  BBS5 ZP_PADSTAT+1,@SKP_L    ; L
+  LSR                         ; 速度を半分に
+@SKP_L:
+  TAY                         ; Y:正のスピード
+  STA ZR0
+  LDA #0
+  SBC ZR0
+  TAX                         ; X:負のスピード
   BBS3 ZP_PADSTAT,@SKP_UP     ; up
   STX ZP_PL_DY
 @SKP_UP:
