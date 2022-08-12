@@ -508,7 +508,7 @@ TICK_DMK1:
   ;   X当たり判定
   SEC
   SBC ZP_PLAYER_X
-  ADC #6
+  ADC #3
   CMP #8
   ROR ZR0                   ; CをZR0 bit7に格納
   ; ---------------------------------------------------------------
@@ -532,7 +532,7 @@ TICK_DMK1:
   LDA ZP_CANVAS_Y
   SEC
   SBC ZP_PLAYER_Y
-  ADC #6
+  ADC #3
   CMP #8
   BCS @SKP_COL_Y
   ; ---------------------------------------------------------------
