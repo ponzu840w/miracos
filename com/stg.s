@@ -746,7 +746,7 @@ PAD_READ:
   RTS
 
 CHAR_DAT_ZIKI:
-  .INCBIN "../../ChDzUtl/images/ziki1-88.bin"
+  .INCBIN "+stg/manju-f.bin"
 
 CHAR_DAT_ZITAMA1:
   .INCBIN "../../ChDzUtl/images/zitama88.bin"
