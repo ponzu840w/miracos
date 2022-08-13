@@ -38,9 +38,6 @@ TOP_MARGIN = 8*3
   ZP_SHIFTER:         .RES 1        ; ゲームパッド読み取り処理用
   ; VBLANK
   ZP_VB_STUB:         .RES 2        ; 割り込み終了処理
-  ; SOUND
-  ZP_SE_STATE:        .RES 1        ; 効果音の状態
-  ZP_SE_TIMER:        .RES 1
   ; ゲームデータ
   ZP_PLAYER_X:        .RES 1        ; プレイヤ座標
   ZP_PLAYER_Y:        .RES 1
@@ -50,15 +47,13 @@ TOP_MARGIN = 8*3
   ZP_PL_COOLDOWN:     .RES 1
   ZP_BL_INDEX:        .RES 1        ; ブラックリストのYインデックス退避
   ZP_PLBLT_TERMIDX:   .RES 1        ; PLBLT_LSTの終端を指す
-  ZP_ENEM1_TERMIDX:    .RES 1        ; ENEM1_LSTの終端を指す
-  ZP_DMK1_TERMIDX:    .RES 1        ; DMK1_LSTの終端を指す
+  ZP_ENEM1_TERMIDX:   .RES 1        ; ENEM1_LSTの終端を指す
 
 ; -------------------------------------------------------------------
 ;                           実行用ライブラリ
 ; -------------------------------------------------------------------
-.SEGMENT "LIB"
-.INCLUDE "./+stg/dmk.s"
-.INCLUDE "./+stg/se.s"
+  .INCLUDE "./+stg/dmk.s"
+  .INCLUDE "./+stg/se.s"
 
 ; -------------------------------------------------------------------
 ;                              変数領域
@@ -76,8 +71,6 @@ TOP_MARGIN = 8*3
   PLBLT_LST:     .RES 32  ; (X,Y),(X,Y),...
   ; 敵
   ENEM1_LST:      .RES 32  ; (code,X,Y,f),(code,X,Y,f),...
-  ; 弾幕1
-  DMK1_LST:      .RES 256 ; (X,Y,dX,dY),...
 
 ; -------------------------------------------------------------------
 ;                             実行領域
