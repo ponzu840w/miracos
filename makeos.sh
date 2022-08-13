@@ -42,8 +42,10 @@ cl65 -g -Wl -Ln,./listing/symbol-bcos.s  -l ./listing/list-bcos.s -m ./listing/m
 # コマンドアセンブル
 rm ./bin/MCOS/COM/* -fr                 # 古いバイナリを廃棄
 # ディレクトリが優先されるようにソートしつつソースのリストを作成
-com_srcs=$(find ./com/* | awk '/\.s$/{"dirname "$0""|getline var;printf("%s %s\n",var,$0)}' | sort | awk '{print $2}')
+#com_srcs=$(find ./com/* | awk '/\.s$/{"dirname "$0""|getline var;printf("%s %s\n",var,$0)}' | sort | awk '{print $2}')
+com_srcs=$(find ./com/*.s;find ./com/test/*.s)
 #echo "$com_srcs"
+exit
 predir=""                               # 表示をすっきりさせるためのディレクトリ移動ディテクタ
 for comsrc in $com_srcs;                # com内の.sファイルすべてに対して
 do
