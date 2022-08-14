@@ -158,6 +158,7 @@ ENEM_UPDATE_JT:
 NANAMETTA_UPDATE:
   ; ---------------------------------------------------------------
   ;   射撃判定
+  LDX ZP_ENEM_XWK
   DEC ENEM_LST+3,X         ; T減算
   BNE @SKP_SHOT
   LDA #NANAMETTA_SHOOTRATE
