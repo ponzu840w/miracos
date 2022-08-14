@@ -156,13 +156,21 @@ ENEM_UPDATE_JT:
   .WORD NANAMETTA_UPDATE
 
 NANAMETTA_UPDATE:
+  BBS0 ZP_GENERAL_CNT,@LOAD_TEXTURE
+  BBS1 ZP_GENERAL_CNT,@MOVE
   ; ---------------------------------------------------------------
   ;   射撃判定
   LDX ZP_ENEM_XWK
-  DEC ENEM_LST+3,X         ; T減算
-  BNE @SKP_SHOT
+  LDA ENEM_LST+3,X          ; T取得
+  DEC                       ; T減算
+  BNE @SKP_TRESET
   LDA #NANAMETTA_SHOOTRATE
-  STA ENEM_LST+3,X         ; クールダウン更新
+@SKP_TRESET:
+  STA ENEM_LST+3,X          ; クールダウン更新
+  CMP #8
+  BCS @SKP_SHOT
+  ROR
+  BCS @SKP_SHOT
   ; ---------------------------------------------------------------
   ;   射撃
   LDY ZP_DMK1_TERMIDX       ; Y:DMK1インデックス
@@ -195,9 +203,11 @@ NANAMETTA_UPDATE:
 @SKP_SHOT:
   ; ---------------------------------------------------------------
   ;   移動
+@MOVE:
   LDX ZP_ENEM_XWK
   LDA ZP_CANVAS_X
-  INC
+  DEC
+  DEC
   STA ENEM_LST+1,X
   ;INC ZP_CANVAS_X
   ;LDA ENEM1_LST,X
@@ -214,6 +224,8 @@ NANAMETTA_UPDATE:
   ;SEC
   ;SBC #$80
   ;STA ENEM1_LST,X
+@LOAD_TEXTURE:
+  loadmem16 ZP_CHAR_PTR,CHAR_DAT_TEKI1
   JMP TICK_ENEM_UPDATE_END
 
 ; -------------------------------------------------------------------
