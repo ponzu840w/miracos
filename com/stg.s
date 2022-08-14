@@ -382,9 +382,9 @@ TICK:
   ;   ティック処理
   tick_player                 ; プレイヤ処理
   LDY #2
-  tick_enem
   tick_pl_blt                 ; PL弾移動と描画
   tick_dmk1
+  tick_enem
   term_blacklist              ; ブラックリスト終端
   tick_se                     ; 効果音
   exchange_frame              ; フレーム交換
