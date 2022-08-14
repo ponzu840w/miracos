@@ -46,6 +46,7 @@ TOP_MARGIN = 8*3
   ZP_PL_COOLDOWN:     .RES 1
   ZP_BL_INDEX:        .RES 1        ; ブラックリストのYインデックス退避
   ZP_PLBLT_TERMIDX:   .RES 1        ; PLBLT_LSTの終端を指す
+  ZP_GENERAL_CNT:     .RES 1
 
 ; -------------------------------------------------------------------
 ;                           実行用ライブラリ
@@ -390,6 +391,7 @@ TICK:
   exchange_frame              ; フレーム交換
   ; ---------------------------------------------------------------
   ;   ティック終端
+  INC ZP_GENERAL_CNT
   JMP (ZP_VB_STUB)            ; 片付けはBCOSにやらせる
 
 ; 背景色で正方形領域を塗りつぶす
