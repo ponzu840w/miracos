@@ -142,7 +142,7 @@ TICK_ENEM_UPDATE_END:
   JSR DRAW_CHAR8            ; 描画する
   PLY
   PLX
-  JMP TICK_ENEM_LOOP        ; 敵処理ループ
+  BRA TICK_ENEM_LOOP        ; 敵処理ループ
 TICK_ENEM_END:
 .endmac
 
@@ -156,13 +156,12 @@ ENEM_UPDATE_JT:
   .WORD NANAMETTA_UPDATE
 
 NANAMETTA_UPDATE:
-  JMP TICK_ENEM_UPDATE_END
   ; ---------------------------------------------------------------
   ;   射撃判定
-  DEC ENEM_LST+2,X         ; T減算
+  DEC ENEM_LST+3,X         ; T減算
   BNE @SKP_SHOT
   LDA #NANAMETTA_SHOOTRATE
-  STA ENEM_LST+2,X         ; クールダウン更新
+  STA ENEM_LST+3,X         ; クールダウン更新
   ; ---------------------------------------------------------------
   ;   射撃
   LDY ZP_DMK1_TERMIDX       ; Y:DMK1インデックス
@@ -191,13 +190,15 @@ NANAMETTA_UPDATE:
   ADC #4
   STA ZP_DMK1_TERMIDX       ; DMK1終端更新
   LDA #SE1_NUMBER
-  PHX
   JSR PLAY_SE               ; 発射音再生 X使用
-  PLX
 @SKP_SHOT:
   ; ---------------------------------------------------------------
   ;   移動
-  INC ZP_CANVAS_X
+  LDX ZP_ENEM_XWK
+  LDA ZP_CANVAS_X
+  INC
+  STA ENEM_LST+1,X
+  ;INC ZP_CANVAS_X
   ;LDA ENEM1_LST,X
   ;ADC #$80
   ;CLC
