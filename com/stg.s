@@ -20,7 +20,6 @@ PLAYER_SPEED = 3      ; PL速度
 PLAYER_SHOOTRATE = 5  ; 射撃クールダウンレート
 PLBLT_SPEED = 8       ; PLBLT速度
 PLAYER_X = 31         ; 30だと現象が起こるが表示は同じ
-ENEM1_SHOOTRATE = 30
 TOP_MARGIN = 8*3
 
 ; -------------------------------------------------------------------
@@ -103,7 +102,7 @@ INIT:
   LDA #1
   STA ZP_PL_COOLDOWN
   STZ ZP_PLBLT_TERMIDX      ; PLBLT終端ポインタ
-  STZ ZP_ENEM1_TERMIDX      ; ENEM1終端ポインタ
+  STZ ZP_ENEM_TERMIDX       ; ENEM終端ポインタ
   STZ ZP_DMK1_TERMIDX       ; DMK1終端ポインタ
   STZ ZP_PL_DX              ; プレイヤ速度初期値
   STZ ZP_PL_DY              ; プレイヤ速度初期値
@@ -383,7 +382,7 @@ TICK:
   ;   ティック処理
   tick_player                 ; プレイヤ処理
   LDY #2
-  tick_enem1
+  tick_enem
   tick_pl_blt                 ; PL弾移動と描画
   tick_dmk1
   term_blacklist              ; ブラックリスト終端
@@ -504,9 +503,6 @@ CHAR_DAT_ZIKI:
 
 CHAR_DAT_ZITAMA1:
   .INCBIN "../../ChDzUtl/images/zitama88.bin"
-
-CHAR_DAT_TEKI1:
-  .INCBIN "../../ChDzUtl/images/teki1-88.bin"
 
 CHAR_DAT_DMK1:
   .INCBIN "../../ChDzUtl/images/dmk1.bin"
