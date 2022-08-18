@@ -26,7 +26,7 @@ TICK_DMK1:
   LDX #$0                   ; X:DMK1リスト用インデックス
 @LOOP:
   CPX ZP_DMK1_TERMIDX
-  BCS @END                  ; PL弾をすべて処理したならPL弾処理終了
+  BCS @END                  ; DMK1をすべて処理したなら処理終了
   ; ---------------------------------------------------------------
   ;   X
   LDA DMK1_LST,X
