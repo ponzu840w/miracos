@@ -224,7 +224,7 @@ NANAMETTA_UPDATE:
   ;SBC #$80
   ;STA ENEM1_LST,X
 @LOAD_TEXTURE:
-  loadmem16 ZP_CHAR_PTR,CHAR_DAT_TEKI1
+  loadmem16 ZP_CHAR_PTR,CHAR_DAT_TEKI2
   JMP TICK_ENEM_UPDATE_END
 
 ; -------------------------------------------------------------------
@@ -247,4 +247,7 @@ NANAMETTA_HIT:
 ; -------------------------------------------------------------------
 CHAR_DAT_TEKI1:
   .INCBIN "+stg/teki1-88-tate.bin"
+
+CHAR_DAT_TEKI2:
+  .INCBIN "+stg/teki2-88-tate.bin"
 
