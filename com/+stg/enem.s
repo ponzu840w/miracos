@@ -11,10 +11,10 @@ ENEM_CODE_1_YOKOGIRYA          = 1*2  ; ヨコギリャ。左右から現れ反�
 ;                             ZP領域
 ; -------------------------------------------------------------------
 .ZEROPAGE
-  ZP_ENEM_TERMIDX:  .RES 1    ; ENEM_LSTの終端を指す
-  ZP_ENEM_CODEWK:   .RES 1    ; 作業用敵種類
-  ZP_ENEM_XWK:      .RES 1    ; X退避
-  ZP_ENEM_CODEFLAGWK:.RES 1   ; CODEにひそむフラグ
+  ZP_ENEM_TERMIDX:    .RES 1    ; ENEM_LSTの終端を指す
+  ZP_ENEM_CODEWK:     .RES 1    ; 作業用敵種類
+  ZP_ENEM_XWK:        .RES 1    ; X退避
+  ZP_ENEM_CODEFLAGWK: .RES 1    ; CODEにひそむフラグ
 
 ; -------------------------------------------------------------------
 ;                            変数領域
