@@ -19,7 +19,8 @@ DEBUG_BGC = $00       ; オルタナティブ背景色
 PLAYER_SPEED = 3      ; PL速度
 PLAYER_SHOOTRATE = 5  ; 射撃クールダウンレート
 PLBLT_SPEED = 8       ; PLBLT速度
-PLAYER_X = 31         ; 30だと現象が起こるが表示は同じ
+PLAYER_X = (256/2)-4
+PLAYER_Y = 192-8
 TOP_MARGIN = 8*3
 
 ; -------------------------------------------------------------------
@@ -116,7 +117,8 @@ INIT:
   JSR FILL                  ; FB2塗りつぶし
   LDA #PLAYER_X
   STA ZP_PLAYER_X           ; プレイヤー初期座標
-  STZ ZP_PLAYER_Y
+  LDA #PLAYER_Y
+  STA ZP_PLAYER_Y
   ; ---------------------------------------------------------------
   ;   効果音の初期化
   STZ ZP_SE_STATE           ; サウンドの初期化
@@ -286,9 +288,16 @@ TICK_PL_BLT:
 @DRAWPLBL:
   CPX ZP_PLBLT_TERMIDX
   BCS @END                  ; PL弾をすべて処理したならPL弾処理終了
+  ; X
   LDA PLBLT_LST,X
-  ADC #PLBLT_SPEED          ; 新しい弾の位置
-  BCC @SKP_Hamburg          ; 右にオーバーしたか
+  STA ZP_CANVAS_X           ; 描画用座標
+  STA (ZP_BLACKLIST_PTR),Y  ; BL格納
+  ; Y
+  LDA PLBLT_LST+1,X           ; Y座標取得（信頼している
+  SBC #PLBLT_SPEED          ; 新しい弾の位置
+  ;BCC @SKP_Hamburg          ; 右にオーバーしたか
+  CMP #TOP_MARGIN
+  BCS @SKP_Hamburg
 @DEL:
   ; 弾丸削除
   PHY
@@ -296,15 +305,12 @@ TICK_PL_BLT:
   PLY
   BRA @DRAWPLBL
 @SKP_Hamburg:
-  STA PLBLT_LST,X           ; リストに格納
-  STA ZP_CANVAS_X           ; 描画用座標
-  STA (ZP_BLACKLIST_PTR),Y  ; BL格納
-  INX                       ; Y座標へ
-  INY
-  LDA PLBLT_LST,X           ; Y座標取得（信頼している
+  STA PLBLT_LST+1,X           ; リストに格納
   STA ZP_CANVAS_Y           ; 描画用座標
-  STA (ZP_BLACKLIST_PTR),Y  ; BL格納
   INX                       ; 次のデータにインデックスを合わせる
+  INY
+  STA (ZP_BLACKLIST_PTR),Y  ; BL格納
+  INX
   INY
   PHY
   PHX
@@ -501,11 +507,11 @@ PAD_READ:
   RTS
 
 CHAR_DAT_ZIKI:
-  .INCBIN "../../ChDzUtl/images/ziki1-88.bin"
+  .INCBIN "+stg/ziki1-88-tate.bin"
 
 CHAR_DAT_ZITAMA1:
-  .INCBIN "../../ChDzUtl/images/zitama88.bin"
+  .INCBIN "+stg/zitama-88-tate.bin"
 
 CHAR_DAT_DMK1:
-  .INCBIN "../../ChDzUtl/images/dmk1.bin"
+  .INCBIN "+stg/dmk1-88.bin"
 
