@@ -156,8 +156,8 @@ ENEM_UPDATE_JT:
   .WORD NANAMETTA_UPDATE
 
 NANAMETTA_UPDATE:
-  BBS0 ZP_GENERAL_CNT,@LOAD_TEXTURE
-  BBS1 ZP_GENERAL_CNT,@MOVE
+  BBS0 ZP_GENERAL_CNT,@LOAD_TEXTURE ; 移動1/2
+  BBS1 ZP_GENERAL_CNT,@MOVE         ; 射撃1/4
   ; ---------------------------------------------------------------
   ;   射撃判定
   LDX ZP_ENEM_XWK
