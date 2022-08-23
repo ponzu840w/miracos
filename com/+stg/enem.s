@@ -29,9 +29,9 @@ ENEM_CODE_0_NANAMETTA          = 0*2  ; ナナメッタ。プレイヤーを狙�
   LDY ZP_ENEM_TERMIDX
   LDA #ENEM_CODE_0_NANAMETTA
   STA ENEM_LST,Y        ; code
-  LDA #200
+  LDA ZP_PLAYER_X
   STA ENEM_LST+1,Y      ; X
-  LDA ZP_PLAYER_Y
+  LDA #TOP_MARGIN+1
   STA ENEM_LST+2,Y      ; Y
   LDA #NANAMETTA_SHOOTRATE
   STA ENEM_LST+3,Y      ; T
@@ -205,10 +205,9 @@ NANAMETTA_UPDATE:
   ;   移動
 @MOVE:
   LDX ZP_ENEM_XWK
-  LDA ZP_CANVAS_X
-  DEC
-  DEC
-  STA ENEM_LST+1,X
+  LDA ZP_CANVAS_Y
+  INC
+  STA ENEM_LST+2,X
   ;INC ZP_CANVAS_X
   ;LDA ENEM1_LST,X
   ;ADC #$80
@@ -247,5 +246,5 @@ NANAMETTA_HIT:
 ;                             敵画像
 ; -------------------------------------------------------------------
 CHAR_DAT_TEKI1:
-  .INCBIN "../../ChDzUtl/images/teki1-88.bin"
+  .INCBIN "+stg/teki1-88-tate.bin"
 
