@@ -293,7 +293,7 @@ YOKOGIRYA_UPDATE:
   STA ZP_CANVAS_X
   STA ENEM_LST+1,X
 @LOAD_TEXTURE:
-  loadmem16 ZP_CHAR_PTR,CHAR_DAT_TEKI1
+  loadmem16 ZP_CHAR_PTR,CHAR_DAT_TEKI3
   JMP TICK_ENEM_UPDATE_END
 
 ; -------------------------------------------------------------------
@@ -320,4 +320,7 @@ CHAR_DAT_TEKI1:
 
 CHAR_DAT_TEKI2:
   .INCBIN "+stg/teki2-88-tate.bin"
+
+CHAR_DAT_TEKI3:
+  .INCBIN "+stg/teki3-88.bin"
 
