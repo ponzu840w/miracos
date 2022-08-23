@@ -203,10 +203,13 @@ NANAMETTA_UPDATE:
 @SKP_SHOT:
   ; ---------------------------------------------------------------
   ;   移動
+  ;    ゆっくり降りてきて、適当なところで止まる
 @MOVE:
   LDX ZP_ENEM_XWK
   LDA ZP_CANVAS_Y
   INC
+  CMP #80
+  BEQ @LOAD_TEXTURE
   STA ENEM_LST+2,X
   ;INC ZP_CANVAS_X
   ;LDA ENEM1_LST,X
