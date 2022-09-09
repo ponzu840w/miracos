@@ -70,6 +70,10 @@ ZP_SSR:                   .RES 1  ; レコード経過秒数（デシマル
 ZP_TICK_FLAG:             .RES 1  ; 0=ティック待機期間 非0=ティック発生
 ZP_SELECTOR_STATE:        .RES 1  ; メニュー状態
 ZP_SP:                    .RES 1
+; SNESPAD
+ZP_PADSTAT:         .RES 2        ; ゲームパッドの状態が収まる
+ZP_SHIFTER:         .RES 1        ; ゲームパッド読み取り処理用
+ZP_PRE_PADSTAT:     .RES 2
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -78,6 +82,12 @@ ZP_SP:                    .RES 1
 START:
   TSX
   STX ZP_SP
+  mem2mem16 ZP_PRE_PADSTAT,ZP_PADSTAT ; 表示するときすなわち状態変化があったとき、前回状態更新
+  ; 汎用ポートの設定
+  LDA VIA::PAD_DDR          ; 0で入力、1で出力
+  ORA #(VIA::PAD_CLK|VIA::PAD_PTS)
+  AND #<~(VIA::PAD_DAT)
+  STA VIA::PAD_DDR
   ; アドレス類を取得
   LDY #BCOS::BHY_GET_ADDR_txtvram768  ; TRAM
   syscall GET_ADDR
@@ -435,6 +445,9 @@ TITLE:
 ;                        垂直同期割り込み
 ; -------------------------------------------------------------------
 VBLANK:
+  ; パッド状態反映
+  JSR PAD_READ          ; パッドを読む
+  ; ギアを回す
   DEC ZP_GEAR_FOR_TICK
   BNE @SKP_TICK
   LDA ZP_VB_PAR_TICK
@@ -975,6 +988,77 @@ XY_PRT_TIME:
   INX
   LDA ZP_SS
   JSR XY_PRT_BYT
+  RTS
+
+PAD_READ:
+  ; P/S下げる
+  LDA VIA::PAD_REG
+  ORA #VIA::PAD_PTS
+  STA VIA::PAD_REG
+  ; P/S下げる
+  LDA VIA::PAD_REG
+  AND #<~VIA::PAD_PTS
+  STA VIA::PAD_REG
+  ; 読み取りループ
+  LDX #16
+@LOOP:
+  LDA VIA::PAD_REG        ; データ読み取り
+  ; クロック下げる
+  AND #<~VIA::PAD_CLK
+  STA VIA::PAD_REG
+  ; 16bit値として格納
+  ROR
+  ROL ZP_PADSTAT+1
+  ROL ZP_PADSTAT
+  ; クロック上げる
+  LDA VIA::PAD_REG        ; データ読み取り
+  ORA #VIA::PAD_CLK
+  STA VIA::PAD_REG
+  DEX
+  BNE @LOOP
+  ; 変化はあったか
+  LDA ZP_PADSTAT
+  CMP ZP_PRE_PADSTAT
+  BNE @CHANGED
+  LDA ZP_PRE_PADSTAT+1
+  CMP ZP_PADSTAT+1
+  BEQ @SKP
+@CHANGED:
+  mem2mem16 ZP_PRE_PADSTAT,ZP_PADSTAT ; 表示するときすなわち状態変化があったとき、前回状態更新
+  LDA ZP_PADSTAT
+  STA ZP_SHIFTER
+LOW:
+  LDY #0
+@ATTRLOOP:
+  ASL ZP_SHIFTER           ; C=ビット情報
+  BCC @ATTR_CHR
+  LDA #0                   ; そのビットが立っていないときはハイフンを表示
+  BRA @SKP_ATTR_CHR
+@ATTR_CHR:
+  LDA STR_BUTTON_NAMES,Y   ; 属性文字を表示
+@SKP_ATTR_CHR:
+  STA STR_WORK,Y           ; 属性文字/-を格納
+  INY
+  CPY #8
+  BNE @ATTRLOOP
+  ; 上位4bit
+  LDA ZP_PADSTAT+1
+  STA ZP_SHIFTER
+HIGH:
+  LDY #0
+@ATTRLOOP:
+  ASL ZP_SHIFTER                ; C=ビット情報
+  BCC @ATTR_CHR
+  LDA #'-'                      ; そのビットが立っていないときはハイフンを表示
+  BRA @SKP_ATTR_CHR
+@ATTR_CHR:
+  LDA STR_BUTTON_NAMES+8,Y      ; 属性文字を表示
+@SKP_ATTR_CHR:
+  STA STR_WORK+8,Y
+  INY
+  CPY #4
+  BNE @ATTRLOOP
+@SKP:
   RTS
 
 STR_LENGTH: .ASCIIZ         "Length:"
