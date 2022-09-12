@@ -162,6 +162,8 @@ SYSCALL_TABLE:
   .WORD FS::FUNC_FS_READ_BYTS     ; 18 バイト数指定ファイル読み取り
   .WORD IRQ::FUNC_IRQ_SETHNDR_VB  ; 19 垂直同期割り込みハンドラ登録
   .WORD FUNC_GET_ADDR             ; 20 カーネル管理のアドレスを取得
+  .WORD FUNC_TIMEOUT              ; 22 タイムアウトを設定
+  .WORD FUNC_TIMEOUT              ; 22 タイムアウトを設定
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン

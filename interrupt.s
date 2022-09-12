@@ -60,10 +60,12 @@ SKP_UART:
   DEC TIMEOUT_MS_CNT
   BNE @SET_T1             ; 数え切らないうちはT1再設定
   ; タイムアウト発生
+  BIT VIA::T1CL           ; 割り込みフラグぽっきり
   ; スタックポインタ復帰
   LDX TIMEOUT_STACKPTR
   TXS
   ; 脱出
+  CLI
   JMP (TIMEOUT_EXIT_VEC16)
 @SET_T1:
   ; T1タイマー設定
