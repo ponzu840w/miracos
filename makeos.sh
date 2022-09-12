@@ -45,7 +45,6 @@ rm ./bin/MCOS/COM/* -fr                 # 古いバイナリを廃棄
 #com_srcs=$(find ./com/* | awk '/\.s$/{"dirname "$0""|getline var;printf("%s %s\n",var,$0)}' | sort | awk '{print $2}')
 com_srcs=$(find ./com/*.s;find ./com/test/*.s)
 #echo "$com_srcs"
-exit
 predir=""                               # 表示をすっきりさせるためのディレクトリ移動ディテクタ
 for comsrc in $com_srcs;                # com内の.sファイルすべてに対して
 do
@@ -60,7 +59,7 @@ do
   fi
   mkdir ./listing/${dn} -p
   mkdir ./bin/MCOS/${dn^^} -p
-  cl65 -Wa -I,"./com/" -m ./listing/${dn}/${bn}.map -vm -t none -C ./conftpa.cfg -o $out $comsrc
+  cl65 -g -Wl -Ln,./listing/${dn}/s-${bn}.s -l ./listing/${dn}/l-${bn}.s -Wa -I,"./com/" -m ./listing/${dn}/${bn}.map -vm -t none -C ./conftpa.cfg -o $out $comsrc
   cat ./listing/${dn}/${bn}.map |
     awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 " 0x"$2 " 0x"$3 " 0x"$4}' |
     awk -v name=${bn^^}.COM -v tpa=$TPA_START -v ccp=$CCP_START '
