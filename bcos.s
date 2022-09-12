@@ -33,6 +33,7 @@ FALSE = 0
   PS2       = %00000100
   GCON      = %00001000
 .ENDPROC
+TIMEOUT_T1H = %01000000
 
 ; -------------------------------------------------------------------
 ;                             変数宣言
@@ -162,6 +163,7 @@ SYSCALL_TABLE:
   .WORD IRQ::FUNC_IRQ_SETHNDR_VB  ; 19 垂直同期割り込みハンドラ登録
   .WORD FUNC_GET_ADDR             ; 20 カーネル管理のアドレスを取得
   .WORD FUNC_CON_INTERRUPT_CHR    ; 21 コンソール入力キューに割り込む
+  .WORD FUNC_TIMEOUT              ; 22 タイムアウトを設定
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
@@ -184,7 +186,6 @@ FUNC_RESET:
   JSR FS::INIT                    ; ファイルシステムの初期化処理
   JSR GCON::INIT                  ; コンソール画面の初期化処理
   SEI                             ; --- 割込みに関連する初期化
-  JSR PS2::INIT                   ; PS/2キーボードの初期化処理
   JSR BCOS_UART::INIT             ; UARTの初期化処理
   ; コンソール入力バッファの初期化
   STZ ZP_CONINBF_RD_P
@@ -204,6 +205,20 @@ FUNC_RESET:
   ORA #%10000001                  ; bit 0はCA2
   STA VIA::IER
   CLI                             ; --- 割込みに関連する初期化終わり
+  ; --- PS/2キーボードの初期化処理  タイムアウト付き
+  ; タイムアウト設定
+  loadmem16 ZR0,@INIT_PS2_END
+  LDA #PS2::INIT_TIMEOUT_MAX
+  JSR FUNC_TIMEOUT
+  JSR PS2::INIT                   ; PS/2キーボードの初期化処理
+  ; 成功！
+  ; タイムアウトオフ
+  LDA #0
+  JSR FUNC_TIMEOUT
+  ; PS/2KBデバイス有効化
+  SMB2 ZP_CON_DEV_CFG
+@INIT_PS2_END:
+  ; --- PS/2キーボードの初期化処理  ここまで
   .IF !SRECBUILD                  ; 分離部分の配置は、UARTロードの時は不要
     ; SYSCALL.SYSを配置する
     loadAY16 PATH_SYSCALL
@@ -437,4 +452,42 @@ OPEN_ADDR_TABLE:
   .WORD TXTVRAM768        ; 1
   .WORD FONT2048          ; 2
   .WORD ZP_CON_DEV_CFG    ; 3
+
+; -------------------------------------------------------------------
+; BCOS 22                 タイムアウト設定
+; -------------------------------------------------------------------
+; input     : A   = タイムアウト期間（ミリ秒）
+;           : ZR0 = 脱出先アドレス
+; output    : A   = 可否？
+; -------------------------------------------------------------------
+FUNC_TIMEOUT:
+  ; ゼロチェック
+  CMP #0
+  BNE @SKP_OFF
+  ; ゼロ時間が指定されたので起動したタイマーを無効化
+  LDA #VIA::IFR_T1               ; T1割込みを無効に
+  BRA @SET_IER
+@SKP_OFF:
+  ; スタックポインタを保存
+  TSX
+  INX ; システムコールでのフレームを破棄
+  INX
+  STX TIMEOUT_STACKPTR
+  ; 引数を変数領域に格納
+  STA TIMEOUT_MS_CNT
+  mem2mem16 TIMEOUT_EXIT_VEC16,ZR0
+  ; タイマーを起動
+  ; IER=割込み有効レジスタ
+  LDA #(VIA::IER_SET|VIA::IFR_T1)   ; T1割込みを有効に
+@SET_IER:
+  STA VIA::IER
+  ; ACR=補助制御レジスタ
+  LDA VIA::ACR
+  AND #%00111111                    ; 76=00でT1時限割込み
+  STA VIA::ACR
+  ; T1タイマー
+  LDA #TIMEOUT_T1H                  ; フルの1/4で、8MHz時1ms
+  STA VIA::T1CH
+  STZ VIA::T1CL
+  RTS
 

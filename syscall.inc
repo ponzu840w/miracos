@@ -30,4 +30,5 @@ GET_ADDR            = 20
   BHY_GET_ADDR_font2048       = 2*2
   BHY_GET_ADDR_condevcfg      = 3*2
 CON_INTERRUPT_CHR   = 21
+TIMEOUT             = 22
 

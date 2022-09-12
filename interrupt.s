@@ -47,12 +47,36 @@ SKP_UART:
   BCC @SKP_CA2
   ; 垂直同期割り込み処理
   ; NOTE:ここにキーボード処理など
+  ; PS/2は有効か
+  BBR2 ZP_CON_DEV_CFG,@SKP_PS2TRAP
+  ; PS/2処理
   JSR PS2::VBLANK
   BEQ @SKP_PS2TRAP
   JSR TRAP
 @SKP_PS2TRAP:
   JMP (VBLANK_USER_VEC16)
 @SKP_CA2:
+  ; T1検査
+  AND #%00100000      ; Z -> not T1（1右シフト済み）
+  BEQ @SKP_T1
+  ; タイムアウト用カウントダウン
+  DEC TIMEOUT_MS_CNT
+  BNE @SET_T1             ; 数え切らないうちはT1再設定
+  ; タイムアウト発生
+  BIT VIA::T1CL           ; 割り込みフラグぽっきり
+  ; スタックポインタ復帰
+  LDX TIMEOUT_STACKPTR
+  TXS
+  ; 脱出
+  CLI
+  JMP (TIMEOUT_EXIT_VEC16)
+@SET_T1:
+  ; T1タイマー設定
+  LDA #TIMEOUT_T1H        ; フルの1/4で、8MHz時1ms
+  STA VIA::T1CH
+  STZ VIA::T1CL
+  BRA PL_CLI_RTI          ; 終了
+@SKP_T1:
 
 ; 不明な割り込みはデバッガへ
 DONKI:
