@@ -47,6 +47,9 @@ SKP_UART:
   BCC @SKP_CA2
   ; 垂直同期割り込み処理
   ; NOTE:ここにキーボード処理など
+  ; PS/2は有効か
+  BBR2 ZP_CON_DEV_CFG,@SKP_PS2TRAP
+  ; PS/2処理
   JSR PS2::VBLANK
   BEQ @SKP_PS2TRAP
   JSR TRAP
