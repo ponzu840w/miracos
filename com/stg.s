@@ -48,6 +48,8 @@ TOP_MARGIN = 8*3
   ZP_BL_INDEX:        .RES 1        ; ブラックリストのYインデックス退避
   ZP_PLBLT_TERMIDX:   .RES 1        ; PLBLT_LSTの終端を指す
   ZP_GENERAL_CNT:     .RES 1
+  ZP_CMD_PTR:         .RES 2        ; ステージコマンドのポインタ
+  ZP_CMD_WAIT_CNT:    .RES 1
 
 ; -------------------------------------------------------------------
 ;                           実行用ライブラリ
@@ -108,6 +110,8 @@ INIT:
   STZ ZP_DMK1_TERMIDX       ; DMK1終端ポインタ
   STZ ZP_PL_DX              ; プレイヤ速度初期値
   STZ ZP_PL_DY              ; プレイヤ速度初期値
+  loadmem16 ZP_CMD_PTR,STAGE_CMDS
+  STZ ZP_CMD_WAIT_CNT
   ; ---------------------------------------------------------------
   ;   画面の初期化
   LDA #BGC
@@ -332,10 +336,95 @@ TICK_PL_BLT:
 .endmac
 
 ; -------------------------------------------------------------------
+;                           コマンド処理
+; -------------------------------------------------------------------
+.macro tick_cmd
+TICK_CMD:
+  LDY #1              ; コマンド読み取り用インデックス
+  LDA (ZP_CMD_PTR)    ; コマンド取得
+  CMP #$FD
+  BNE @SKP_LOOP
+  ; ---------------------------------------------------------------
+  ;   ループ
+@LOOP:
+  LDA (ZP_CMD_PTR),Y  ; 回数
+  DEC
+  STA (ZP_CMD_PTR),Y
+  BEQ @PLUS_4
+  INY
+  LDA (ZP_CMD_PTR),Y
+  TAX
+  INY
+  LDA (ZP_CMD_PTR),Y
+  STX ZP_CMD_PTR
+  STA ZP_CMD_PTR+1
+  BRA @END_TICK_CMD
+@SKP_LOOP:
+  CMP #$FE
+  BNE @SKP_WAIT
+  ; ---------------------------------------------------------------
+  ;   待機
+@WAIT:                ; $FE WAIT
+  LDA ZP_CMD_WAIT_CNT ; 現在カウント
+  BNE @SKP_NEW_WAIT
+  ; 新規待機
+  LDA (ZP_CMD_PTR),Y  ; 引数:待ちフレーム
+  STA ZP_CMD_WAIT_CNT
+@SKP_NEW_WAIT:
+  DEC ZP_CMD_WAIT_CNT
+  BNE @END_TICK_CMD
+  CLC
+  LDA ZP_CMD_PTR
+  ADC #2
+  STA ZP_CMD_PTR
+  LDA ZP_CMD_PTR+1
+  ADC #0
+  STA ZP_CMD_PTR+1
+  BRA @END_TICK_CMD
+@SKP_WAIT:
+  ; ---------------------------------------------------------------
+  ;   終了
+@STOP:
+  CMP #$FF
+  BEQ @END_TICK_CMD
+  ; ---------------------------------------------------------------
+  ;   敵をコードと引数からスポーン
+@SPAWN_ENEM:
+  LDX ZP_ENEM_TERMIDX
+  STA ENEM_LST,X        ; code
+  LDA (ZP_CMD_PTR),Y
+  STA ENEM_LST+1,X      ; X
+  INY
+  LDA (ZP_CMD_PTR),Y
+  STA ENEM_LST+2,X      ; Y
+  INY
+  LDA (ZP_CMD_PTR),Y
+  STA ENEM_LST+3,X      ; T
+  ; ---------------------------------------------------------------
+  ;   ENEMインデックス更新
+  TXA
+  CLC
+  ADC #4                    ; TAXとするとINX*4にサイクル数まで等価
+  STA ZP_ENEM_TERMIDX
+@PLUS_4:
+  ; ---------------------------------------------------------------
+  ;   CMDインデックス更新
+  CLC
+  LDA ZP_CMD_PTR
+  ADC #4
+  STA ZP_CMD_PTR
+  LDA ZP_CMD_PTR+1
+  ADC #0
+  STA ZP_CMD_PTR+1
+@END_TICK_CMD:
+.endmac
+
+; -------------------------------------------------------------------
 ;                        垂直同期割り込み
 ; -------------------------------------------------------------------
 VBLANK:
 TICK:
+  tick_cmd
   ; ---------------------------------------------------------------
   ;   塗りつぶし
   make_blacklist_ptr          ; ブラックリストポインタ作成
@@ -514,4 +603,42 @@ CHAR_DAT_ZITAMA1:
 
 CHAR_DAT_DMK1:
   .INCBIN "+stg/dmk1-88.bin"
+
+STAGE_CMDS:
+  .BYTE $FE,60
+  .BYTE ENEM_CODE_0_NANAMETTA,10,TOP_MARGIN,6
+  .BYTE ENEM_CODE_0_NANAMETTA,20,TOP_MARGIN,12
+  .BYTE ENEM_CODE_0_NANAMETTA,30,TOP_MARGIN,24
+  .BYTE $FE,60
+  .BYTE ENEM_CODE_0_NANAMETTA,256-10,TOP_MARGIN,6
+  .BYTE ENEM_CODE_0_NANAMETTA,256-20,TOP_MARGIN,12
+  .BYTE ENEM_CODE_0_NANAMETTA,256-30,TOP_MARGIN,24
+  .BYTE $FE,60
+  .BYTE ENEM_CODE_0_NANAMETTA,128,TOP_MARGIN,6
+YOKOGIRYA_LOOP:
+  .BYTE $FE,200
+  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN,3
+  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
+  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
+  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*3),257-3
+  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*4),3
+  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*5),257-3
+  .BYTE $FE,10
+  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN,2
+  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-2
+  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
+  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*3),257-3
+  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*4),4
+  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*5),257-4
+  .BYTE $FE,10
+  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN,4
+  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-4
+  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
+  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*3),257-3
+  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*4),2
+  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*5),257-2
+  .BYTE $FD
+    .BYTE 100
+    .WORD YOKOGIRYA_LOOP
+  .BYTE $FF
 
