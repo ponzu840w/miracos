@@ -33,6 +33,7 @@ FALSE = 0
   PS2       = %00000100
   GCON      = %00001000
 .ENDPROC
+TIMEOUT_T1H = %01000000
 
 ; -------------------------------------------------------------------
 ;                             変数宣言
@@ -427,4 +428,35 @@ OPEN_ADDR_TABLE:
   .WORD TXTVRAM768        ; 1
   .WORD FONT2048          ; 2
   .WORD ZP_CON_DEV_CFG    ; 3
+
+; -------------------------------------------------------------------
+; BCOS 22                 タイムアウト設定
+; -------------------------------------------------------------------
+; input     : A   = タイムアウト期間（ミリ秒）
+;           : ZR0 = 脱出先アドレス
+; output    : A   = 可否？
+; -------------------------------------------------------------------
+FUNC_TIMEOUT:
+  ; スタックポインタを保存
+  TSX
+  INX ; システムコールでのフレームを破棄
+  INX
+  STX TIMEOUT_STACKPTR
+  ; 引数を変数領域に格納
+  STA TIMEOUT_MS_CNT
+  mem2mem16 TIMEOUT_EXIT_VEC16,ZR0
+  ; タイマーを起動
+  ; IER=割込み有効レジスタ
+  LDA VIA::IER
+  ORA #(VIA::IER_SET|VIA::IFR_T1)   ; T1割込みを有効に
+  STA VIA::IER
+  ; ACR=補助制御レジスタ
+  LDA VIA::ACR
+  AND #%00111111          ; 76=00でT1時限割込み
+  STA VIA::ACR
+  ; T1タイマー
+  LDA #TIMEOUT_T1H        ; フルの1/4で、8MHz時1ms
+  STA VIA::T1CH
+  STZ VIA::T1CL
+  RTS
 
