@@ -16,6 +16,8 @@
 ; --- 定数定義 ---
 BGC = $00             ; 背景色 黒以外ではノイズがひどい
 DEBUG_BGC = $00       ; オルタナティブ背景色
+MSG_BGC = $99
+MSG_COL = $FF
 PLAYER_SPEED = 3      ; PL速度
 PLAYER_SHOOTRATE = 5  ; 射撃クールダウンレート
 PLBLT_SPEED = 8       ; PLBLT速度
@@ -122,10 +124,10 @@ INIT_GAME:
   ; ---------------------------------------------------------------
   ;   画面の初期化
   LDA #BGC
-  JSR FILL                  ; FB1塗りつぶし
+  JSR FILL_BG               ; FB1塗りつぶし
   LDX #2                    ; FB2を書き込み先に
   STX CRTC::WF
-  JSR FILL                  ; FB2塗りつぶし
+  JSR FILL_BG               ; FB2塗りつぶし
   LDA #PLAYER_X
   STA ZP_PLAYER_X           ; プレイヤー初期座標
   LDA #PLAYER_Y
@@ -569,14 +571,20 @@ DRAW_CHAR8:
 @END:
   RTS
 
-; 画面全体をAの値で埋め尽くす
-FILL:
+; メッセージ画面、ゲーム画面を各背景色で
+FILL_BG:
+  ; message
+  LDA #MSG_BGC
   LDY #$00
   STY CRTC::VMAV
   STY CRTC::VMAH
-  LDY #$C0
+  LDY #TOP_MARGIN
+  JSR FILL_LOOP_V
+  ; game
+  LDA #BGC
+  LDY #192-TOP_MARGIN
 FILL_LOOP_V:
-  LDX #$80
+  LDX #256/2
 FILL_LOOP_H:
   STA CRTC::WDBF
   DEX
