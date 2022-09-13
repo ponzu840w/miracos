@@ -14,17 +14,18 @@
 .INCLUDE "../syscall.mac"
 
 ; --- 定数定義 ---
-BGC = $00             ; 背景色 黒以外ではノイズがひどい
+BGC = $00             ; 背景色
 DEBUG_BGC = $00       ; オルタナティブ背景色
-MSG_BGC = $99
-MSG_COL = $FF
+INFO_BGC = $99        ; INFO背景色
+INFO_COL = $FF        ; INFO文字色
 PLAYER_SPEED = 3      ; PL速度
 PLAYER_SHOOTRATE = 5  ; 射撃クールダウンレート
 PLBLT_SPEED = 8       ; PLBLT速度
-PLAYER_X = (256/2)-4
-PLAYER_Y = 192-8
-TOP_MARGIN = 8*3
-RL_MARGIN = 4
+PLAYER_X = (256/2)-4  ; プレイヤー初期位置X
+PLAYER_Y = 192-(8*3)  ; プレイヤー初期位置Y
+TOP_MARGIN = 8*3      ; 上部のマージン
+RL_MARGIN = 4         ; 左右のマージン
+ZANKI_MAX = 6         ; ストック可能な自機の最大数
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -53,6 +54,9 @@ RL_MARGIN = 4
   ZP_GENERAL_CNT:     .RES 1
   ZP_CMD_PTR:         .RES 2        ; ステージコマンドのポインタ
   ZP_CMD_WAIT_CNT:    .RES 1
+  ZP_ZANKI:           .RES 1        ; 残機
+  ZP_INFO_FLAG_P:     .RES 1        ; INFO描画箇所フラグ 7|???? ???,残機|0
+  ZP_INFO_FLAG_S:     .RES 1        ; セカンダリ
 
 ; -------------------------------------------------------------------
 ;                           実行用ライブラリ
@@ -60,6 +64,7 @@ RL_MARGIN = 4
   .PROC IMF
     .INCLUDE "./+stg/imf.s"
   .ENDPROC
+  .INCLUDE "./+stg/infobox.s"
   .INCLUDE "./+stg/dmk.s"
   .INCLUDE "./+stg/se.s"
   .INCLUDE "./+stg/enem.s"
@@ -112,6 +117,8 @@ INIT_GAME:
   LDA #$FF                  ; ブラックリスト用番人
   STA BLACKLIST1+1          ; 番人設定
   STA BLACKLIST2+1
+  STA ZP_INFO_FLAG_P
+  STA ZP_INFO_FLAG_S
   LDA #1
   STA ZP_PL_COOLDOWN
   STZ ZP_PLBLT_TERMIDX      ; PLBLT終端ポインタ
@@ -508,6 +515,7 @@ TICK:
   tick_enem
   term_blacklist              ; ブラックリスト終端
   tick_se                     ; 効果音
+  tick_infobox                ; 情報画面
   exchange_frame              ; フレーム交換
   ; ---------------------------------------------------------------
   ;   ティック終端
@@ -574,7 +582,7 @@ DRAW_CHAR8:
 ; メッセージ画面、ゲーム画面を各背景色で
 FILL_BG:
   ; message
-  LDA #MSG_BGC
+  LDA #INFO_BGC
   LDY #$00
   STY CRTC::VMAV
   STY CRTC::VMAH
