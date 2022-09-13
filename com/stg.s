@@ -22,6 +22,7 @@ PLBLT_SPEED = 8       ; PLBLT速度
 PLAYER_X = (256/2)-4
 PLAYER_Y = 192-8
 TOP_MARGIN = 8*3
+RL_MARGIN = 4
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -264,14 +265,30 @@ DEL_PL_BLT:
 ; -------------------------------------------------------------------
 .macro tick_player
   ; プレイヤ移動
+  ; X
   LDA ZP_PLAYER_X
   CLC
   ADC ZP_PL_DX
+  PHA
+  SEC
+  SBC #RL_MARGIN
+  CMP #256-(RL_MARGIN*2)-4
+  PLA
+  BCS @SKP_NEW_X
   STA ZP_PLAYER_X
+@SKP_NEW_X:
+  ; Y
   LDA ZP_PLAYER_Y
   CLC
   ADC ZP_PL_DY
+  PHA
+  SEC
+  SBC #TOP_MARGIN           ; 比較のためにテキスト領域を無視してそろえる
+  CMP #192-TOP_MARGIN-8     ; 自由領域をオーバーしたか
+  PLA
+  BCS @SKP_NEW_Y
   STA ZP_PLAYER_Y
+@SKP_NEW_Y:
   ; プレイヤ描画
   loadmem16 ZP_CHAR_PTR,CHAR_DAT_ZIKI
   LDA ZP_PLAYER_X
@@ -435,7 +452,7 @@ TICK:
   ;   塗りつぶし
   make_blacklist_ptr          ; ブラックリストポインタ作成
   clear_by_blacklist          ; ブラックリストに沿ったエンティティ削除
-  anti_noise                  ; ノイズ対策に行ごと消去
+  ;anti_noise                  ; ノイズ対策に行ごと消去
   ; ---------------------------------------------------------------
   ;   キー操作
   JSR PAD_READ                ; パッド状態更新
