@@ -18,6 +18,9 @@ BGC = $00             ; 背景色
 DEBUG_BGC = $00       ; オルタナティブ背景色
 INFO_BGC = $99        ; INFO背景色
 INFO_COL = $FF        ; INFO文字色
+INFO_FLAME = $11      ; INFOフチ
+INFO_FLAME_L = $19    ; INFOフチ
+INFO_FLAME_R = $91    ; INFOフチ
 PLAYER_SPEED = 3      ; PL速度
 PLAYER_SHOOTRATE = 5  ; 射撃クールダウンレート
 PLBLT_SPEED = 8       ; PLBLT速度
@@ -582,12 +585,29 @@ DRAW_CHAR8:
 ; メッセージ画面、ゲーム画面を各背景色で
 FILL_BG:
   ; message
-  LDA #INFO_BGC
   LDY #$00
   STY CRTC::VMAV
   STY CRTC::VMAH
-  LDY #TOP_MARGIN
-  JSR FILL_LOOP_V
+  ; 上のフチ
+  LDA #INFO_FLAME
+  LDX #256/2
+  JSR HLINE
+  ; 左右の淵と中身
+  LDY #TOP_MARGIN-2
+@LOOP:
+  LDA #INFO_FLAME_L
+  STA CRTC::WDBF
+  LDA #INFO_BGC
+  LDX #(256/2)-2
+  JSR HLINE
+  LDA #INFO_FLAME_R
+  STA CRTC::WDBF
+  DEY
+  BNE @LOOP
+  ; 下の淵
+  LDA #INFO_FLAME
+  LDX #256/2
+  JSR HLINE
   ; game
   LDA #BGC
   LDY #192-TOP_MARGIN
@@ -599,6 +619,13 @@ FILL_LOOP_H:
   BNE FILL_LOOP_H
   DEY
   BNE FILL_LOOP_V
+  RTS
+
+HLINE:
+@LOOP:
+  STA CRTC::WDBF
+  DEX
+  BNE @LOOP
   RTS
 
 PAD_READ:
