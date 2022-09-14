@@ -4,6 +4,8 @@ INFO_RL_MARGIN = 2
 ; -------------------------------------------------------------------
 ;                              残機描画
 ; -------------------------------------------------------------------
+; 塗りつぶしてから、左から一機一機描いていく
+; NOTE:増減のたびにやるのは非効率ではある
 .macro draw_zanki
   ; エリアを黒で塗りつぶす
   LDX #128-(4*ZANKI_MAX)-(INFO_RL_MARGIN/2)
@@ -19,12 +21,29 @@ INFO_RL_MARGIN = 2
   CPY #INFO_TOP_MARGIN+8
   BNE @FILL_LOOP
   ; 残機画像
-  loadmem16 ZP_CHAR_PTR,CHAR_DAT_ZIKI
-  LDA #256-INFO_TOP_MARGIN-8
+  loadmem16 ZP_CHAR_PTR,CHAR_DAT_ZIKI ; 画像指定
+  LDA ZP_ZANKI                        ; 残機数取得
+  STA ZR1+1                           ; ZR1H=カウントダウン用
+  INC ZR1+1
+  LDA #256-INFO_TOP_MARGIN-8          ; 一匹目のX座標
+  STA ZR1                             ; X座標保存
+@ZANKI_LOOP:
+  ; X座標指定
   STA ZP_CANVAS_X
+  ; 脱出条件確認
+  DEC ZR1+1
+  BEQ @EXT_LOOP
+  ; Y座標指定
   LDA #INFO_TOP_MARGIN
   STA ZP_CANVAS_Y
   JSR DRAW_CHAR8
+  ; X座標更新
+  LDA ZR1
+  SEC
+  SBC #8
+  STA ZR1
+  BRA @ZANKI_LOOP
+@EXT_LOOP:
 .endmac
 
 ; -------------------------------------------------------------------
@@ -49,8 +68,9 @@ INFO_RL_MARGIN = 2
 ; -------------------------------------------------------------------
 DRAW_INFO_LIST:
   STA ZR0
-  BBR0 ZR0,@SKP_ZANKI
+  BBS0 ZR0,@NOTSKP_ZANKI
+  RTS
+@NOTSKP_ZANKI:
   draw_zanki
-@SKP_ZANKI:
   RTS
 
