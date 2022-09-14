@@ -29,6 +29,7 @@ PLAYER_Y = 192-(8*3)  ; プレイヤー初期位置Y
 TOP_MARGIN = 8*3      ; 上部のマージン
 RL_MARGIN = 4         ; 左右のマージン
 ZANKI_MAX = 6         ; ストック可能な自機の最大数
+ZANKI_START = 3       ; 残機の初期値
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -60,6 +61,8 @@ ZANKI_MAX = 6         ; ストック可能な自機の最大数
   ZP_ZANKI:           .RES 1        ; 残機
   ZP_INFO_FLAG_P:     .RES 1        ; INFO描画箇所フラグ 7|???? ???,残機|0
   ZP_INFO_FLAG_S:     .RES 1        ; セカンダリ
+  ZP_DEATH_MUTEKI:    .RES 1        ; 死亡時ティックカウンタを記録し、255ティックの範囲で無敵時間を調整
+  ZP_PL_STAT_FLAG:    .RES 1        ; 7|???? ???,無敵|0
 
 ; -------------------------------------------------------------------
 ;                           実行用ライブラリ
@@ -131,6 +134,9 @@ INIT_GAME:
   STZ ZP_PL_DY              ; プレイヤ速度初期値
   loadmem16 ZP_CMD_PTR,STAGE_CMDS
   STZ ZP_CMD_WAIT_CNT
+  LDA #ZANKI_START
+  STA ZP_ZANKI
+  STZ ZP_PL_STAT_FLAG
   ; ---------------------------------------------------------------
   ;   画面の初期化
   LDA #BGC
@@ -271,11 +277,41 @@ DEL_PL_BLT:
   STY ZP_PLBLT_TERMIDX  ; 縮小した終端インデックス
   RTS
 
+; -------------------------------------------------------------------
+;                            プレイヤ死亡
+; -------------------------------------------------------------------
+KILL_PLAYER:
+  ; 無敵ならキャンセル
+  BBS0 ZP_PL_STAT_FLAG,@SKP_KILL
+  ; 効果音
+  LDA #SE2_NUMBER
+  JSR PLAY_SE               ; 撃破効果音
+  ; 残機処理
+  DEC ZP_ZANKI              ; 残機減少
+  SMB0 ZP_INFO_FLAG_P       ; 残機再描画フラグを立てる
+  ; 死亡無敵処理
+  SMB0 ZP_PL_STAT_FLAG      ; 無敵フラグを立てる
+  LDA ZP_GENERAL_CNT
+  STA ZP_DEATH_MUTEKI       ; 死亡時点を記録
+  ; リスポーン
+  LDA #PLAYER_X
+  STA ZP_PLAYER_X
+@SKP_KILL:
+  RTS
+
 ; エンティティティック処理
 ; -------------------------------------------------------------------
 ;                         プレイヤティック
 ; -------------------------------------------------------------------
 .macro tick_player
+  ; 死亡無敵解除
+  BBR0 ZP_PL_STAT_FLAG,@SKP_DEATHMUTEKI  ; bit0 無敵でなければ処理の必要なし
+  LDA ZP_GENERAL_CNT
+  CMP ZP_DEATH_MUTEKI
+  BNE @SKP_DEATHMUTEKI
+  ; $FFティック経過
+  RMB0 ZP_PL_STAT_FLAG  ; bit0 無敵フラグを折る
+@SKP_DEATHMUTEKI:
   ; プレイヤ移動
   ; X
   LDA ZP_PLAYER_X
@@ -301,6 +337,11 @@ DEL_PL_BLT:
   BCS @SKP_NEW_Y
   STA ZP_PLAYER_Y
 @SKP_NEW_Y:
+  ; 無敵でかつ描画フレームがどちらか一方なら描画キャンセル（点滅
+  LDA ZP_VISIBLE_FLAME
+  AND ZP_PL_STAT_FLAG
+  AND #%00000001
+  BNE @DONT_DRAW
   ; プレイヤ描画
   loadmem16 ZP_CHAR_PTR,CHAR_DAT_ZIKI
   LDA ZP_PLAYER_X
@@ -311,6 +352,7 @@ DEL_PL_BLT:
   LDY #1
   STA (ZP_BLACKLIST_PTR),Y
   JSR DRAW_CHAR8
+@DONT_DRAW:
 .endmac
 
 ; -------------------------------------------------------------------
