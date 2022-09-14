@@ -16,11 +16,11 @@
 ; --- 定数定義 ---
 BGC = $00             ; 背景色
 DEBUG_BGC = $00       ; オルタナティブ背景色
-INFO_BGC = $99        ; INFO背景色
+INFO_BGC = $22        ; INFO背景色
 INFO_COL = $FF        ; INFO文字色
 INFO_FLAME = $11      ; INFOフチ
-INFO_FLAME_L = $19    ; INFOフチ
-INFO_FLAME_R = $91    ; INFOフチ
+INFO_FLAME_L = $12    ; INFOフチ
+INFO_FLAME_R = $21    ; INFOフチ
 PLAYER_SPEED = 3      ; PL速度
 PLAYER_SHOOTRATE = 5  ; 射撃クールダウンレート
 PLBLT_SPEED = 8       ; PLBLT速度
