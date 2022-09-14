@@ -3,6 +3,7 @@
 ; -------------------------------------------------------------------
 .ZEROPAGE
   ZP_START_FLAG:      .RES 1
+  ZP_STARS_INDEX:     .RES 1
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -27,9 +28,12 @@ INIT_TITLE:
   syscall IRQ_SETHNDR_VB
   storeAY16 ZP_VB_STUB
   CLI
-  ; 表示
+  ; 画像表示
   loadAY16 PATH_TITLEIMF
   JSR IMF::PRINT_IMF
+  ; CRTC再設定
+  LDA #%00000000            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ無効
+  STA CRTC::CFG
   ; 無限ループ
 TITLE_LOOP:
   BBR0 ZP_START_FLAG,TITLE_LOOP
@@ -52,6 +56,35 @@ TITLE_VBLANK:
   BBS4 ZP_PADSTAT,@SKP_START  ; STARTボタン
   SMB0 ZP_START_FLAG          ; フラグを立てて脱出を企画する
 @SKP_START:
+  INC ZP_GENERAL_CNT
+  LDA ZP_GENERAL_CNT
+  AND #%01111111              ; 256ティック周期を8分周
+  BNE @SKP_TICK_STARS
+  ; 綺羅星ティック
+  LDX ZP_STARS_INDEX
+  LDA ZP_GENERAL_CNT
+  AND #%11111111              ; 256ティック周期を8分周
+  BNE @NEXT
+  ; 前回の星を削除
+  LDA #0
+  STA CRTC::WDBF
+  BRA @SKP_TICK_STARS
+@NEXT:
+  ; 次の星
+  INX
+  INX
+  CPX #8
+  BNE @SKP_RESET
+  LDX #0
+@SKP_RESET:
+  STX ZP_STARS_INDEX
+  LDA TITLE_STARS_LIST,X
+  STA CRTC::VMAH
+  LDA TITLE_STARS_LIST+1,X
+  STA CRTC::VMAV
+  LDA #$0F
+  STA CRTC::WDBF
+@SKP_TICK_STARS:
   JMP (ZP_VB_STUB)            ; 片付けはBCOSにやらせる
 
 ; -------------------------------------------------------------------
@@ -59,4 +92,10 @@ TITLE_VBLANK:
 ; -------------------------------------------------------------------
 PATH_TITLEIMF:
   .BYT "/DOC/STGTITLE.IMF",0
+
+TITLE_STARS_LIST:
+  .BYT 11,44
+  .BYT 111,90
+  .BYT 56,154
+  .BYT 60,10
 
