@@ -23,7 +23,7 @@ ENEM_CODE_2_KIBIS              = 2*2  ; キビス。垂直に降ってきて、�
 ; -------------------------------------------------------------------
 NANAMETTA_SHOOTRATE = 30
 KIBIS_SPEED = 1
-KIBIS_STATE1_YDIFF = 30
+KIBIS_STATE1_YDIFF = 45
 
 ; -------------------------------------------------------------------
 ;                             ZP領域
@@ -48,7 +48,7 @@ KIBIS_STATE1_YDIFF = 30
 ; -------------------------------------------------------------------
 .macro make_enem1
   LDY ZP_ENEM_TERMIDX
-  LDA #ENEM_CODE_2_KIBIS
+  LDA #ENEM_CODE_2_KIBIS|%1
   STA ENEM_LST,Y        ; code
   LDA ZP_PLAYER_X
   STA ENEM_LST+1,Y      ; X
@@ -347,7 +347,18 @@ KIBIS_UPDATE:
   ; NOTE: 遷移時、STATE0,1重複処理してよいか
 @STATE1:
   LSR
-  BCC @STATE2
+  BCC @STATE2               ; 再開ビットで1と2の判別
+  ; X
+  LDA #KIBIS_SPEED
+  BBS7 ZP_ENEM_CODEFLAGWK,@RIGHT ; フラグで左右判定
+@LEFT:
+  LDA #256-KIBIS_SPEED
+@RIGHT:
+  CLC
+  ADC ZP_CANVAS_X
+  STA ZP_CANVAS_X
+  STA ENEM_LST+1,X          ; リスト上のXに格納
+  ; Y
   LDA ZP_ENEM_FWK
   AND #%11110000            ; kick箇所
   SEC
