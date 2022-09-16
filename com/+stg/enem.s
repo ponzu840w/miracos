@@ -23,6 +23,7 @@ ENEM_CODE_2_KIBIS              = 2*2  ; キビス。垂直に降ってきて、�
 ; -------------------------------------------------------------------
 NANAMETTA_SHOOTRATE = 30
 KIBIS_SPEED = 1
+KIBIS_STATE1_YDIFF = 30
 
 ; -------------------------------------------------------------------
 ;                             ZP領域
@@ -32,6 +33,7 @@ KIBIS_SPEED = 1
   ZP_ENEM_CODEWK:     .RES 1    ; 作業用敵種類
   ZP_ENEM_XWK:        .RES 1    ; X退避
   ZP_ENEM_CODEFLAGWK: .RES 1    ; CODEにひそむフラグ
+  ZP_ENEM_FWK:        .RES 1    ; 自由バイトワーク
 
 ; -------------------------------------------------------------------
 ;                            変数領域
@@ -52,7 +54,8 @@ KIBIS_SPEED = 1
   STA ENEM_LST+1,Y      ; X
   LDA #TOP_MARGIN+1
   STA ENEM_LST+2,Y      ; Y
-  LDA #NANAMETTA_SHOOTRATE
+  ;LDA #NANAMETTA_SHOOTRATE
+  LDA #%0111<<4|%00<<2|%00
   STA ENEM_LST+3,Y      ; f
   ; ---------------------------------------------------------------
   ;   インデックス更新
@@ -316,21 +319,65 @@ YOKOGIRYA_UPDATE:
 
 KIBIS_UPDATE:
   ; ---------------------------------------------------------------
-  ;   移動
+  ;   移動 - ステートに基づく
+  ;     0:下降、kick_yで1へ
+  ;     1:斜めに上昇、kick_y+KIBIS_STATE1_YDIFFで2へ
+  ;     2:下降、192で削除
 @MOVE:
+  ; ステート取得
   LDX ZP_ENEM_XWK           ; 射撃及び移動に使うENEMIDX
+  LDA ENEM_LST+3,X
+  STA ZP_ENEM_FWK           ; 3変数を詰め込んでいるので自由バイトを退避
+  AND #%00000011
+  BNE @STATE1
+@STATE0:
+  LDA ZP_ENEM_FWK
+  AND #%11110000            ; kick箇所
+  STA ZR0
+  LDA ZP_CANVAS_Y
+  CLC
+  ADC #KIBIS_SPEED          ; 下降速度
+  ; キック判定
+  CMP ZR0                   ; Y-kick
+  BCC @STORE_Y
+  ; state0 -> state1
+  LDA ZP_ENEM_FWK
+  ORA #%00000001
+  STA ENEM_LST+3,X
+  ; NOTE: 遷移時、STATE0,1重複処理してよいか
+@STATE1:
+  LSR
+  BCC @STATE2
+  LDA ZP_ENEM_FWK
+  AND #%11110000            ; kick箇所
+  SEC
+  SBC #KIBIS_STATE1_YDIFF   ; 再度kick箇所
+  STA ZR0
+  LDA ZP_CANVAS_Y
+  SEC
+  SBC #KIBIS_SPEED
+  ; サイキック判定
+  CMP ZR0
+  BCS @STORE_Y
+  ;state1 -> state2
+  LDA ZP_ENEM_FWK
+  EOR #%00000011
+  STA ENEM_LST+3,X
+@STATE2:
   LDA ZP_CANVAS_Y
   CLC
   ADC #KIBIS_SPEED          ; 下降速度
   ; 逸脱判定
   CMP #192                  ; Y-192
   BCC @SKP_DEL_BOTTOM
-  ; 削除                      NOTE:NANAMETTAとかと共通なのでそこに飛ばしてもよいか
+  ; --- 削除                  NOTE:NANAMETTAとかと共通なのでそこに飛ばしてもよいか
   JSR DEL_ENEM
   LDX ZP_ENEM_XWK
   PLY                       ; BLPTR
   JMP TICK_ENEM_LOOP        ; もう存在しないので描画等すっ飛ばす
+  ; ---
 @SKP_DEL_BOTTOM:
+@STORE_Y:
   STA ZP_CANVAS_Y
   STA ENEM_LST+2,X          ; リスト上のYに格納
 @LOAD_TEXTURE:
