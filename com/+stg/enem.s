@@ -1,11 +1,28 @@
-
-NANAMETTA_SHOOTRATE = 30
+; -------------------------------------------------------------------
+;                             +stg/enem.s
+; -------------------------------------------------------------------
+; STG.COMのザコ敵処理部分。
+; 種類ごとの共通処理と個別処理とからなる。
+; 敵追加マニュアル
+;   1. 新しい敵コードを定義
+;   2. 更新処理と削除処理のテーブルに追加
+; -------------------------------------------------------------------
 
 ; -------------------------------------------------------------------
 ;                           敵種類リスト
 ; -------------------------------------------------------------------
 ENEM_CODE_0_NANAMETTA          = 0*2  ; ナナメッタ。プレイヤーを狙ってか狙わずか、斜めに撃つ。
+                                      ; f=7|shottimer(8)|0
 ENEM_CODE_1_YOKOGIRYA          = 1*2  ; ヨコギリャ。左右から現れ反対方向に直進し、プレイヤに弾を落とす。
+                                      ; f=7|speed(8)|0
+ENEM_CODE_2_KIBIS              = 2*2  ; キビス。垂直に降ってきて、いきなり斜めに切り返し、やっぱり垂直に戻る。無害でおいしい。
+                                      ; f=7|kick_y(4),item(2),state(2)|0
+
+; -------------------------------------------------------------------
+;                           敵固有定数
+; -------------------------------------------------------------------
+NANAMETTA_SHOOTRATE = 30
+KIBIS_SPEED = 1
 
 ; -------------------------------------------------------------------
 ;                             ZP領域
@@ -29,14 +46,14 @@ ENEM_CODE_1_YOKOGIRYA          = 1*2  ; ヨコギリャ。左右から現れ反�
 ; -------------------------------------------------------------------
 .macro make_enem1
   LDY ZP_ENEM_TERMIDX
-  LDA #ENEM_CODE_0_NANAMETTA
+  LDA #ENEM_CODE_2_KIBIS
   STA ENEM_LST,Y        ; code
   LDA ZP_PLAYER_X
   STA ENEM_LST+1,Y      ; X
   LDA #TOP_MARGIN+1
   STA ENEM_LST+2,Y      ; Y
   LDA #NANAMETTA_SHOOTRATE
-  STA ENEM_LST+3,Y      ; T
+  STA ENEM_LST+3,Y      ; f
   ; ---------------------------------------------------------------
   ;   インデックス更新
   TYA
@@ -160,6 +177,7 @@ TICK_ENEM_END:
 ENEM_UPDATE_JT:
   .WORD NANAMETTA_UPDATE
   .WORD YOKOGIRYA_UPDATE
+  .WORD KIBIS_UPDATE
 
 NANAMETTA_UPDATE:
   BBS0 ZP_GENERAL_CNT,@LOAD_TEXTURE ; 移動1/2
@@ -296,10 +314,34 @@ YOKOGIRYA_UPDATE:
   loadmem16 ZP_CHAR_PTR,CHAR_DAT_TEKI3
   JMP TICK_ENEM_UPDATE_END
 
+KIBIS_UPDATE:
+  ; ---------------------------------------------------------------
+  ;   移動
+@MOVE:
+  LDX ZP_ENEM_XWK           ; 射撃及び移動に使うENEMIDX
+  LDA ZP_CANVAS_Y
+  CLC
+  ADC #KIBIS_SPEED          ; 下降速度
+  ; 逸脱判定
+  CMP #192                  ; Y-192
+  BCC @SKP_DEL_BOTTOM
+  ; 削除                      NOTE:NANAMETTAとかと共通なのでそこに飛ばしてもよいか
+  JSR DEL_ENEM
+  LDX ZP_ENEM_XWK
+  PLY                       ; BLPTR
+  JMP TICK_ENEM_LOOP        ; もう存在しないので描画等すっ飛ばす
+@SKP_DEL_BOTTOM:
+  STA ZP_CANVAS_Y
+  STA ENEM_LST+2,X          ; リスト上のYに格納
+@LOAD_TEXTURE:
+  loadmem16 ZP_CHAR_PTR,CHAR_DAT_TEKI1
+  JMP TICK_ENEM_UPDATE_END
+
 ; -------------------------------------------------------------------
 ;                        敵被弾処理テーブル
 ; -------------------------------------------------------------------
 ENEM_HIT_JT:
+  .WORD NANAMETTA_HIT
   .WORD NANAMETTA_HIT
   .WORD NANAMETTA_HIT
 
