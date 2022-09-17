@@ -5,6 +5,8 @@ SE1_LENGTH = 5
 SE1_NUMBER = 1*2
 SE2_LENGTH = 5
 SE2_NUMBER = 2*2
+SE_PLSHOT_NUMBER = 3*2
+SE_PLSHOT_LENGTH = 5
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -62,10 +64,13 @@ TICK_SE_END:
 SE_LENGTH_TABLE:
   .BYTE SE1_LENGTH      ; 1
   .BYTE SE2_LENGTH      ; 2
+  .BYTE SE_PLSHOT_LENGTH
+  ; NOTE:ここにべた書きでよいのでは
 
 SE_TICK_JT:
   .WORD SE1_TICK
   .WORD SE2_TICK
+  .WORD SE_PLSHOT_TICK
 
 ; -------------------------------------------------------------------
 ;                         各効果音ティック
@@ -91,5 +96,22 @@ SE2_TICK:
   set_ymzreg #YMZ::IA_MIX,#%00110111
   set_ymzreg #YMZ::IA_NOISE_FRQ,#>(125000/400)
   set_ymzreg #YMZ::IA_VOL,#$0F
+  JMP TICK_SE_RETURN
+
+SE_PLSHOT_TICK:
+  LDA ZP_SE_TIMER
+  CMP #SE1_LENGTH
+  BNE @a
+  set_ymzreg #YMZ::IA_MIX,#%00111110
+  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/1600)
+  set_ymzreg #YMZ::IA_FRQ,#<(125000/1600)
+  set_ymzreg #YMZ::IA_VOL,#$0F
+  JMP TICK_SE_RETURN
+@a:
+  LDX #YMZ::IA_VOL
+  STX YMZ::ADDR
+  ASL                       ; タイマーの左シフト、最大8
+  ADC #4
+  STA YMZ::DATA
   JMP TICK_SE_RETURN
 
