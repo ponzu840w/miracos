@@ -297,6 +297,7 @@ KILL_PLAYER:
   SMB0 ZP_PL_STAT_FLAG      ; 無敵フラグを立てる
   SMB1 ZP_PL_STAT_FLAG      ; オート前進フラグ
   LDA ZP_GENERAL_CNT
+  AND #%01111111
   STA ZP_DEATH_MUTEKI       ; 死亡時点を記録
   ; リスポーン
   LDA #PLAYER_X
@@ -314,6 +315,7 @@ KILL_PLAYER:
   ; 死亡無敵解除
   BBR0 ZP_PL_STAT_FLAG,@SKP_DEATHMUTEKI  ; bit0 無敵でなければ処理の必要なし
   LDA ZP_GENERAL_CNT
+  AND #%01111111
   CMP ZP_DEATH_MUTEKI
   BNE @SKP_DEATHMUTEKI
   ; $FFティック経過
