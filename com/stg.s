@@ -288,6 +288,9 @@ KILL_PLAYER:
   JSR PLAY_SE               ; 撃破効果音
   ; 残機処理
   DEC ZP_ZANKI              ; 残機減少
+  BNE @SKP_TITLE
+  JMP INIT_TITLE
+@SKP_TITLE:
   SMB0 ZP_INFO_FLAG_P       ; 残機再描画フラグを立てる
   ; 死亡無敵処理
   ; TODO:AND一括処理との効率比較
