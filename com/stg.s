@@ -111,6 +111,9 @@ INIT_GENERAL:
   JMP INIT_TITLE
 INIT_GAME:
   ; ---------------------------------------------------------------
+  ;   YMZ
+  JSR MUTE_ALL
+  ; ---------------------------------------------------------------
   ;   CRTC
   LDA #%00000001            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ有効
   STA CRTC::CFG
@@ -728,6 +731,10 @@ PAD_READ:
   STA VIA::PAD_REG
   DEX
   BNE @LOOP
+  RTS
+
+MUTE_ALL:
+  set_ymzreg #YMZ::IA_MIX,#%00111111
   RTS
 
 CHAR_DAT_ZIKI:
