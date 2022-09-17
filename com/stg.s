@@ -62,7 +62,7 @@ ZANKI_START = 3       ; 残機の初期値
   ZP_INFO_FLAG_P:     .RES 1        ; INFO描画箇所フラグ 7|???? ???,残機|0
   ZP_INFO_FLAG_S:     .RES 1        ; セカンダリ
   ZP_DEATH_MUTEKI:    .RES 1        ; 死亡時ティックカウンタを記録し、255ティックの範囲で無敵時間を調整
-  ZP_PL_STAT_FLAG:    .RES 1        ; 7|???? ???,無敵|0
+  ZP_PL_STAT_FLAG:    .RES 1        ; 7|???? ??,自動前進,無敵|0
 
 ; -------------------------------------------------------------------
 ;                           実行用ライブラリ
@@ -290,12 +290,16 @@ KILL_PLAYER:
   DEC ZP_ZANKI              ; 残機減少
   SMB0 ZP_INFO_FLAG_P       ; 残機再描画フラグを立てる
   ; 死亡無敵処理
+  ; TODO:AND一括処理との効率比較
   SMB0 ZP_PL_STAT_FLAG      ; 無敵フラグを立てる
+  SMB1 ZP_PL_STAT_FLAG      ; オート前進フラグ
   LDA ZP_GENERAL_CNT
   STA ZP_DEATH_MUTEKI       ; 死亡時点を記録
   ; リスポーン
   LDA #PLAYER_X
   STA ZP_PLAYER_X
+  LDA #192-8
+  STA ZP_PLAYER_Y
 @SKP_KILL:
   RTS
 
@@ -312,6 +316,16 @@ KILL_PLAYER:
   ; $FFティック経過
   RMB0 ZP_PL_STAT_FLAG  ; bit0 無敵フラグを折る
 @SKP_DEATHMUTEKI:
+  ; リスポーン直後出撃モーション
+  BBR1 ZP_PL_STAT_FLAG,@SKP_RESPAWN_MOVE
+  STZ ZP_PL_DX
+  LDA #255
+  STA ZP_PL_DY
+  LDA ZP_PLAYER_Y
+  CMP #192-(8*3)        ; Y - 192
+  BCS @SKP_RESPAWN_MOVE
+  RMB1 ZP_PL_STAT_FLAG  ; bit1 リスポーン直後フラグを折る
+@SKP_RESPAWN_MOVE:
   ; プレイヤ移動
   ; X
   LDA ZP_PLAYER_X
@@ -497,18 +511,10 @@ TICK_CMD:
 .endmac
 
 ; -------------------------------------------------------------------
-;                        垂直同期割り込み
+;                             パッド操作
 ; -------------------------------------------------------------------
-VBLANK:
-TICK:
-  tick_cmd
-  ; ---------------------------------------------------------------
-  ;   塗りつぶし
-  make_blacklist_ptr          ; ブラックリストポインタ作成
-  clear_by_blacklist          ; ブラックリストに沿ったエンティティ削除
-  ;anti_noise                  ; ノイズ対策に行ごと消去
-  ; ---------------------------------------------------------------
-  ;   キー操作
+.macro tick_pad
+TICK_PAD:
   JSR PAD_READ                ; パッド状態更新
   STZ ZP_PL_DY
   STZ ZP_PL_DX
@@ -551,6 +557,22 @@ TICK:
   STA ZP_PL_COOLDOWN          ; クールダウン更新
   make_enem1                 ; PL弾生成
 @SKP_Y:
+.endmac
+
+; -------------------------------------------------------------------
+;                          垂直同期割り込み
+; -------------------------------------------------------------------
+VBLANK:
+TICK:
+  tick_cmd                    ; コマンド処理
+  ; ---------------------------------------------------------------
+  ;   塗りつぶし
+  make_blacklist_ptr          ; ブラックリストポインタ作成
+  clear_by_blacklist          ; ブラックリストに沿ったエンティティ削除
+  ;anti_noise                  ; ノイズ対策に行ごと消去
+  ; ---------------------------------------------------------------
+  ;   キー操作
+  tick_pad
   ; ---------------------------------------------------------------
   ;   ティック処理
   tick_player                 ; プレイヤ処理
