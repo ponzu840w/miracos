@@ -552,10 +552,10 @@ TICK_PAD:
   LDA #PLAYER_SHOOTRATE
   STA ZP_PL_COOLDOWN          ; クールダウン更新
   make_pl_blt                 ; PL弾生成
-  LDA #SE1_NUMBER
+  LDA #SE_PLSHOT_NUMBER
   JSR PLAY_SE                 ; 発射音再生
 @SKP_B:
-  BBS6 ZP_PADSTAT,@SKP_Y      ; B button
+  BBS6 ZP_PADSTAT,@SKP_Y      ; Y button 敵召喚
   DEC ZP_PL_COOLDOWN          ; クールダウンチェック
   BNE @SKP_Y
   LDA #PLAYER_SHOOTRATE
