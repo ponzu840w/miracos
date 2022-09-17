@@ -138,6 +138,9 @@ TICK_ENEM_LOOP:
   BCS @COL_PLBLT_LOOP
   ; ---------------------------------------------------------------
   ;   敵被弾
+  TYA
+  TAX
+  JSR DEL_PL_BLT            ; プレイヤ弾も削除
   LDX ZP_ENEM_CODEWK        ; ジャンプテーブル用に
   JMP (ENEM_HIT_JT,X)
 @END_COL_PLBLT:
