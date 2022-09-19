@@ -6,25 +6,6 @@
 ; -------------------------------------------------------------------
 ; TODO 専用コマンドライン
 ; TODO ソフトウェアブレーク処理ルーチン
-LOOP:
-  loadAY16 STR_NEWLINE
-  JSR FUNC_CON_OUT_STR
-  JSR FUNC_CON_IN_STR
-  ; 復帰
-  LDA ROM::SP_SAVE
-  CLC
-  ADC #3                  ; SPを割り込み前の状態に戻す
-  TAX
-  TXS                     ; SP復帰
-  LDA ROM::A_SAVE
-  LDX ROM::X_SAVE
-  LDY ROM::Y_SAVE
-  LDA FLAG_SAVE           ; フラグをロード
-  PHA                     ; フラグをプッシュ
-  PLP                     ; フラグをフラグとしてプル
-  JMP (PC_SAVE)           ; 復帰ジャンプ
-  JMP LOOP
-
 ENT_DONKI:
 SAV_STAT:
 ; 状態を保存
@@ -59,6 +40,10 @@ SAV_STAT:
   DEC PC_SAVE+1 ; PCH--
 SKIPHDEC:
   DEC PC_SAVE   ; PCL--
+  ; --- 垂直同期ユーザベクタをデフォルトに変更 ---
+  mem2mem16 VB_HNDR_SAVE,VBLANK_USER_VEC16  ; ユーザベクタを退避
+  loadAY16 IRQ::VBLANK_STUB
+  storeAY16 VBLANK_USER_VEC16               ; スタブに差し替え
 PRT_STAT:  ; print contents of stack
   ; --- レジスタ情報を表示 ---
   ; 表示中にさらにBRKされると分かりづらいので改行
@@ -98,6 +83,28 @@ PRT_STAT:  ; print contents of stack
   LDA ROM::SP_SAVE      ; stack pointer
   JSR PRT_BYT
   CLI
+  ;JMP LOOP
+
+LOOP:
+  loadAY16 STR_NEWLINE
+  JSR FUNC_CON_OUT_STR
+  loadAY16 COMMAND_BUF ; シェルと共用のバッファ（よいのか？
+  JSR FUNC_CON_IN_STR       ; コマンド行を取得
+  ; 復帰
+  SEC
+  mem2mem16 VBLANK_USER_VEC16,VB_HNDR_SAVE  ; 垂直同期ユーザベクタを復帰
+  LDA ROM::SP_SAVE
+  ADC #3                  ; SPを割り込み前の状態に戻す
+  TAX
+  TXS                     ; SP復帰
+  LDA ROM::A_SAVE
+  LDX ROM::X_SAVE
+  LDY ROM::Y_SAVE
+  LDA FLAG_SAVE           ; フラグをロード
+  PHA                     ; フラグをプッシュ
+  PLP                     ; フラグをフラグとしてプル
+  CLC
+  JMP (PC_SAVE)           ; 復帰ジャンプ
   JMP LOOP
 
 STR_NEWLINE: .BYT $A,"+",$0
