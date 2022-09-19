@@ -120,6 +120,18 @@ LOOP:
   LDA COMMAND_BUF
   CMP #'D'
   BNE @SKP_D
+  ; [DEBUG] 引数表示
+  JSR PRT_LF
+  LDA ZR0
+  JSR PRT_BYT_S
+  LDA ZR1+1
+  JSR PRT_BYT
+  LDA ZR1
+  JSR PRT_BYT_S
+  LDA ZR2+1
+  JSR PRT_BYT
+  LDA ZR2
+  JSR PRT_BYT_S
   ;JMP DUMPPAGE
 @SKP_D:
   ; 復帰
@@ -311,20 +323,26 @@ CMD_ARGS_SPLIT:
 ; -------------------------------------------------------------------
 ARG2NUM:
   @NUMBER16=ZR2
+  @START=ZR0+1
+  ; X=start
   ; Y=\0
+  STX @START
+  LDX #0
+  STZ @NUMBER16
+  STZ @NUMBER16+1
 @BYT_LOOP:
   ; 下位nibble
-  DEY
-  CPY #$FF
+  CPY @START
   BEQ @END
+  DEY
   LDA COMMAND_BUF,Y
   JSR CHR2NIB
   BCS @ERR
   STA @NUMBER16,X
   ; 上位nibble
-  DEY
-  CPY #$FF
+  CPY @START
   BEQ @END
+  DEY
   LDA COMMAND_BUF,Y
   JSR CHR2NIB
   BCS @ERR
