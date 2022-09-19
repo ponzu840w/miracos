@@ -43,6 +43,7 @@ PL_CLI_RTI:
 SKP_UART:
   ; VIA判定
   LDA VIA::IFR        ; 割り込みフラグレジスタ読み取り
+  BPL @SKP_VIA
   LSR                 ; C = bit 0 CA2
   BCC @SKP_CA2
   ; 垂直同期割り込み処理
@@ -77,13 +78,15 @@ SKP_UART:
   STZ VIA::T1CL
   BRA PL_CLI_RTI          ; 終了
 @SKP_T1:
+@SKP_VIA:
 
 ; 不明な割り込みはデバッガへ
 DONKI:
   PLY
   PLX
   PLA
-  JMP DONKI::ENT_DONKI
+  JMP BCOS_ENT_DONKI
+  ;JMP DONKI::ENT_DONKI
 
 ; 何もせずに垂直同期割り込みを終える
 ; デフォルトでVBLANK_USER_VEC16に登録される

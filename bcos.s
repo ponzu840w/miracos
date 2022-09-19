@@ -1,7 +1,7 @@
 ; -------------------------------------------------------------------
 ;                           MIRACOS BCOS
 ; -------------------------------------------------------------------
-; MIRACOSの本体
+; MIRACOSの本体 --- Basic Card Operationg System
 ; CP/MでいうところのBIOSとBDOSを混然一体としたもの
 ; ファンクションコール・インタフェース（特に意味はない）
 ; -------------------------------------------------------------------
@@ -119,15 +119,16 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
   .PROC BCOS_UART ; 単にUARTとするとアドレス宣言とかぶる
     .INCLUDE "uart.s"
   .ENDPROC
-  .PROC DONKI
-    .INCLUDE "donki/donki.s"
-  .ENDPROC
   .PROC PS2
     .INCLUDE "ps2/serial_ps2.s"
     .INCLUDE "ps2/decode_ps2.s"
   .ENDPROC
   .PROC IRQ
     .INCLUDE "interrupt.s"
+  .ENDPROC
+BCOS_ENT_DONKI:
+  .PROC DONKI
+    .INCLUDE "donki/donki.s"
   .ENDPROC
 
 ; -------------------------------------------------------------------
