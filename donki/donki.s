@@ -6,33 +6,9 @@
 ; -------------------------------------------------------------------
 ; TODO 専用コマンドライン
 ; TODO ソフトウェアブレーク処理ルーチン
-CMD_ARG_NUM = ZR0+1
+CMD_ARG_NUM = ZR0
 CMD_ARG_1   = ZR1
 CMD_ARG_2   = ZR2
-
-; コマンドラインを要素に分解する
-.macro purse_args
-  ; ゼロチェック
-  BEQ LOOP
-  ; 第1引数の検索
-  STZ ZR0                 ; 引数の数
-  LDX #1
-  JSR CMD_ARGS_SPLIT
-  BEQ @END_PURSE
-  ; 第1引数存在
-  INC ZR0
-  PHY
-  JSR ARG2NUM
-  mem2mem16 ZR1,ZR2
-  PLX
-  ; 第2引数の検索
-  JSR CMD_ARGS_SPLIT
-  BEQ @END_PURSE
-  ; 第2引数存在
-  INC ZR0
-  JSR ARG2NUM
-@END_PURSE:
-.endmac
 
 ENT_DONKI:
 SAV_STAT:
@@ -113,6 +89,30 @@ PRT_STAT:  ; print contents of stack
   CLI
   ;JMP LOOP
 
+; コマンドラインを要素に分解する
+.macro purse_args
+  ; ゼロチェック
+  BEQ LOOP
+  ; 第1引数の検索
+  STZ CMD_ARG_NUM                 ; 引数の数
+  LDX #1
+  JSR CMD_ARGS_SPLIT
+  BEQ @END_PURSE
+  ; 第1引数存在
+  INC CMD_ARG_NUM
+  PHY
+  JSR ARG2NUM
+  mem2mem16 CMD_ARG_1,CMD_ARG_2
+  PLX
+  ; 第2引数の検索
+  JSR CMD_ARGS_SPLIT
+  BEQ @END_PURSE
+  ; 第2引数存在
+  INC CMD_ARG_NUM
+  JSR ARG2NUM
+@END_PURSE:
+.endmac
+
 LOOP:
   loadAY16 STR_NEWLINE
   JSR FUNC_CON_OUT_STR
@@ -170,20 +170,23 @@ DUMP:
   LDA CMD_ARG_NUM
   BEQ @END          ; 引数ゼロなら何もしない
   CMP #2
-  BNE @SKP_256      ; 2でないなら、ARG1+256をARG2にする
+  BEQ @SKP_63       ; 2でないなら、ARG1+63をARG2にする
   LDA CMD_ARG_1
+  CLC
+  ADC #63
   STA CMD_ARG_2
   LDA CMD_ARG_1+1
-  INC
+  ADC #0
   STA CMD_ARG_2+1
-@SKP_256:
+@SKP_63:
   ; ---------------------------------------------------------------
   ;   ループ
   ; ---------------------------------------------------------------
   ;   アドレス表示部
   ;"<1234>--------------------------"
 @LINE:
-  JSR PRT_LF
+  JSR PRT_LF            ; 視認性向上のための空行は行の下にした方がよさそうだが、
+  JSR PRT_LF            ;   最大の情報を表示しつつ作業用コマンドラインを出すにはこうする。
   LDA #'<'              ; アドレス左修飾
   JSR FUNC_CON_OUT_CHR
   LDA CMD_ARG_1+1       ; アドレス上位
