@@ -6,6 +6,9 @@
 ; -------------------------------------------------------------------
 ; TODO 専用コマンドライン
 ; TODO ソフトウェアブレーク処理ルーチン
+CMD_ARG_NUM = ZR0+1
+CMD_ARG_1   = ZR1
+CMD_ARG_2   = ZR2
 
 ; コマンドラインを要素に分解する
 .macro purse_args
@@ -121,19 +124,21 @@ LOOP:
   CMP #'D'
   BNE @SKP_D
   ; [DEBUG] 引数表示
-  JSR PRT_LF
-  LDA ZR0
-  JSR PRT_BYT_S
-  LDA ZR1+1
-  JSR PRT_BYT
-  LDA ZR1
-  JSR PRT_BYT_S
-  LDA ZR2+1
-  JSR PRT_BYT
-  LDA ZR2
-  JSR PRT_BYT_S
-  ;JMP DUMPPAGE
+  ;JSR PRT_LF
+  ;LDA ZR0
+  ;JSR PRT_BYT_S
+  ;LDA ZR1+1
+  ;JSR PRT_BYT
+  ;LDA ZR1
+  ;JSR PRT_BYT_S
+  ;LDA ZR2+1
+  ;JSR PRT_BYT
+  ;LDA ZR2
+  ;JSR PRT_BYT_S
+  JMP DUMP
 @SKP_D:
+  CMP #'G'
+  BNE LOOP
   ; 復帰
   mem2mem16 VBLANK_USER_VEC16,VB_HNDR_SAVE  ; 垂直同期ユーザベクタを復帰
   SEC
@@ -149,7 +154,112 @@ LOOP:
   PLP                     ; フラグをフラグとしてプル
   CLC
   JMP (PC_SAVE)           ; 復帰ジャンプ
+
+STR_NEWLINE: .BYT $A,"+",$0
+
+; -------------------------------------------------------------------
+;                       Dコマンド メモリダンプ
+; -------------------------------------------------------------------
+;   第1引数から第2引数までをダンプ表示
+;   第2引数がなければ第1引数から256バイト
+; -------------------------------------------------------------------
+DUMP:
+  DUMP_SUB_FUNCPTR=ZR3 ; データ表示/アスキー表示関数ポインタ
+  ; ---------------------------------------------------------------
+  ;   引数の数に応じた処理
+  LDA CMD_ARG_NUM
+  BEQ @END          ; 引数ゼロなら何もしない
+  CMP #2
+  BNE @SKP_256      ; 2でないなら、ARG1+256をARG2にする
+  LDA CMD_ARG_1
+  STA CMD_ARG_2
+  LDA CMD_ARG_1+1
+  INC
+  STA CMD_ARG_2+1
+@SKP_256:
+  ; ---------------------------------------------------------------
+  ;   ループ
+  ; ---------------------------------------------------------------
+  ;   アドレス表示部
+  ;"<1234>--------------------------"
+@LINE:
+  JSR PRT_LF
+  LDA #'<'              ; アドレス左修飾
+  JSR FUNC_CON_OUT_CHR
+  LDA CMD_ARG_1+1       ; アドレス上位
+  JSR PRT_BYT
+  LDA CMD_ARG_1         ; アドレス下位
+  JSR PRT_BYT
+  LDA #'>'              ; アドレス右修飾
+  JSR FUNC_CON_OUT_CHR
+  LDA #'-'
+  LDX #32-(4+2)         ; 画面幅からこれまで表示したものを減算
+  JSR PRT_FEW_CHARS
+  ; ---------------------------------------------------------------
+  ;   データ表示部
+  JSR PRT_LF
+  loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_DATA
+  pushmem16 CMD_ARG_1
+  JSR DUMP_SUB
+  BEQ @SKP_PADDING
+  ; 一部のみ表示したときの空白
+@PADDING_LOOP:
+  DEX
+  BEQ @SKP_PADDING
+  PHX
+  JSR PRT_S
+  JSR PRT_S
+  JSR PRT_S
+  PLX
+  BRA @PADDING_LOOP
+@SKP_PADDING:
+  ; ---------------------------------------------------------------
+  ;   ASCII表示部
+  loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_ASCII
+  pullmem16 CMD_ARG_1
+  JSR DUMP_SUB
+  BEQ @LINE
+@END:
   JMP LOOP
+
+DUMP_SUB:
+  LDX #8            ; X=行ダウンカウンタ
+DATALOOP:
+  LDA (CMD_ARG_1)   ; バイト取得
+  PHX
+  JMP (DUMP_SUB_FUNCPTR)
+DUMP_SUB_RETURN:
+  PLX
+  ; 終了チェック
+  LDA CMD_ARG_1+1
+  CMP CMD_ARG_2+1
+  BNE @SKP_ENDCHECK_LOW
+  LDA CMD_ARG_1
+  CMP CMD_ARG_2
+  BEQ @END_DATALOOP
+@SKP_ENDCHECK_LOW:
+  inc16 CMD_ARG_1   ; アドレスインクリメント
+  DEX
+  BNE DATALOOP
+@END_DATALOOP:      ; 到達時点でX=0なら8バイト表示した、それ以外ならのこったバイト数+1
+  CPX #0            ; 終了z、途中Z
+  RTS
+
+DUMP_SUB_DATA:
+  JSR PRT_BYT_S
+  BRA DUMP_SUB_RETURN
+DUMP_SUB_ASCII:
+@ASCIILOOP:
+  CMP #$20
+  BCS @SKP_20   ; 20以上
+  LDA #'.'
+@SKP_20:
+  CMP #$7F
+  BCC @SKP_7F   ; 7F未満
+  LDA #'.'
+@SKP_7F:
+  JSR FUNC_CON_OUT_CHR
+  BRA DUMP_SUB_RETURN
 
 ;DUMPPAGE:
 ;  @
@@ -209,81 +319,6 @@ LOOP:
 ;@END:
 ;  JMP LOOP
 
-STR_NEWLINE: .BYT $A,"+",$0
-
-; -------------------------------------------------------------------
-;                          汎用関数群
-; -------------------------------------------------------------------
-; どうする？ライブラリ？システムコール？
-; -------------------------------------------------------------------
-BCOS_ERROR:
-  JSR PRT_LF
-  JSR ERR::FUNC_ERR_GET
-  JSR ERR::FUNC_ERR_MES
-  JMP LOOP
-
-PRT_BIN:
-  LDX #8
-@LOOP:
-  ASL
-  PHA
-  LDA #'0'    ; キャリーが立ってなければ'0'
-  BCC @SKP_ADD1
-  INC         ; キャリーが立ってたら'1'
-@SKP_ADD1:
-  PHX
-  JSR FUNC_CON_OUT_CHR
-  PLX
-  PLA
-  DEX
-  BNE @LOOP
-  RTS
-
-PRT_BYT:
-  JSR BYT2ASC
-  PHY
-  JSR PRT_C_CALL
-  PLA
-PRT_C_CALL:
-  JSR FUNC_CON_OUT_CHR
-  RTS
-
-PRT_LF:
-  ; 改行
-  LDA #$A
-  JMP PRT_C_CALL
-
-PRT_BYT_S:
-  JSR PRT_BYT
-PRT_S:
-  ; スペース
-  LDA #' '
-  JMP PRT_C_CALL
-
-BYT2ASC:
-  ; Aで与えられたバイト値をASCII値AYにする
-  ; Aから先に表示すると良い
-  PHA           ; 下位のために保存
-  AND #$0F
-  JSR NIB2ASC
-  TAY
-  PLA
-  LSR           ; 右シフトx4で上位を下位に持ってくる
-  LSR
-  LSR
-  LSR
-  JSR NIB2ASC
-  RTS
-
-NIB2ASC:
-  ; #$0?をアスキー一文字にする
-  ORA #$30
-  CMP #$3A
-  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
-  ADC #$06
-@SKP_ADC:
-  RTS
-
 ; コマンドバッファの引数の先頭Xと終端Yを取得
 ; スペースで区切ることが出来る
 ; 何もなければゼロフラグが立つ
@@ -315,7 +350,7 @@ CMD_ARGS_SPLIT:
   RTS
 
 ; -------------------------------------------------------------------
-;                    ASCII文字列をHEXと信じて変換
+;                    引数をHEXと信じて変換
 ; -------------------------------------------------------------------
 ;   input:  X = 左インデックス
 ;           Y = 右インデックス
@@ -384,5 +419,89 @@ CHR2NIB:
   RTS
 @ERR:
   SEC
+  RTS
+
+; -------------------------------------------------------------------
+;                          汎用関数群
+; -------------------------------------------------------------------
+; どうする？ライブラリ？システムコール？
+; -------------------------------------------------------------------
+BCOS_ERROR:
+  JSR PRT_LF
+  JSR ERR::FUNC_ERR_GET
+  JSR ERR::FUNC_ERR_MES
+  JMP LOOP
+
+PRT_BIN:
+  LDX #8
+@LOOP:
+  ASL
+  PHA
+  LDA #'0'    ; キャリーが立ってなければ'0'
+  BCC @SKP_ADD1
+  INC         ; キャリーが立ってたら'1'
+@SKP_ADD1:
+  PHX
+  JSR FUNC_CON_OUT_CHR
+  PLX
+  PLA
+  DEX
+  BNE @LOOP
+  RTS
+
+PRT_BYT:
+  JSR BYT2ASC
+  PHY
+  JSR PRT_C_CALL
+  PLA
+PRT_C_CALL:
+  JSR FUNC_CON_OUT_CHR
+  RTS
+
+PRT_LF:
+  ; 改行
+  LDA #$A
+  BRA PRT_C_CALL
+
+PRT_BYT_S:
+  JSR PRT_BYT
+PRT_S:
+  ; スペース
+  LDA #' '
+  BRA PRT_C_CALL
+
+PRT_FEW_CHARS:
+  ; Xレジスタで文字数を指定
+  PHA
+  PHX
+  JSR FUNC_CON_OUT_CHR
+  PLX
+  PLA
+  DEX
+  BNE PRT_FEW_CHARS
+  RTS
+
+BYT2ASC:
+  ; Aで与えられたバイト値をASCII値AYにする
+  ; Aから先に表示すると良い
+  PHA           ; 下位のために保存
+  AND #$0F
+  JSR NIB2ASC
+  TAY
+  PLA
+  LSR           ; 右シフトx4で上位を下位に持ってくる
+  LSR
+  LSR
+  LSR
+  JSR NIB2ASC
+  RTS
+
+NIB2ASC:
+  ; #$0?をアスキー一文字にする
+  ORA #$30
+  CMP #$3A
+  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
+  ADC #$06
+@SKP_ADC:
   RTS
 
