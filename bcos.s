@@ -395,7 +395,7 @@ FUNC_CON_IN_STR:
 @END:
   LDA #0
   STA (ZR1),Y           ; 終端挿入
-  DEY
+  ;DEY
   TYA                   ; 入力された字数を返す
   RTS
 
