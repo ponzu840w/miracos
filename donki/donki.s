@@ -48,6 +48,11 @@ SKIPHDEC:
   mem2mem16 VB_HNDR_SAVE,VBLANK_USER_VEC16  ; ユーザベクタを退避
   loadAY16 IRQ::VBLANK_STUB
   storeAY16 VBLANK_USER_VEC16               ; スタブに差し替え
+; -------------------------------------------------------------------
+;                       rコマンド 状態表示
+; -------------------------------------------------------------------
+; レジスタ状態を表示する
+; -------------------------------------------------------------------
 PRT_STAT:  ; print contents of stack
   ; --- レジスタ情報を表示 ---
   ; 表示中にさらにBRKされると分かりづらいので改行
@@ -56,24 +61,20 @@ PRT_STAT:  ; print contents of stack
   ; A
   JSR PRT_S
   LDA #'a'
-  JSR FUNC_CON_OUT_CHR
-  LDA ROM::A_SAVE       ; Acc reg
-  JSR PRT_BYT_S
+  LDX ROM::A_SAVE       ; Acc reg
+  JSR PRT_REG
   ; X
   LDA #'x'
-  JSR FUNC_CON_OUT_CHR
-  LDA ROM::X_SAVE       ; X reg
-  JSR PRT_BYT_S
+  LDX ROM::X_SAVE       ; X reg
+  JSR PRT_REG
   ; Y
   LDA #'y'
-  JSR FUNC_CON_OUT_CHR
-  LDA ROM::Y_SAVE       ; Y reg
-  JSR PRT_BYT_S
+  LDX ROM::Y_SAVE       ; Y reg
+  JSR PRT_REG
   ; Flag
   LDA #'f'
-  JSR FUNC_CON_OUT_CHR
-  LDA FLAG_SAVE
-  JSR PRT_BYT_S
+  LDX FLAG_SAVE
+  JSR PRT_REG
   ; PC
   LDA #'p'
   JSR FUNC_CON_OUT_CHR
@@ -83,9 +84,8 @@ PRT_STAT:  ; print contents of stack
   JSR PRT_BYT_S
   ; SP
   LDA #'s'
-  JSR FUNC_CON_OUT_CHR
-  LDA ROM::SP_SAVE      ; stack pointer
-  JSR PRT_BYT
+  LDX ROM::SP_SAVE      ; stack pointer
+  JSR PRT_REG
   CLI
   ;JMP LOOP
 
@@ -121,25 +121,18 @@ LOOP:
   purse_args
   ; コマンド処理
   LDA COMMAND_BUF
-  CMP #'D'
-  BNE @SKP_D
-  ; [DEBUG] 引数表示
-  ;JSR PRT_LF
-  ;LDA ZR0
-  ;JSR PRT_BYT_S
-  ;LDA ZR1+1
-  ;JSR PRT_BYT
-  ;LDA ZR1
-  ;JSR PRT_BYT_S
-  ;LDA ZR2+1
-  ;JSR PRT_BYT
-  ;LDA ZR2
-  ;JSR PRT_BYT_S
-  JMP DUMP
+  CMP #'r'
+  BEQ PRT_STAT
+  CMP #'d'
+  BEQ DUMP
 @SKP_D:
-  CMP #'G'
+  CMP #'g'
   BNE LOOP
-  ; 復帰
+; -------------------------------------------------------------------
+;                     gコマンド プログラムの実行
+; -------------------------------------------------------------------
+;   レジスタの各情報を復帰し、対象プログラムへ移行する
+; -------------------------------------------------------------------
   mem2mem16 VBLANK_USER_VEC16,VB_HNDR_SAVE  ; 垂直同期ユーザベクタを復帰
   SEC
   LDA ROM::SP_SAVE
@@ -158,7 +151,7 @@ LOOP:
 STR_NEWLINE: .BYT $A,"+",$0
 
 ; -------------------------------------------------------------------
-;                       Dコマンド メモリダンプ
+;                       dコマンド メモリダンプ
 ; -------------------------------------------------------------------
 ;   第1引数から第2引数までをダンプ表示
 ;   第2引数がなければ第1引数から256バイト
@@ -264,64 +257,6 @@ DUMP_SUB_ASCII:
   JSR FUNC_CON_OUT_CHR
   BRA DUMP_SUB_RETURN
 
-;DUMPPAGE:
-;  @
-;  ; モニタにあってもいいので追加したコマンド
-;  ; 指定アドレスから256バイトを吐き出す
-;  JSR STR2NUM
-;  LDY #16
-;@LOOP:
-;  ; アドレス表示部
-;  JSR PRT_LF
-;  LDA ZR1
-;  PHA
-;  JSR PRT_BYT
-;  LDA ADDR_INDEX_L
-;  PHA
-;  JSR PRT_BYT
-;  LDA #':'
-;  JSR PRT_CHAR_UART
-;  JSR PRT_S
-;  LDX #16
-;@BYTLOOP:
-;  ; データ表示部
-;  LDA (ADDR_INDEX_L)
-;  JSR PRT_BYT_S
-;  INC ADDR_INDEX_L
-;  BNE @SKP_H
-;  INC ADDR_INDEX_H
-;@SKP_H:
-;  DEX
-;  BNE @BYTLOOP
-;  LDX #16
-;  PLA
-;  STA ADDR_INDEX_L
-;  PLA
-;  STA ADDR_INDEX_H
-;  ; テキスト表示部
-;@ASCIILOOP:
-;  LDA (ADDR_INDEX_L)
-;  CMP #$20
-;  BCS @SKP_20   ; 20以上
-;  LDA #'.'
-;@SKP_20:
-;  CMP #$7F
-;  BCC @SKP_7F   ; 7F未満
-;  LDA #'.'
-;@SKP_7F:
-;  JSR PRT_CHAR_UART
-;  INC ADDR_INDEX_L
-;  BNE @SKP_H2
-;  INC ADDR_INDEX_H
-;@SKP_H2:
-;  DEX
-;  BNE @ASCIILOOP
-;  DEY
-;  BEQ @END
-;  BRA @LOOP
-;@END:
-;  JMP LOOP
-
 ; コマンドバッファの引数の先頭Xと終端Yを取得
 ; スペースで区切ることが出来る
 ; 何もなければゼロフラグが立つ
@@ -422,6 +357,14 @@ CHR2NIB:
   RTS
 @ERR:
   SEC
+  RTS
+
+PRT_REG:
+  ; レジスタ表示の一部。ほんのちょっとだけ短縮になるはず
+  PHX
+  JSR FUNC_CON_OUT_CHR
+  PLA
+  JSR PRT_BYT_S
   RTS
 
 ; -------------------------------------------------------------------
