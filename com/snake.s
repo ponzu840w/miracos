@@ -70,6 +70,11 @@ ZP_SSR:                   .RES 1  ; レコード経過秒数（デシマル
 ZP_TICK_FLAG:             .RES 1  ; 0=ティック待機期間 非0=ティック発生
 ZP_SELECTOR_STATE:        .RES 1  ; メニュー状態
 ZP_SP:                    .RES 1
+; SNESPAD
+ZP_PADSTAT:         .RES 2        ; ゲームパッドの状態が収まる
+ZP_SHIFTER:         .RES 1        ; ゲームパッド読み取り処理用
+ZP_PRE_PADSTAT:     .RES 2
+ZP_VB_ON:           .RES 1
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -78,6 +83,12 @@ ZP_SP:                    .RES 1
 START:
   TSX
   STX ZP_SP
+  mem2mem16 ZP_PRE_PADSTAT,ZP_PADSTAT ; 表示するときすなわち状態変化があったとき、前回状態更新
+  ; 汎用ポートの設定
+  LDA VIA::PAD_DDR          ; 0で入力、1で出力
+  ORA #(VIA::PAD_CLK|VIA::PAD_PTS)
+  AND #<~(VIA::PAD_DAT)
+  STA VIA::PAD_DDR
   ; アドレス類を取得
   LDY #BCOS::BHY_GET_ADDR_txtvram768  ; TRAM
   syscall GET_ADDR
@@ -92,6 +103,13 @@ START:
   STZ ZP_MMR
   STZ ZP_SSR
   STZ ZP_SNK_LENGTHR
+  STZ ZP_VB_ON                        ; VB処理オフ（PAD除く
+  ; 割り込みハンドラの登録
+  SEI
+  loadAY16 VBLANK
+  syscall IRQ_SETHNDR_VB
+  storeAY16 ZP_VB_STUB
+  CLI
   JSR TITLE
 GAME:
   JSR CLEAR_TXTVRAM                   ; 画面クリア
@@ -114,12 +132,8 @@ GAME:
   STA ZP_ITR
   CMP #8
   BNE @SPEED_LOOP
-  ; 割り込みハンドラの登録
-  SEI
-  loadAY16 VBLANK
-  syscall IRQ_SETHNDR_VB
-  storeAY16 ZP_VB_STUB
-  CLI
+  LDA #1
+  STA ZP_VB_ON                        ; VB処理オン
   ; ゲーム情報の初期化
   STZ ZP_TICK_FLAG
   ; 長さ
@@ -409,7 +423,13 @@ TITLE:
   DEX                           ; 胴を設置
   LDA #CHR_TAIL
   JSR XY_PUT_DRAW
-  BRA @LOOP2
+  ;BRA @LOOP2
+
+@SKP_START:
+@SKP_ENTER:
+@LOOP2:
+  JMP @LOOP
+
 @SKP_WASD:
   ; エンターキー
 @ENTER:
@@ -419,6 +439,11 @@ TITLE:
   CMP #TITLE_MENU_EXIT
   BNE @SKP_EXIT
   ; 大政奉還コード
+  ; 割り込みハンドラの登録抹消
+  SEI
+  mem2AY16 ZP_VB_STUB
+  syscall IRQ_SETHNDR_VB
+  CLI
   LDX ZP_SP
   TXS
   RTS
@@ -426,15 +451,15 @@ TITLE:
   CMP #TITLE_MENU_START
   BNE @SKP_START
   RTS
-@SKP_START:
-@SKP_ENTER:
-@LOOP2:
-  JMP @LOOP
 
 ; -------------------------------------------------------------------
 ;                        垂直同期割り込み
 ; -------------------------------------------------------------------
 VBLANK:
+  ; パッド状態反映
+  JSR PAD_READ            ; パッドを読む
+  BBR0 ZP_VB_ON,@SKP_SEC  ; ゲーム中以外はパッド処理だけで切り上げ
+  ; ギアを回す
   DEC ZP_GEAR_FOR_TICK
   BNE @SKP_TICK
   LDA ZP_VB_PAR_TICK
@@ -577,11 +602,7 @@ DRAW_LENGTHR:
 ;                                衝突
 ; -------------------------------------------------------------------
 GAMEOVER:
-  ; 割り込みハンドラの登録抹消
-  SEI
-  mem2AY16 ZP_VB_STUB
-  syscall IRQ_SETHNDR_VB
-  CLI
+  STZ ZP_VB_ON                        ; VB処理オフ（PAD除く
   loadmem16 ZR0,STR_GAMEOVER
   LDX #11                             ; 中央寄せ
   LDY #TITLE_Y                        ; 中央寄せ
@@ -977,6 +998,83 @@ XY_PRT_TIME:
   JSR XY_PRT_BYT
   RTS
 
+PAD_READ:
+  ; P/S下げる
+  LDA VIA::PAD_REG
+  ORA #VIA::PAD_PTS
+  STA VIA::PAD_REG
+  ; P/S下げる
+  LDA VIA::PAD_REG
+  AND #<~VIA::PAD_PTS
+  STA VIA::PAD_REG
+  ; 読み取りループ
+  LDX #16
+@LOOP:
+  LDA VIA::PAD_REG        ; データ読み取り
+  ; クロック下げる
+  AND #<~VIA::PAD_CLK
+  STA VIA::PAD_REG
+  ; 16bit値として格納
+  ROR
+  ROL ZP_PADSTAT+1
+  ROL ZP_PADSTAT
+  ; クロック上げる
+  LDA VIA::PAD_REG        ; データ読み取り
+  ORA #VIA::PAD_CLK
+  STA VIA::PAD_REG
+  DEX
+  BNE @LOOP
+  ; 変化はあったか
+  LDA ZP_PADSTAT
+  CMP ZP_PRE_PADSTAT
+  BNE CHANGED
+  LDA ZP_PRE_PADSTAT+1
+  CMP ZP_PADSTAT+1
+  BEQ NONE
+CHANGED:
+  ; LOW   : 7|B,Y,SEL,STA,↑,↓,←,→|0
+  ; HIGH  : 7|A,X,L,R            |0
+  mem2mem16 ZP_PRE_PADSTAT,ZP_PADSTAT ; 表示するときすなわち状態変化があったとき、前回状態更新
+  LDA ZP_PADSTAT
+  STA ZP_SHIFTER
+  LDX #$FF                            ; 対照インデックス
+@LOOP:
+  INX
+  CPX #8
+  BNE @SKP_LD_HIGH
+  ; highの処理に移行
+  LDA ZP_PADSTAT+1
+  STA ZP_SHIFTER
+@SKP_LD_HIGH:
+  CPX #12
+  BEQ NONE
+  LDA BUTTON2CHAR_LIST,X              ; 対応する文字を取得
+  ROL ZP_SHIFTER
+  BCS @LOOP
+  ; 突っ込むべき文字を入手
+  CMP #0
+  BEQ NONE
+  syscall CON_INTERRUPT_CHR
+  ;syscall CON_OUT_CHR
+NONE:
+  RTS
+
+ASCII_ENTER = $0A
+ASCII_ESC   = $1B
+BUTTON2CHAR_LIST:
+  .BYT ASCII_ESC    ; B
+  .BYT 0            ; Y
+  .BYT 0            ; SELECT
+  .BYT ASCII_ENTER  ; START
+  .BYT 'w'          ; ↑
+  .BYT 's'          ; ↓
+  .BYT 'a'          ; ←
+  .BYT 'd'          ; →
+  .BYT ASCII_ENTER  ; A
+  .BYT 0            ; X
+  .BYT 'a'          ; L
+  .BYT 'd'          ; R
+
 STR_LENGTH: .ASCIIZ         "Length:"
 STR_RECORD: .ASCIIZ         "Record:"
 STR_TITLE_SNAKEGAME: .BYT   $AD,$EB,$BE,' ',$D9,$BE,$90,$F1,$0
@@ -1015,7 +1113,7 @@ STR_TITLE_START:
 STR_GAMEOVER:
   .ASCIIZ "GAME OVER"
 STR_GAMEOVER_PROM:
-  .ASCIIZ "Esc to Quit / Enter to Retry"
+  .ASCIIZ " (B) to Quit / (A) to Retry"
 
 SNAKE_DATA256:  .RES 256
 

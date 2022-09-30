@@ -27,31 +27,64 @@ INIT:
 ;  ;JSR SCROLL_DOWN
 ;  BRA @LOOP
 
+BACK_CURSOR:
+  LDA CURSOR_X
+  BNE @SKP
+  DEC CURSOR_Y
+@SKP:
+  DEC
+  AND #%00011111        ; 0-31にマスク
+  STA CURSOR_X
+  RTS
+
 PUTC:
   ; コンソールに一文字表示する
-  ; --- テキスト書き込みベクタ作成
+  ; ---------------------------------------------------------------
+  ;   改行コードの場合
   CMP #$A
   BNE @SKP_LF           ; 改行なら改行する
-  JSR SCROLL_DOWN
+@NL:
   STZ CURSOR_X
+  INC CURSOR_Y
+  LDA CURSOR_Y
+  CMP #25
+  BNE @SKP_SCROLL
+  JSR SCROLL_DOWN
+  DEC CURSOR_Y
+@SKP_SCROLL:
   RTS
 @SKP_LF:
+  ; ---------------------------------------------------------------
+  ;   列がオーバーしている場合
+  PHA
+  LDA CURSOR_X
+  CMP #32
+  BNE @SKP_OVER_COLUMN
+  JSR @NL               ; 改行
+@SKP_OVER_COLUMN:
+  PLA
+  ; ---------------------------------------------------------------
+  ;   バックスペースの場合
   CMP #$8
   BNE @SKP_BS           ; バックスペースなら1文字消す
-  DEC CURSOR_X          ; カーソルを戻す
+  JSR BACK_CURSOR       ; カーソルを戻す
   LDA #' '              ; 一つ戻ってスペースを書き込む
   JSR PUTC
-  DEC CURSOR_X          ; 再びカーソルを戻す
+  JSR BACK_CURSOR       ; カーソルを戻す
   RTS
 @SKP_BS:
   PHA
+  ; ---------------------------------------------------------------
+  ;   行がオーバーしている場合
   LDA CURSOR_Y
   CMP #24
   BNE @SKP_OVER
-  JSR SCROLL_DOWN
   STZ CURSOR_X
   DEC CURSOR_Y
+  JSR SCROLL_DOWN
 @SKP_OVER:
+  ; ---------------------------------------------------------------
+  ;   テキスト書き込みベクタ作成
   STZ ZP_FONT_SR
   STZ ZP_TRAM_VEC16
   LDA CURSOR_Y
@@ -66,27 +99,29 @@ PUTC:
   LDA CURSOR_X
   ORA ZP_FONT_SR
   TAY
-  ; --- 書き込み
+  ; ---------------------------------------------------------------
+  ;   書き込み
   PLA
-SKP_EXT_PUTC:
-  CMP #$A
-  BNE SKP_NL
-  LDA #0
-  STA CURSOR_X
-  BEQ EDIT_NL
-SKP_NL:
+;SKP_EXT_PUTC:
+;  CMP #$A
+;  BNE SKP_NL
+;  LDA #0
+;  STA CURSOR_X
+;  BEQ EDIT_NL
+;SKP_NL:
   STA (ZP_TRAM_VEC16),Y
   JSR GCHR::DRAW_LINE_RAW
-  ; --- カーソル更新
-  LDA CURSOR_X
-  CLC
-  ADC #1
-  AND #%00011111
-  STA CURSOR_X
-  BNE SKP_INC_EDY
-EDIT_NL:
-  INC CURSOR_Y
-SKP_INC_EDY:
+  ; ---------------------------------------------------------------
+  ;   カーソル更新
+  ;LDA CURSOR_X
+  ;INC                   ; 右に
+  ;AND #%00011111        ; 0-31にマスク
+  ;STA CURSOR_X
+  INC CURSOR_X
+;  BNE SKP_INC_EDY
+;EDIT_NL:                ; マスクした結果ゼロになったらば
+;  INC CURSOR_Y          ; カーソル下降
+;SKP_INC_EDY:
   RTS
 
 SCROLL_DOWN:

@@ -74,3 +74,11 @@
   STA src
 .endmac
 
+.macro inc16 src
+.local @skp
+  INC src
+  BNE @skp
+  INC src+1
+@skp:
+.endmac
+
