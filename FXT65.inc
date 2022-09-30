@@ -34,11 +34,24 @@ ROMBASE = $F000
   PORTA = VIABASE+1
   DDRB = VIABASE+2
   DDRA = VIABASE+3
+  T1CL = VIABASE+4
+  T1CH = VIABASE+5
+  T1LL = VIABASE+6
+  T1LH = VIABASE+7
   SR = VIABASE+$A
   ACR = VIABASE+$B
   PCR = VIABASE+$C
   IFR = VIABASE+$D
   IER = VIABASE+$E
+  IFR_IRQ = %10000000
+  IER_SET = %10000000
+  IFR_T1  = %01000000
+  IFR_T2  = %00100000
+  IFR_CB1 = %00010000
+  IFR_CB2 = %00001000
+  IFR_SR  = %00000100
+  IFR_CA1 = %00000010
+  IFR_CA2 = %00000001
   ; 新式
   SPI_REG    = PORTB
   SPI_DDR    = DDRB
@@ -79,3 +92,17 @@ ROMBASE = $F000
   TCP  = CRTCBASE+$7  ; 2色モード色選択
                           ;   (0) 3 2 1 0 | (1) 3 2 1 0
 .ENDPROC
+
+; YMZ
+.PROC YMZ
+  ADDR = YMZBASE
+  DATA = YMZBASE+1
+  ; IR:Internal Address
+  IA_FRQ = $00        ; 各チャンネル周波数
+  IA_NOISE_FRQ = $06  ; ノイズ音周波数
+  IA_MIX = $07        ; ミキサ設定
+  IA_VOL = $08        ; 各チャンネル音量
+  IA_EVLP_FRQ = $0B   ; エンベロープ周波数
+  IA_EVLP_SHAPE = $0D ; エンベロープ形状
+.ENDPROC
+
