@@ -160,7 +160,7 @@ SYSCALL_TABLE:
   .WORD FS::FUNC_FS_FIND_NXT      ; 17 次のエントリの検索
   .WORD FS::FUNC_FS_READ_BYTS     ; 18 バイト数指定ファイル読み取り
   .WORD IRQ::FUNC_IRQ_SETHNDR_VB  ; 19 垂直同期割り込みハンドラ登録
-  .WORD FUNC_GET_ADDR             ; 20 16bit乱数のアドレスを取得
+  .WORD FUNC_GET_ADDR             ; 20 カーネル管理のアドレスを取得
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
@@ -409,9 +409,10 @@ FUNC_UPPER_STR:
 ; -------------------------------------------------------------------
 ; BCOS 20                    アドレス取得
 ; -------------------------------------------------------------------
-; input     : Y   = 0*2 : ZP_RND16      16bit乱数
-;                 = 1*2 : TXTVRAM768    テキストVRAM
-;                 = 2*2 : FONT2048      フォントグリフエリア
+; input     : Y   = 0*2 : ZP_RND16            16bit乱数
+;                 = 1*2 : TXTVRAM768          テキストVRAM
+;                 = 2*2 : FONT2048            フォントグリフエリア
+;                 = 3*3 : ZP_CON_DEV_CFG      コンソールデバイス設定
 ; output    : AY = ptr
 ; -------------------------------------------------------------------
 FUNC_GET_ADDR:
@@ -422,7 +423,8 @@ FUNC_GET_ADDR:
   RTS
 
 OPEN_ADDR_TABLE:
-  .WORD ZP_RND16    ; 0
-  .WORD TXTVRAM768  ; 1
-  .WORD FONT2048    ; 2
+  .WORD ZP_RND16          ; 0
+  .WORD TXTVRAM768        ; 1
+  .WORD FONT2048          ; 2
+  .WORD ZP_CON_DEV_CFG    ; 3
 

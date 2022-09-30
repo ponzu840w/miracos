@@ -2,7 +2,8 @@
 ; crt0.s
 ; ---------------------------------------------------------------------------
 ;
-; Startup code for cc65 (Single Board Computer version)
+; Startup code for cc65
+;   Single Board Computer version をFxT-65用にした
 
 .export   _init, _exit
 .import   _main
@@ -16,7 +17,7 @@
 
 .segment "STARTUP"
 ; ---------------------------------------------------------------------------
-; A little light 6502 housekeeping
+; A little light 6502 housekeeping - スタックポインタの初期化は省略
 
 _init:
 
