@@ -30,7 +30,7 @@ TOP_MARGIN = 8*3      ; 上部のマージン
 RL_MARGIN = 4         ; 左右のマージン
 ZANKI_MAX = 6         ; ストック可能な自機の最大数
 ZANKI_START = 3       ; 残機の初期値
-MAX_STARS = 8*2       ; 星屑の最大数
+MAX_STARS = 32        ; 星屑の最大数
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -135,7 +135,6 @@ INIT_GAME:
   STA ZP_INFO_FLAG_S
   LDA #1
   STA ZP_PL_COOLDOWN
-  STZ STARS_LIST            ; 星屑リスト長
   STZ ZP_PLBLT_TERMIDX      ; PLBLT終端ポインタ
   STZ ZP_ENEM_TERMIDX       ; ENEM終端ポインタ
   STZ ZP_DMK1_TERMIDX       ; DMK1終端ポインタ
@@ -187,21 +186,29 @@ MAIN:
   ;   描画されているのは前々フレームのまま
   LDA #%00000000            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ無効
   STA CRTC::CFG
-  LDX #0
+  LDX #MAX_STARS*2
 @LOOP:
   ; ---------------------------------------------------------------
   ;   前々フレームの残骸を削除
   LDA STARS_LIST-1,X
   STA CRTC::VMAH
-  LDA STARS_LIST,X
+  ASL
+  ROL ZR0
+  LDA ZP_STARS_OFFSET
   CLC
-  ADC ZP_STARS_OFFSET
+  ADC STARS_LIST,X
+  BBS0 ZR0,@SKP_SHIFT1
+  ASL
+@SKP_SHIFT1:
   CMP #192-(TOP_MARGIN)
   BCS @NEXT
   CLC
-  ADC #TOP_MARGIN+1
-  DEC
+  ADC #TOP_MARGIN+2
   PHA
+  DEC
+  BBS0 ZR0,@SKP_SHIFT2
+  DEC
+@SKP_SHIFT2:
   STA CRTC::VMAV
   LDA #DEBUG_BGC
   STA CRTC::WDBF
@@ -209,13 +216,15 @@ MAIN:
   ;   新規描画
   PLA
   INC
+  BBS0 ZR0,@SKP_SHIFT3
   INC
+@SKP_SHIFT3:
   STA CRTC::VMAV
   LDA #$0F
   STA CRTC::WDBF
 @NEXT:
-  INX
-  INX
+  DEX
+  DEX
   BNE @LOOP
 @END:
   INC ZP_STARS_OFFSET
