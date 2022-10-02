@@ -30,6 +30,7 @@ TOP_MARGIN = 8*3      ; 上部のマージン
 RL_MARGIN = 4         ; 左右のマージン
 ZANKI_MAX = 6         ; ストック可能な自機の最大数
 ZANKI_START = 3       ; 残機の初期値
+MAX_STARS = 8*2       ; 星屑の最大数
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -88,6 +89,9 @@ ZANKI_START = 3       ; 残機の初期値
   ; X,Y,X,Y,..,$??,$FF
   BLACKLIST1:     .RES 256
   BLACKLIST2:     .RES 256
+  ; 星屑のリスト
+  ; 初の試みとして、リスト長を最初に持ってくる
+  STARS_LIST:     .RES 1+(MAX_STARS*2)
   ; プレイヤの発射した弾丸
   PLBLT_LST:     .RES 32  ; (X,Y),(X,Y),...
 
@@ -130,6 +134,7 @@ INIT_GAME:
   STA ZP_INFO_FLAG_S
   LDA #1
   STA ZP_PL_COOLDOWN
+  STZ STARS_LIST            ; 星屑リスト長
   STZ ZP_PLBLT_TERMIDX      ; PLBLT終端ポインタ
   STZ ZP_ENEM_TERMIDX       ; ENEM終端ポインタ
   STZ ZP_DMK1_TERMIDX       ; DMK1終端ポインタ
@@ -172,6 +177,59 @@ MAIN:
 ; -------------------------------------------------------------------
 ; 割込みルーチンの見通しをよくするために、
 ; 一回きりの展開を想定したものもある
+
+; -------------------------------------------------------------------
+;                            星屑ティック
+; -------------------------------------------------------------------
+.macro tick_stars
+  ; リストのデータは直前フレームのまま、
+  ;   描画されているのは前々フレームのまま
+  LDA #%00000000            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ無効
+  STA CRTC::CFG
+  LDX STARS_LIST            ; リスト長を取得
+@LOOP:
+  BEQ @END
+  ; ---------------------------------------------------------------
+  ;   前々フレームの残骸を削除
+  LDY STARS_LIST-1,X
+  STY CRTC::VMAH
+  LDY STARS_LIST,X
+  DEY
+  ; TODO:オーバーフローチェック
+  STY CRTC::VMAV
+  LDA #DEBUG_BGC
+  STA CRTC::WDBF
+  ; ---------------------------------------------------------------
+  ;   垂直位置更新
+  INC STARS_LIST,X
+  ; TODO:オーバーフローチェック
+  ; ---------------------------------------------------------------
+  ;   新規描画
+  INY
+  INY
+  STY CRTC::VMAV
+  LDA #$0F
+  STA CRTC::WDBF
+  DEX
+  DEX
+  BRA @LOOP
+@END:
+  ; ---------------------------------------------------------------
+  ;   増加
+  LDX STARS_LIST            ; リスト長を取得
+  CPX #MAX_STARS
+  BPL @SKP_ADD
+  INX
+  INX
+  STX STARS_LIST
+  LDA ZP_PLAYER_X
+  STA STARS_LIST-1,X        ; 新規X
+  LDA ZP_PLAYER_Y
+  STA STARS_LIST,X          ; 新規Y
+@SKP_ADD:
+  LDA #%00000001            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ有効
+  STA CRTC::CFG
+.endmac
 
 ; -------------------------------------------------------------------
 ;                     ブラックリストポインタ作成
@@ -585,6 +643,7 @@ TICK:
   tick_pad
   ; ---------------------------------------------------------------
   ;   ティック処理
+  tick_stars
   tick_player                 ; プレイヤ処理
   LDY #2
   tick_pl_blt                 ; PL弾移動と描画
