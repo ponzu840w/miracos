@@ -52,6 +52,8 @@ START:
   INC ZR0+1
 @SKP_C:
   LDA (ZR0)                     ; 属性バイト取得
+  BIT #%00000010                ; hidden属性
+  BNE @LOOP                     ;   であれば表示しない
   STA ZP_ATTR                   ; 専用ZPに格納
   LDY #$0
   ASL ZP_ATTR                   ; 上位2bitを捨てる
