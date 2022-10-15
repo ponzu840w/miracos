@@ -71,8 +71,9 @@ ROMBASE = $F000
 ; ChDz
 .PROC CRTC
   CFG = CRTCBASE+$1   ; コンフィグ
-                          ;   MD0 MD1 MD2 MD3 - - - WCUE
-                          ;   MD : 色モード選択（各フレーム）
+                          ;   MD0 MD1 MD2 MD3 - - WCMD WCUE
+                          ;   MD    : 色モード選択（各内部行）
+                          ;   WCMD  : 書き込み色モード 0:16色 1:2色
                           ;   WCUE  : 書き込みカウントアップ有効化
 
   VMAH = CRTCBASE+$2  ; VRAM書き込みアドレス下位
