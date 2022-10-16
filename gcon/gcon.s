@@ -159,7 +159,7 @@ SCROLL_DOWN:
   INY
   CPY #32
   BNE @LASTLOOP
-  ;JSR GCHR::DRAW_ALLLINE
-  JSR GCHR::ENTER_TXTMODE             ; CHDZがすぐ狂うので初期化処理まで含める
+  JSR GCHR::DRAW_ALLLINE                ; 新生ChDzはそんなに狂わない、今こそアプリにモード権限を委譲
+  ;JSR GCHR::ENTER_TXTMODE             ; CHDZがすぐ狂うので初期化処理まで含める
   RTS
 

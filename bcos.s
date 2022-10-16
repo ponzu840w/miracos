@@ -165,6 +165,8 @@ SYSCALL_TABLE:
   .WORD FUNC_GET_ADDR             ; 20 カーネル管理のアドレスを取得
   .WORD FUNC_CON_INTERRUPT_CHR    ; 21 コンソール入力キューに割り込む
   .WORD FUNC_TIMEOUT              ; 22 タイムアウトを設定
+  .WORD GCHR::FUNC_CRTC_SETBASE   ; 23 CRTC基底状態を設定
+  .WORD GCHR::FUNC_CRTC_RETBASE   ; 24 CRTC基底状態に回帰
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン

@@ -169,6 +169,7 @@ OCOM_FOUND:
   PLY                             ; 引数をロード
   PLA
   JSR TPA                         ; コマンドを呼ぶ
+  syscall CRTC_RETBASE            ; CRTCを基底状態に戻す
   JMP LOOP
 
 COMMAND_NOTFOUND:
