@@ -115,15 +115,9 @@ FUNC_IRQ_SETHNDR_VB:
 ; ASCIIを受け取り、制御キーをトラップし、キューに淹れる
 ; -------------------------------------------------------------------
 TRAP:
-  CMP #$03
+  CMP #$03                ; CTRL+C?
   BNE @SKP_C
-  LDX #6
-@LOOP:
-  PLA
-  DEX
-  BNE @LOOP
-  CLI
-  JMP FUNC_RESET
+  JMP (CTRL_C_ABORT_VEC16); CTRL+Cアボートに飛ぶ
 @SKP_C:
 ENQ:
   LDX ZP_CONINBF_WR_P     ; バッファの書き込み位置インデックス
@@ -141,5 +135,31 @@ SKIP_RTSOFF:
   ; ポインタ増加
   INC ZP_CONINBF_WR_P
   INC ZP_CONINBF_LEN
+  RTS
+
+; -------------------------------------------------------------------
+;                     デフォルトのCTRL+C処理
+; -------------------------------------------------------------------
+CTRL_C_RESET:
+  ; 鬼のスタック破棄
+  LDX #8  ; JSR TRAP(2)+YXA(3)+RTI(3)
+@LOOP:
+  PLA
+  DEX
+  BNE @LOOP
+  CLI
+  JMP FUNC_RESET
+
+; -------------------------------------------------------------------
+; BCOS 25             CTRL+Cアボートベクタ登録
+; -------------------------------------------------------------------
+; input   : AY = ptr $00xx指定でデフォルトにリセット
+; -------------------------------------------------------------------
+FUNC_IRQ_SETHNDR_C:
+  CPY #0
+  BNE @SKP_DEFAULT
+  loadAY16 CTRL_C_RESET
+@SKP_DEFAULT:
+  storeAY16 CTRL_C_ABORT_VEC16
   RTS
 

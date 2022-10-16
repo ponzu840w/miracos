@@ -167,6 +167,7 @@ SYSCALL_TABLE:
   .WORD FUNC_TIMEOUT              ; 22 タイムアウトを設定
   .WORD GCHR::FUNC_CRTC_SETBASE   ; 23 CRTC基底状態を設定
   .WORD GCHR::FUNC_CRTC_RETBASE   ; 24 CRTC基底状態に回帰
+  .WORD IRQ::FUNC_IRQ_SETHNDR_C   ; 25 CTRL+Cハンドラを設定
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
@@ -200,6 +201,9 @@ FUNC_RESET:
   ; 垂直同期割り込みを設定する
   loadAY16 IRQ::VBLANK_STUB
   storeAY16 VBLANK_USER_VEC16     ; 垂直同期ユーザベクタ変更
+  ; CTRL+C処理ベクタを設定する
+  LDY #0                          ; ゼロページを指定するとリセットされる
+  JSR IRQ::FUNC_IRQ_SETHNDR_C
   LDA VIA::PCR                    ; ポート制御端子の設定
   AND #%11110001                  ; 321がCA2
   ORA #%00000010                  ; 001＝独立した負の割り込みエッジ入力
