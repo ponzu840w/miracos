@@ -31,4 +31,6 @@ GET_ADDR            = 20
   BHY_GET_ADDR_condevcfg      = 3*2
 CON_INTERRUPT_CHR   = 21
 TIMEOUT             = 22
+CRTC_SETBASE        = 23
+CRTC_RETBASE        = 24
 
