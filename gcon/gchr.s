@@ -65,28 +65,41 @@ FUNC_GCHR_COL:
   STY COL_BACK
 SET_TCP:
   ; 2色パレットを変数から反映する
+  ;LDA COL_BACK
+  ;ASL
+  ;ASL
+  ;ASL
+  ;ASL
+  ;STA ZP_X
+  ;LDA COL_MAIN
+  ;AND #%00001111
+  ;ORA ZP_X
+  ;STA CRTC::TCP
   LDA COL_BACK
-  ASL
-  ASL
-  ASL
-  ASL
-  STA ZP_X
+  ORA #CRTC2::T0
+  STA CRTC2::CONF
   LDA COL_MAIN
-  AND #%00001111
-  ORA ZP_X
-  STA CRTC::TCP
+  ORA #CRTC2::T1
+  STA CRTC2::CONF
   RTS
 
 INIT:
   ; 2色モードの色を白黒に初期化
-  LDA #$44                  ; 青
+  LDA #$04                  ; 青
   STA COL_BACK              ; 背景色に設定
-  LDA #$FF                  ; 白
+  LDA #$0F                  ; 白
   STA COL_MAIN              ; 文字色に設定
-  LDA #%11110010            ; 全内部行を2色モード、書き込みカウントアップ無効、2色モード座標
-  LDY #0
-  JSR FUNC_CRTC_SETBASE     ; 基底状態を設定
-  JSR FUNC_CRTC_RETBASE     ; CRTCを基底状態にする
+  ;LDA #%11110010            ; 全内部行を2色モード、書き込みカウントアップ無効、2色モード座標
+  ;LDY #0
+  ;JSR FUNC_CRTC_SETBASE     ; 基底状態を設定
+  ;JSR FUNC_CRTC_RETBASE     ; CRTCを基底状態にする
+  STZ CRTC2::CHRW           ; キャラクタボックス有効、幅1
+  LDA #7
+  STA CRTC2::CHRH           ; 高さ8
+  LDA #(CRTC2::WF|0)        ; 第0フレーム
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|1)        ; 2色モード有効
+  STA CRTC2::CONF
   JSR CLEAR_TXTVRAM         ; TRAMの空白埋め
   JSR SET_TCP
   JSR DRAW_ALLLINE          ; 全体描画
@@ -131,6 +144,7 @@ DRAW_LINE_RAW:
   TAX                       ; しばらく使わないXに保存
   ; HVの初期化
   STZ ZP_X
+  STZ CRTC2::PTRX
   ; 0~2のページオフセットを取得
   LDA ZP_TRAM_VEC16+1
   SEC
@@ -150,6 +164,7 @@ DRAW_LINE_RAW:
   ASL
   ASL
   STA ZP_Y
+  STA CRTC2::PTRY
   ; --- フォント参照ベクタ作成
 DRAW_TXT_LOOP:
   LDA #>FONT2048
@@ -173,16 +188,16 @@ DRAW_TXT_LOOP:
   STA ZP_FONT_VEC16+1
   ; --- フォント書き込み
   ; カーソルセット
-  LDA ZP_X
-  STA CRTC::VMAH
+  ;LDA ZP_X
+  ;STA CRTC::VMAH
   ; 一文字表示ループ
   LDY #0
 CHAR_LOOP:
-  LDA ZP_Y
-  STA CRTC::VMAV
+  ;LDA ZP_Y
+  ;STA CRTC::VMAV
   ; フォントデータ読み取り
   LDA (ZP_FONT_VEC16),Y
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   INC ZP_Y
   INY
   CPY #8
