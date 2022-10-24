@@ -55,12 +55,21 @@ START:
   BCS NOTFOUND                    ; オープンできなかったらあきらめる
   STA FD_SAV                      ; ファイル記述子をセーブ
   ; CRTCを初期化
-  LDA #%00000001           ; 全内部行を16色モード、書き込みカウントアップ有効、16色モード座標
-  STA CRTC::CFG
-  STZ CRTC::RF              ; f0を表示
-  LDA #$00
-  STA ZP_VMAV
+  ;LDA #%00000001           ; 全内部行を16色モード、書き込みカウントアップ有効、16色モード座標
+  ;STA CRTC::CFG
+  ;STZ CRTC::RF              ; f0を表示
+  LDA #(CRTC2::WF|1)              ; f1書き込み
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|0)              ; 16色モード
+  STA CRTC2::CONF
+  LDA #%01010101                  ; f1表示
+  STA CRTC2::DISP
+  LDA #%10000000                  ; ChrBox off
+  STA CRTC2::CHRW
   JSR FILL
+  ; 書き込み座標リセット
+  STZ CRTC2::PTRX
+  STZ CRTC2::PTRY
 LOOP:
   ; ロード
   LDA FD_SAV
@@ -74,10 +83,6 @@ LOOP:
   LSR
   TAX
   ; バッファ出力
-  ; 書き込み座標リセット
-  LDA ZP_VMAV
-  STA CRTC::VMAV
-  STZ CRTC::VMAH
   loadmem16 ZP_READ_VEC16, TEXT
   ; バッファ出力ループ
   ;LDX #IMAGE_BUFFER_SECS
@@ -87,7 +92,7 @@ LOOP:
   LDY #0
 @PAGE_LOOP:
   LDA (ZP_READ_VEC16),Y
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   INY
   BNE @PAGE_LOOP
   INC ZP_READ_VEC16+1             ; 読み取りポイント更新
@@ -95,7 +100,7 @@ LOOP:
   LDY #0
 @PAGE_LOOP2:
   LDA (ZP_READ_VEC16),Y
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   INY
   BNE @PAGE_LOOP2
   INC ZP_READ_VEC16+1             ; 読み取りポイント更新
@@ -106,9 +111,6 @@ LOOP:
   ; 垂直アドレスの更新
   ; 512バイトは4行に相当する
   CLC
-  LDA ZP_VMAV
-  ADC #4*IMAGE_BUFFER_SECS
-  STA ZP_VMAV
   BRA LOOP
   ; 最終バイトがあるとき
   ; クローズ
@@ -148,14 +150,14 @@ PRT_LF:
 
 ; 画面全体をAの値で埋め尽くす
 FILL:
-  LDY #$00
-  STY CRTC::VMAV
-  STY CRTC::VMAH
+  STZ CRTC2::PTRX
+  STZ CRTC2::PTRY
+  STA CRTC2::WDAT
   LDY #$C0
 FILL_LOOP_V:
   LDX #$80
 FILL_LOOP_H:
-  STA CRTC::WDBF
+  LDA CRTC2::REPT
   DEX
   BNE FILL_LOOP_H
   DEY
