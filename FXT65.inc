@@ -107,3 +107,34 @@ ROMBASE = $F000
   IA_EVLP_SHAPE = $0D ; エンベロープ形状
 .ENDPROC
 
+; ChDz
+.PROC CRTC2
+  CONF = CRTCBASE     ; コンフィグ
+                          ;   MD0 MD1 MD2 MD3 - - WCMD WCUE
+                          ;   MD    : 色モード選択（各内部行）
+                          ;   WCMD  : 書き込み色モード 0:16色 1:2色
+                          ;   WCUE  : 書き込みカウントアップ有効化
+  WF = %00000000
+  TT = %00010000
+  T0 = %00100000
+  T1 = %00110000
+  REPT = CRTCBASE+$1  ; 連続書き込み
+
+  PTRX = CRTCBASE+$2  ; VRAM書き込みアドレス下位
+                          ;   - 6 5 4 3 2 1 0
+
+  PTRY = CRTCBASE+$3  ; VRAM書き込みアドレス上位
+                      ;   7 6 5 4 3 2 1 0
+
+  WDAT = CRTCBASE+$4  ; 書き込みデータ
+
+  DISP = CRTCBASE+$5  ; 出力フレーム選択
+                      ;   (0) 1 0 | (1) 1 0 | (2) 1 0 | (3) 1 0
+
+  CHRW = CRTCBASE+$6  ; 
+                      ; 
+
+  CHRH = CRTCBASE+$7  ; 
+                      ; 
+.ENDPROC
+
