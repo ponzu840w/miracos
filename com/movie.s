@@ -41,26 +41,26 @@ IMAGE_BUFFER_SECS = 32 ; 何セクタをバッファに使うか？ 48の約数
 ; -------------------------------------------------------------------
 .macro init_crtc
   ; CRTCを初期化
+  LDA #%10000000                  ; ChrBox off
+  STA CRTC2::CHRW
   ; コンフィグレジスタの設定
-  LDA #%00000001            ; 全内部行を16色モード、書き込みカウントアップ有効、16色モード座標
-  STA CRTC::CFG
-  ; 塗りつぶし
-  ; f0
-  STZ CRTC::WF
+  LDA #(CRTC2::WF|1)              ; f1書き込み
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|0)              ; 16色モード
+  STA CRTC2::CONF
   LDA #$FF
-  JSR FILL
-  ; f1
-  LDA #$1
-  STA CRTC::WF
+  JSR FILL                        ; 塗りつぶし
+  LDA #(CRTC2::WF|2)              ; f2書き込み
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|0)              ; 16色モード
+  STA CRTC2::CONF
   LDA #$FF
-  JSR FILL
+  JSR FILL                        ; 塗りつぶし
+  LDA #(CRTC2::WF|1)              ; f2書き込み
   ; 表示フレーム
-  LDA #%01010101
+  LDA #%01010101                  ; f1表示
   STA ZP_VISIBLE_FLAME
-  STA CRTC::RF
-  ; 書き込みフレーム
-  LDA #%10101010
-  STA CRTC::WF
+  STA CRTC2::DISP
 .endmac
 
 .CODE
@@ -109,9 +109,8 @@ START:
   TAX
   ; バッファ出力
   ; 書き込み座標リセット
-  LDA ZP_VMAV
-  STA CRTC::VMAV
-  STZ CRTC::VMAH
+  STZ CRTC2::PTRX
+  STZ CRTC2::PTRY
   loadmem16 ZP_READ_VEC16, TEXT
   ; バッファ出力ループ
   ;LDX #IMAGE_BUFFER_SECS
@@ -121,7 +120,7 @@ START:
   LDY #0
 @PAGE_LOOP:
   LDA (ZP_READ_VEC16),Y
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   INY
   BNE @PAGE_LOOP
   INC ZP_READ_VEC16+1             ; 読み取りポイント更新
@@ -129,7 +128,7 @@ START:
   LDY #0
 @PAGE_LOOP2:
   LDA (ZP_READ_VEC16),Y
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   INY
   BNE @PAGE_LOOP2
   INC ZP_READ_VEC16+1             ; 読み取りポイント更新
@@ -140,9 +139,6 @@ START:
   ; 垂直アドレスの更新
   ; 512バイトは4行に相当する
   CLC
-  LDA ZP_VMAV
-  ADC #4*IMAGE_BUFFER_SECS
-  STA ZP_VMAV
   BRA @IMAGE_LOOP
   ; 最終バイトがあるとき
   ; クローズ
@@ -167,12 +163,16 @@ START:
 @SWAP_FLAME:
   ; フレーム交換
   LDA ZP_VISIBLE_FLAME
-  STA CRTC::WF
+  TAX
+  AND #%00000011
+  ORA #CRTC2::WF
+  STA CRTC2::CONF
+  TXA
   CLC
   ROL ; %01010101と%10101010を交換する
   ADC #0
   STA ZP_VISIBLE_FLAME
-  STA CRTC::RF
+  STA CRTC2::DISP
   JMP @NEXT_IMAGE
 
 D_ADD_BYT:
