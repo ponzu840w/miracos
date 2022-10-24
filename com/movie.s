@@ -24,7 +24,6 @@ IMAGE_BUFFER_SECS = 32 ; 何セクタをバッファに使うか？ 48の約数
   ZP_TMP_X_DEST:    .RES 1
   ZP_TMP_Y_DEST:    .RES 1
   ZP_READ_VEC16:    .RES 2
-  ZP_VMAV:          .RES 1
   ZP_VISIBLE_FLAME: .RES 1  ; 可視フレーム
   ZP_IMAGE_NUM16:   .RES 2  ; いま何枚目？1..
 
@@ -94,7 +93,9 @@ START:
   syscall FS_OPEN                 ; ファイルをオープン
   BCS @NOTFOUND2                  ; オープンできなかったらあきらめる
   STA FD_SAV                      ; ファイル記述子をセーブ
-  STZ ZP_VMAV
+  ; 書き込み座標リセット
+  STZ CRTC2::PTRX
+  STZ CRTC2::PTRY
 @IMAGE_LOOP:
   ; ロード
   LDA FD_SAV
@@ -108,9 +109,6 @@ START:
   LSR
   TAX
   ; バッファ出力
-  ; 書き込み座標リセット
-  STZ CRTC2::PTRX
-  STZ CRTC2::PTRY
   loadmem16 ZP_READ_VEC16, TEXT
   ; バッファ出力ループ
   ;LDX #IMAGE_BUFFER_SECS
@@ -147,9 +145,10 @@ START:
   syscall FS_CLOSE                ; クローズ
   BCS BCOS_ERROR
   ; キー待機
-  ;LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
-  ;syscall CON_RAWIN
-  ;RTS
+  LDA #BCOS::BHA_CON_RAWIN_NoWaitNoEcho  ; キー入力待機
+  syscall CON_RAWIN
+  BEQ @PICINC
+  RTS
 @PICINC:
   ; 探す画像の番号を増やす
   INC ZP_IMAGE_NUM16

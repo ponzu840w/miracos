@@ -15,7 +15,7 @@
 ;         : Y = RF
 ; -------------------------------------------------------------------
 FUNC_CRTC_SETBASE:
-  STA BASE_CFG
+  ;STA BASE_CFG
   STY BASE_RF
   RTS
 
@@ -23,11 +23,15 @@ FUNC_CRTC_SETBASE:
 ; BCOS 24                   基底状態に回帰
 ; -------------------------------------------------------------------
 FUNC_CRTC_RETBASE:
-  LDA BASE_CFG
-  STA CRTC::CFG       ; コンフィグ復帰
+  STZ CRTC2::CHRW           ; キャラクタボックス有効、幅1
+  LDA #7
+  STA CRTC2::CHRH           ; 高さ8
+  LDA #(CRTC2::WF|0)        ; 第0フレーム
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|1)        ; 2色モード有効
+  STA CRTC2::CONF
   LDA BASE_RF
-  STA CRTC::RF        ; 表示フレーム復帰
-  STZ CRTC::WF        ; f0に対する書き込み、は決め打ちでいいよね？
+  STA CRTC2::DISP           ; 表示フレーム復帰
   RTS
 
 ; -------------------------------------------------------------------
@@ -89,17 +93,9 @@ INIT:
   STA COL_BACK              ; 背景色に設定
   LDA #$0F                  ; 白
   STA COL_MAIN              ; 文字色に設定
-  ;LDA #%11110010            ; 全内部行を2色モード、書き込みカウントアップ無効、2色モード座標
-  ;LDY #0
-  ;JSR FUNC_CRTC_SETBASE     ; 基底状態を設定
-  ;JSR FUNC_CRTC_RETBASE     ; CRTCを基底状態にする
-  STZ CRTC2::CHRW           ; キャラクタボックス有効、幅1
-  LDA #7
-  STA CRTC2::CHRH           ; 高さ8
-  LDA #(CRTC2::WF|0)        ; 第0フレーム
-  STA CRTC2::CONF
-  LDA #(CRTC2::TT|1)        ; 2色モード有効
-  STA CRTC2::CONF
+  LDY #0
+  JSR FUNC_CRTC_SETBASE     ; 基底状態を設定
+  JSR FUNC_CRTC_RETBASE     ; CRTCを基底状態にする
   JSR CLEAR_TXTVRAM         ; TRAMの空白埋め
   JSR SET_TCP
   JSR DRAW_ALLLINE          ; 全体描画

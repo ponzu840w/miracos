@@ -55,9 +55,6 @@ START:
   BCS NOTFOUND                    ; オープンできなかったらあきらめる
   STA FD_SAV                      ; ファイル記述子をセーブ
   ; CRTCを初期化
-  ;LDA #%00000001           ; 全内部行を16色モード、書き込みカウントアップ有効、16色モード座標
-  ;STA CRTC::CFG
-  ;STZ CRTC::RF              ; f0を表示
   LDA #(CRTC2::WF|1)              ; f1書き込み
   STA CRTC2::CONF
   LDA #(CRTC2::TT|0)              ; 16色モード
@@ -66,6 +63,7 @@ START:
   STA CRTC2::DISP
   LDA #%10000000                  ; ChrBox off
   STA CRTC2::CHRW
+  LDA #$FF
   JSR FILL
   ; 書き込み座標リセット
   STZ CRTC2::PTRX
