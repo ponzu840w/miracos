@@ -47,9 +47,10 @@ PRINT_IMF:
 ;  LDA #%00000001           ; 全内部行を16色モード、書き込みカウントアップ有効、16色モード座標
 ;  STA CRTC::CFG
 ;  STZ CRTC::RF              ; f0を表示
-  LDA #$00
-  STA ZP_VMAV
 ;  JSR FILL
+  ; 書き込み座標リセット
+  STZ CRTC2::PTRX
+  STZ CRTC2::PTRY
 LOOP:
   ; ロード
   LDA FD_SAV
@@ -64,9 +65,6 @@ LOOP:
   TAX
   ; バッファ出力
   ; 書き込み座標リセット
-  LDA ZP_VMAV
-  STA CRTC::VMAV
-  STZ CRTC::VMAH
   loadmem16 ZP_READ_VEC16, TEXT
   ; バッファ出力ループ
   ;LDX #IMAGE_BUFFER_SECS
@@ -76,7 +74,7 @@ LOOP:
   LDY #0
 @PAGE_LOOP:
   LDA (ZP_READ_VEC16),Y
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   INY
   BNE @PAGE_LOOP
   INC ZP_READ_VEC16+1             ; 読み取りポイント更新
@@ -84,7 +82,7 @@ LOOP:
   LDY #0
 @PAGE_LOOP2:
   LDA (ZP_READ_VEC16),Y
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   INY
   BNE @PAGE_LOOP2
   INC ZP_READ_VEC16+1             ; 読み取りポイント更新

@@ -113,19 +113,11 @@ INIT_GENERAL:
   ORA #(VIA::PAD_CLK|VIA::PAD_PTS)
   AND #<~(VIA::PAD_DAT)
   STA VIA::PAD_DDR
-  JMP INIT_TITLE
+  JMP INIT_TITLE            ; タイトルに飛ぶ
 INIT_GAME:
   ; ---------------------------------------------------------------
   ;   YMZ
   JSR MUTE_ALL
-  ; ---------------------------------------------------------------
-  ;   CRTC
-  LDA #%00000001            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ有効
-  STA CRTC::CFG
-  LDA #%01010101            ; フレームバッファ1
-  STA ZP_VISIBLE_FLAME
-  STA CRTC::RF              ; FB1を表示
-  STA CRTC::WF              ; FB1を書き込み先に
   ; ---------------------------------------------------------------
   ;   変数初期化
   LDA #$FF                  ; ブラックリスト用番人
@@ -145,17 +137,33 @@ INIT_GAME:
   LDA #ZANKI_START
   STA ZP_ZANKI
   STZ ZP_PL_STAT_FLAG
-  ; ---------------------------------------------------------------
-  ;   画面の初期化
-  LDA #BGC
-  JSR FILL_BG               ; FB1塗りつぶし
-  LDX #2                    ; FB2を書き込み先に
-  STX CRTC::WF
-  JSR FILL_BG               ; FB2塗りつぶし
   LDA #PLAYER_X
   STA ZP_PLAYER_X           ; プレイヤー初期座標
   LDA #PLAYER_Y
   STA ZP_PLAYER_Y
+  ; ---------------------------------------------------------------
+  ;   CRTCと画面の初期化
+  ; FB2
+  LDY #(CRTC2::WF|2)
+  STY CRTC2::CONF           ; FB2を書き込み先に
+  LDX #(CRTC2::TT|0)        ; 念のため16色モードを設定
+  STX CRTC2::CONF
+  LDA #BGC
+  JSR FILL_BG               ; FB2塗りつぶし
+  ; FB1
+  LDY #(CRTC2::WF|1)
+  STY CRTC2::CONF           ; FB1を書き込み先に
+  STX CRTC2::CONF           ; 念のため16色モードを設定
+  JSR FILL_BG               ; FB1塗りつぶし
+  ; DISP
+  LDA #%01010101            ; FB1
+  STA ZP_VISIBLE_FLAME      ; シフトして1,2をチェンジする用変数
+  STA CRTC2::DISP           ; 表示フレームを全てFB1に
+  ; chrbox設定
+  LDA #3                    ; よこ4
+  STA CRTC2::CHRW
+  LDA #7                    ; たて8
+  STA CRTC2::CHRH
   ; ---------------------------------------------------------------
   ;   効果音の初期化
   STZ ZP_SE_STATE           ; サウンドの初期化
@@ -184,14 +192,15 @@ MAIN:
 .macro tick_stars
   ; リストのデータは直前フレームのまま、
   ;   描画されているのは前々フレームのまま
-  LDA #%00000000            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ無効
-  STA CRTC::CFG
+  ; カウントアップを切る理由あったっけ
+  ;LDA #%00000000            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ無効
+  ;STA CRTC::CFG
   LDX #MAX_STARS*2
 @LOOP:
   ; ---------------------------------------------------------------
   ;   前々フレームの残骸を削除
   LDA STARS_LIST-1,X
-  STA CRTC::VMAH
+  STA CRTC2::PTRX
   ASL
   ROL ZR0
   LDA ZP_STARS_OFFSET
@@ -209,9 +218,9 @@ MAIN:
   BBS0 ZR0,@SKP_SHIFT2
   DEC
 @SKP_SHIFT2:
-  STA CRTC::VMAV
+  STA CRTC2::PTRY
   LDA #DEBUG_BGC
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   ; ---------------------------------------------------------------
   ;   新規描画
   PLA
@@ -219,17 +228,17 @@ MAIN:
   BBS0 ZR0,@SKP_SHIFT3
   INC
 @SKP_SHIFT3:
-  STA CRTC::VMAV
+  STA CRTC2::PTRY
   LDA #$0F
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
 @NEXT:
   DEX
   DEX
   BNE @LOOP
 @END:
   INC ZP_STARS_OFFSET
-  LDA #%00000001            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ有効
-  STA CRTC::CFG
+  ;LDA #%00000001            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ有効
+  ;STA CRTC::CFG
 .endmac
 
 ; -------------------------------------------------------------------
@@ -276,38 +285,40 @@ MAIN:
 ; -------------------------------------------------------------------
 ;                        アンチノイズ水平消去
 ; -------------------------------------------------------------------
-.macro anti_noise
-  .local @ANLLOOP
-  STZ CRTC::VMAH    ; 水平カーソルを左端に
-  LDA ZP_ANT_NZ_Y   ; アンチノイズY座標
-  STA CRTC::VMAV
-  LDX #$20          ; 繰り返し回数
-  LDA #BGC
-@ANLLOOP:
-  STA CRTC::WDBF    ; $8x$20=$100=256
-  STA CRTC::WDBF    ; 2行の塗りつぶし
-  STA CRTC::WDBF
-  STA CRTC::WDBF
-  STA CRTC::WDBF
-  STA CRTC::WDBF
-  STA CRTC::WDBF
-  STA CRTC::WDBF
-  DEX
-  BNE @ANLLOOP
-  INC ZP_ANT_NZ_Y
-.endmac
+;.macro anti_noise
+;  .local @ANLLOOP
+;  STZ CRTC::VMAH    ; 水平カーソルを左端に
+;  LDA ZP_ANT_NZ_Y   ; アンチノイズY座標
+;  STA CRTC::VMAV
+;  LDX #$20          ; 繰り返し回数
+;  LDA #BGC
+;@ANLLOOP:
+;  STA CRTC::WDBF    ; $8x$20=$100=256
+;  STA CRTC::WDBF    ; 2行の塗りつぶし
+;  STA CRTC::WDBF
+;  STA CRTC::WDBF
+;  STA CRTC::WDBF
+;  STA CRTC::WDBF
+;  STA CRTC::WDBF
+;  STA CRTC::WDBF
+;  DEX
+;  BNE @ANLLOOP
+;  INC ZP_ANT_NZ_Y
+;.endmac
 
 ; -------------------------------------------------------------------
 ;                           フレーム交換
 ; -------------------------------------------------------------------
 .macro exchange_frame
   LDA ZP_VISIBLE_FLAME
-  STA CRTC::WF
+  AND #%00000011            ; 下位のみにマスク
+  ORA #CRTC2::WF            ; WFサブアドレス
+  STA CRTC2::CONF
   CLC
   ROL ; %01010101と%10101010を交換する
   ADC #0
   STA ZP_VISIBLE_FLAME
-  STA CRTC::RF
+  STA CRTC2::DISP
 .endmac
 
 ; -------------------------------------------------------------------
@@ -663,65 +674,114 @@ TICK:
 ; 妙に汎用的にすると重そうなので8x8固定
 ; X,Yがそのまま座標
 DEL_SQ8:
-  TYA
-  CLC
-  ADC #8
-  STA ZP_CANVAS_Y
-  ;LDA #BGC
+  STX CRTC2::PTRX
+  STY CRTC2::PTRY
   LDA #DEBUG_BGC              ; どこを四角く塗りつぶしたかがわかる
+  STA CRTC2::WDAT
+  LDA CRTC2::REPT
+  LDA CRTC2::REPT
+  LDA CRTC2::REPT
+  LDY #7
 DRAW_SQ_LOOP:
-  STX CRTC::VMAH
-  STY CRTC::VMAV
-  STA CRTC::WDBF
-  STA CRTC::WDBF
-  STA CRTC::WDBF
-  STA CRTC::WDBF
-  INY
-  CPY ZP_CANVAS_Y
+  LDA CRTC2::REPT
+  LDA CRTC2::REPT
+  LDA CRTC2::REPT
+  LDA CRTC2::REPT
+  DEY
   BNE DRAW_SQ_LOOP
   RTS
 
+;DEL_SQ8:
+;  TYA
+;  CLC
+;  ADC #8
+;  STA ZP_CANVAS_Y
+;  ;LDA #BGC
+;  LDA #DEBUG_BGC              ; どこを四角く塗りつぶしたかがわかる
+;DRAW_SQ_LOOP:
+;  STX CRTC::VMAH
+;  STY CRTC::VMAV
+;  STA CRTC::WDBF
+;  STA CRTC::WDBF
+;  STA CRTC::WDBF
+;  STA CRTC::WDBF
+;  INY
+;  CPY ZP_CANVAS_Y
+;  BNE DRAW_SQ_LOOP
+;  RTS
+
 ; 8x8キャラクタを表示する
+; 書き込み座標はZP_CANVAS_X,Yで与えられる
 ; キャラデータの先頭座標がZP_CHAR_PTRで与えられる
 DRAW_CHAR8:
+  ; Xのアライメント
   LSR ZP_CANVAS_X
   LDA ZP_CANVAS_X
+  ; 左右跨ぎチェック
   CMP #$7F-3
   BCS @END            ; 左右をまたぎそうならキャンセル
-  STA CRTC::VMAH
-  LDY #0
-  LDX #32
-@DRAW_CHAR8_LOOP0:
+  ; 座標設定
+  STA CRTC2::PTRX
   LDA ZP_CANVAS_Y
-  STA CRTC::VMAV
-  LDA ZP_CANVAS_X
-  STA CRTC::VMAH
+  STA CRTC2::PTRY
+  LDY #0              ; Y:=キャラデータインデックス
+@DRAW_CHAR8_LOOP0:
   LDA (ZP_CHAR_PTR),Y
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   INY
   LDA (ZP_CHAR_PTR),Y
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   INY
   LDA (ZP_CHAR_PTR),Y
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   INY
   LDA (ZP_CHAR_PTR),Y
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   INY
 @DRAW_CHAR8_SKP_9:
-  INC ZP_CANVAS_Y
-  STX ZR0
-  CPY ZR0
+  CPY #32
   BNE @DRAW_CHAR8_LOOP0
 @END:
   RTS
 
+;DRAW_CHAR8:
+;  LSR ZP_CANVAS_X
+;  LDA ZP_CANVAS_X
+;  CMP #$7F-3
+;  BCS @END            ; 左右をまたぎそうならキャンセル
+;  STA CRTC::VMAH
+;  LDY #0
+;  LDX #32
+;@DRAW_CHAR8_LOOP0:
+;  LDA ZP_CANVAS_Y
+;  STA CRTC::VMAV
+;  LDA ZP_CANVAS_X
+;  STA CRTC::VMAH
+;  LDA (ZP_CHAR_PTR),Y
+;  STA CRTC::WDBF
+;  INY
+;  LDA (ZP_CHAR_PTR),Y
+;  STA CRTC::WDBF
+;  INY
+;  LDA (ZP_CHAR_PTR),Y
+;  STA CRTC::WDBF
+;  INY
+;  LDA (ZP_CHAR_PTR),Y
+;  STA CRTC::WDBF
+;  INY
+;@DRAW_CHAR8_SKP_9:
+;  INC ZP_CANVAS_Y
+;  STX ZR0
+;  CPY ZR0
+;  BNE @DRAW_CHAR8_LOOP0
+;@END:
+;  RTS
+
 ; メッセージ画面、ゲーム画面を各背景色で
 FILL_BG:
   ; message
-  LDY #$00
-  STY CRTC::VMAV
-  STY CRTC::VMAH
+  STZ CRTC2::PTRX
+  STZ CRTC2::PTRY
   ; 上のフチ
   LDA #INFO_FLAME
   LDX #256/2
@@ -730,12 +790,12 @@ FILL_BG:
   LDY #TOP_MARGIN-2
 @LOOP:
   LDA #INFO_FLAME_L
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   LDA #INFO_BGC
   LDX #(256/2)-2
   JSR HLINE
   LDA #INFO_FLAME_R
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   DEY
   BNE @LOOP
   ; 下の淵
@@ -748,7 +808,7 @@ FILL_BG:
 FILL_LOOP_V:
   LDX #256/2
 FILL_LOOP_H:
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   DEX
   BNE FILL_LOOP_H
   DEY
@@ -757,7 +817,7 @@ FILL_LOOP_H:
 
 HLINE:
 @LOOP:
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   DEX
   BNE @LOOP
   RTS

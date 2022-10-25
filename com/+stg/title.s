@@ -17,11 +17,17 @@ INIT_TITLE:
   JSR MUTE_ALL
   ; ---------------------------------------------------------------
   ;   CRTC
-  LDA #%00000001            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ有効
-  STA CRTC::CFG
-  LDA #%01010101            ; フレームバッファ1
-  STA CRTC::RF              ; FB1を表示
-  STA CRTC::WF              ; FB1を書き込み先に
+  ; FB1
+  LDY #(CRTC2::WF|1)
+  STY CRTC2::CONF           ; FB1を書き込み先に
+  LDX #(CRTC2::TT|0)        ; 念のため16色モードを設定
+  STX CRTC2::CONF
+  ; DISP
+  LDA #%01010101            ; FB1
+  STA CRTC2::DISP           ; 表示フレームを全てFB1に
+  ; chrbox無効化
+  ROL                       ; bit7=1でchrbox無効
+  STA CRTC2::CHRW
   ; ---------------------------------------------------------------
   ;   変数の初期化
   STZ ZP_START_FLAG
@@ -29,8 +35,8 @@ INIT_TITLE:
   loadAY16 PATH_TITLEIMF
   JSR IMF::PRINT_IMF
   ; CRTC再設定
-  LDA #%00000000            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ無効
-  STA CRTC::CFG
+  ;LDA #%00000000            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ無効
+  ;STA CRTC::CFG
   ; ---------------------------------------------------------------
   ;   割り込みハンドラの登録
   SEI
@@ -61,9 +67,9 @@ KIRABOSHI_LOOP:
   ; 座標設定
   ; NOTE:結構無駄
   LDA TITLE_STARS_LIST,X    ; X
-  STA CRTC::VMAH
+  STA CRTC2::PTRX
   LDA TITLE_STARS_LIST+1,X  ; Y
-  STA CRTC::VMAV
+  STA CRTC2::PTRY
   ; ON/OFF判定
   LDA TITLE_STARS_LIST+2,X  ; マスク値を取得
   AND ZP_GENERAL_CNT
@@ -71,14 +77,13 @@ KIRABOSHI_LOOP:
   BNE @SKP_ON
   ; ON
   LDA #$F0
-  STA CRTC::WDBF
+  STA CRTC2::WDAT
   BRA @SKP_OFF
 @SKP_ON:
   CMP TITLE_STARS_LIST+4,X  ; OFF
   BNE @SKP_OFF
   ; OFF
-  LDA #$00
-  STA CRTC::WDBF
+  STZ CRTC2::WDAT
 @SKP_OFF:
   ; ループ処理
   ; インデックス加算
