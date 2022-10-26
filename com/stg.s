@@ -201,6 +201,7 @@ MAIN:
   ;   前々フレームの残骸を削除
   LDA STARS_LIST-1,X
   STA CRTC2::PTRX
+  TAY
   ASL
   ROL ZR0
   LDA ZP_STARS_OFFSET
@@ -228,6 +229,7 @@ MAIN:
   BBS0 ZR0,@SKP_SHIFT3
   INC
 @SKP_SHIFT3:
+  STY CRTC2::PTRX
   STA CRTC2::PTRY
   LDA #$0F
   STA CRTC2::WDAT
@@ -311,9 +313,11 @@ MAIN:
 ; -------------------------------------------------------------------
 .macro exchange_frame
   LDA ZP_VISIBLE_FLAME
+  TAX
   AND #%00000011            ; 下位のみにマスク
   ORA #CRTC2::WF            ; WFサブアドレス
   STA CRTC2::CONF
+  TXA
   CLC
   ROL ; %01010101と%10101010を交換する
   ADC #0
@@ -655,7 +659,7 @@ TICK:
   tick_pad
   ; ---------------------------------------------------------------
   ;   ティック処理
-  tick_stars
+  ;tick_stars
   tick_player                 ; プレイヤ処理
   LDY #2
   tick_pl_blt                 ; PL弾移動と描画
@@ -681,7 +685,7 @@ DEL_SQ8:
   LDA CRTC2::REPT
   LDA CRTC2::REPT
   LDA CRTC2::REPT
-  LDY #7
+  LDY #8                      ; NOTE:7でよいはずだが塗りこぼし発生
 DRAW_SQ_LOOP:
   LDA CRTC2::REPT
   LDA CRTC2::REPT
