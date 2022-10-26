@@ -144,16 +144,16 @@ INIT_GAME:
   ; ---------------------------------------------------------------
   ;   CRTCと画面の初期化
   ; FB2
-  LDY #(CRTC2::WF|2)
-  STY CRTC2::CONF           ; FB2を書き込み先に
-  LDX #(CRTC2::TT|0)        ; 念のため16色モードを設定
-  STX CRTC2::CONF
-  LDA #BGC
+  LDA #(CRTC2::WF|2)        ; FB2を書き込み先に
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|0)        ; 念のため16色モードを設定
+  STA CRTC2::CONF
   JSR FILL_BG               ; FB2塗りつぶし
   ; FB1
-  LDY #(CRTC2::WF|1)
-  STY CRTC2::CONF           ; FB1を書き込み先に
-  STX CRTC2::CONF           ; 念のため16色モードを設定
+  LDA #(CRTC2::WF|1)        ; FB1を書き込み先に
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|0)        ; 念のため16色モードを設定
+  STA CRTC2::CONF
   JSR FILL_BG               ; FB1塗りつぶし
   ; DISP
   LDA #%01010101            ; FB1
