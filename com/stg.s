@@ -143,18 +143,18 @@ INIT_GAME:
   STA ZP_PLAYER_Y
   ; ---------------------------------------------------------------
   ;   CRTCと画面の初期化
-  ; FB2
-  LDA #(CRTC2::WF|2)        ; FB2を書き込み先に
-  STA CRTC2::CONF
-  LDA #(CRTC2::TT|0)        ; 念のため16色モードを設定
-  STA CRTC2::CONF
-  JSR FILL_BG               ; FB2塗りつぶし
   ; FB1
   LDA #(CRTC2::WF|1)        ; FB1を書き込み先に
   STA CRTC2::CONF
   LDA #(CRTC2::TT|0)        ; 念のため16色モードを設定
   STA CRTC2::CONF
   JSR FILL_BG               ; FB1塗りつぶし
+  ; FB2
+  LDA #(CRTC2::WF|2)        ; FB2を書き込み先に
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|0)        ; 念のため16色モードを設定
+  STA CRTC2::CONF
+  JSR FILL_BG               ; FB2塗りつぶし
   ; DISP
   LDA #%01010101            ; FB1
   STA ZP_VISIBLE_FLAME      ; シフトして1,2をチェンジする用変数
