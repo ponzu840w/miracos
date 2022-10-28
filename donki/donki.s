@@ -159,7 +159,7 @@ STR_NEWLINE: .BYT $A,"+",$0
 ;   第2引数がなければ第1引数から256バイト
 ; -------------------------------------------------------------------
 DUMP:
-  DUMP_SUB_FUNCPTR=ZR3 ; データ表示/アスキー表示関数ポインタ
+  ;DUMP_SUB_FUNCPTR=ZR3 ; データ表示/アスキー表示関数ポインタ
   ; ---------------------------------------------------------------
   ;   引数の数に応じた処理
   LDA CMD_ARG_NUM
@@ -192,12 +192,13 @@ DUMP:
   JSR FUNC_CON_OUT_CHR
   LDA #'-'
   LDX #32-(4+2)         ; 画面幅からこれまで表示したものを減算
-  JSR PRT_FEW_CHARS
+  JSR PRT_FEW_CHARS     ; 画面右までハイフン
   ; ---------------------------------------------------------------
   ;   データ表示部
   JSR PRT_LF
-  loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_DATA
+  ;loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_DATA
   pushmem16 CMD_ARG_1
+  LDA #<(DUMP_SUB_DATA-(DUMP_SUB_BRA+2))
   JSR DUMP_SUB
   BEQ @SKP_PADDING
   ; 一部のみ表示したときの空白
@@ -213,19 +214,25 @@ DUMP:
 @SKP_PADDING:
   ; ---------------------------------------------------------------
   ;   ASCII表示部
-  loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_ASCII
+  ;loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_ASCII
   pullmem16 CMD_ARG_1
+  LDA #<(DUMP_SUB_ASCII-(DUMP_SUB_BRA+2))
   JSR DUMP_SUB
   BEQ @LINE
 @END:
   JMP LOOP
 
+; ポインタ切り替えでHEXかASCIIを表示する
 DUMP_SUB:
+  STA DUMP_SUB_BRA+1
   LDX #8            ; X=行ダウンカウンタ
 DATALOOP:
   LDA (CMD_ARG_1)   ; バイト取得
   PHX
-  JMP (DUMP_SUB_FUNCPTR)
+  ;JMP (DUMP_SUB_FUNCPTR)
+DUMP_SUB_BRA:
+  .BYTE $80 ; BRA
+  .BYTE $00
 DUMP_SUB_RETURN:
   PLX
   ; 終了チェック
