@@ -134,8 +134,9 @@ LOOP:
 ;   レジスタの各情報を復帰し、対象プログラムへ移行する
 ; -------------------------------------------------------------------
   mem2mem16 VBLANK_USER_VEC16,VB_HNDR_SAVE  ; 垂直同期ユーザベクタを復帰
-  SEC
+  ;SEC
   LDA ROM::SP_SAVE
+  CLC
   ADC #3                  ; SPを割り込み前の状態に戻す
   TAX
   TXS                     ; SP復帰
@@ -145,7 +146,8 @@ LOOP:
   LDA FLAG_SAVE           ; フラグをロード
   PHA                     ; フラグをプッシュ
   PLP                     ; フラグをフラグとしてプル
-  CLC
+  ;CLC
+  ;CLI
   JMP (PC_SAVE)           ; 復帰ジャンプ
 
 STR_NEWLINE: .BYT $A,"+",$0
