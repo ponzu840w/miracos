@@ -165,21 +165,28 @@ DUMP:
   LDA CMD_ARG_NUM
   BEQ @END          ; 引数ゼロなら何もしない
   CMP #2
-  BEQ @SKP_63       ; 2でないなら、ARG1+63をARG2にする
+  BEQ @SET_ZR3      ; 2でないなら、ARG1+63をARG2にする
   LDA CMD_ARG_1
   CLC
-  ADC #63
+  ;ADC #63
+  ADC #128-1
   STA CMD_ARG_2
   LDA CMD_ARG_1+1
   ADC #0
   STA CMD_ARG_2+1
-@SKP_63:
+  BRA @SET_ZR3
   ; ---------------------------------------------------------------
   ;   ループ
+@LINE:
+  ; アドレス表示部すっ飛ばすか否かの判断
+  DEC ZR3
+  BNE @DATA
+@SET_ZR3:
+  LDA #4
+  STA ZR3
   ; ---------------------------------------------------------------
   ;   アドレス表示部
   ;"<1234>--------------------------"
-@LINE:
   JSR PRT_LF            ; 視認性向上のための空行は行の下にした方がよさそうだが、
   JSR PRT_LF            ;   最大の情報を表示しつつ作業用コマンドラインを出すにはこうする。
   LDA #'<'              ; アドレス左修飾
@@ -195,6 +202,7 @@ DUMP:
   JSR PRT_FEW_CHARS     ; 画面右までハイフン
   ; ---------------------------------------------------------------
   ;   データ表示部
+@DATA:
   JSR PRT_LF
   ;loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_DATA
   pushmem16 CMD_ARG_1
