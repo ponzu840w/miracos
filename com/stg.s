@@ -21,6 +21,7 @@ INFO_COL = $FF        ; INFO文字色
 INFO_FLAME = $11      ; INFOフチ
 INFO_FLAME_L = $12    ; INFOフチ
 INFO_FLAME_R = $21    ; INFOフチ
+HIT_FLASH = $FF       ; 被弾フラッシュ
 PLAYER_SPEED = 3      ; PL速度
 PLAYER_SHOOTRATE = 8  ; 射撃クールダウンレート
 PLBLT_SPEED = 6       ; PLBLT速度
@@ -143,6 +144,13 @@ INIT_GAME:
   STA ZP_PLAYER_Y
   ; ---------------------------------------------------------------
   ;   CRTCと画面の初期化
+  ; FB2
+  LDA #(CRTC2::WF|2)        ; FB2を書き込み先に
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|0)        ; 念のため16色モードを設定
+  STA CRTC2::CONF
+  LDA #HIT_FLASH
+  JSR FILL                  ; FB2塗りつぶし
   ; FB1
   LDA #(CRTC2::WF|1)        ; FB1を書き込み先に
   STA CRTC2::CONF
@@ -698,25 +706,6 @@ DRAW_SQ_LOOP:
   BNE DRAW_SQ_LOOP
   RTS
 
-;DEL_SQ8:
-;  TYA
-;  CLC
-;  ADC #8
-;  STA ZP_CANVAS_Y
-;  ;LDA #BGC
-;  LDA #DEBUG_BGC              ; どこを四角く塗りつぶしたかがわかる
-;DRAW_SQ_LOOP:
-;  STX CRTC::VMAH
-;  STY CRTC::VMAV
-;  STA CRTC::WDBF
-;  STA CRTC::WDBF
-;  STA CRTC::WDBF
-;  STA CRTC::WDBF
-;  INY
-;  CPY ZP_CANVAS_Y
-;  BNE DRAW_SQ_LOOP
-;  RTS
-
 ; 8x8キャラクタを表示する
 ; 書き込み座標はZP_CANVAS_X,Yで与えられる
 ; キャラデータの先頭座標がZP_CHAR_PTRで与えられる
@@ -751,38 +740,20 @@ DRAW_CHAR8:
 @END:
   RTS
 
-;DRAW_CHAR8:
-;  LSR ZP_CANVAS_X
-;  LDA ZP_CANVAS_X
-;  CMP #$7F-3
-;  BCS @END            ; 左右をまたぎそうならキャンセル
-;  STA CRTC::VMAH
-;  LDY #0
-;  LDX #32
-;@DRAW_CHAR8_LOOP0:
-;  LDA ZP_CANVAS_Y
-;  STA CRTC::VMAV
-;  LDA ZP_CANVAS_X
-;  STA CRTC::VMAH
-;  LDA (ZP_CHAR_PTR),Y
-;  STA CRTC::WDBF
-;  INY
-;  LDA (ZP_CHAR_PTR),Y
-;  STA CRTC::WDBF
-;  INY
-;  LDA (ZP_CHAR_PTR),Y
-;  STA CRTC::WDBF
-;  INY
-;  LDA (ZP_CHAR_PTR),Y
-;  STA CRTC::WDBF
-;  INY
-;@DRAW_CHAR8_SKP_9:
-;  INC ZP_CANVAS_Y
-;  STX ZR0
-;  CPY ZR0
-;  BNE @DRAW_CHAR8_LOOP0
-;@END:
-;  RTS
+; まっとうな全画面塗りつぶし
+FILL:
+  STZ CRTC2::PTRX ; 原点セット
+  STZ CRTC2::PTRY
+  LDY #192
+@VLOOP:
+  LDX #128
+@HLOOP:
+  STA CRTC2::WDAT
+  DEX
+  BNE @HLOOP
+  DEY
+  BNE @VLOOP
+  JSR
 
 ; メッセージ画面、ゲーム画面を各背景色で
 FILL_BG:
