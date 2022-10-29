@@ -138,13 +138,13 @@ LOOP:
   LDA ROM::SP_SAVE
   CLC
   ADC #3                  ; SPを割り込み前の状態に戻す
-  TAX
+  TAX                     ; SPをXに取得
   TXS                     ; SP復帰
+  LDY FLAG_SAVE           ; フラグをロード
+  PHY                     ; フラグをプッシュ
   LDA ROM::A_SAVE
   LDX ROM::X_SAVE
   LDY ROM::Y_SAVE
-  LDA FLAG_SAVE           ; フラグをロード
-  PHA                     ; フラグをプッシュ
   PLP                     ; フラグをフラグとしてプル
   ;CLC
   ;CLI
