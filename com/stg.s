@@ -753,7 +753,7 @@ FILL:
   BNE @HLOOP
   DEY
   BNE @VLOOP
-  JSR
+  RTS
 
 ; メッセージ画面、ゲーム画面を各背景色で
 FILL_BG:
