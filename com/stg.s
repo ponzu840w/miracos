@@ -64,7 +64,7 @@ MAX_STARS = 32        ; 星屑の最大数
   ZP_INFO_FLAG_P:     .RES 1        ; INFO描画箇所フラグ 7|???? ???,残機|0
   ZP_INFO_FLAG_S:     .RES 1        ; セカンダリ
   ZP_DEATH_MUTEKI:    .RES 1        ; 死亡時ティックカウンタを記録し、255ティックの範囲で無敵時間を調整
-  ZP_PL_STAT_FLAG:    .RES 1        ; 7|???? ??,自動前進,無敵|0
+  ZP_PL_STAT_FLAG:    .RES 1        ; 7|???? ?,画面フラッシュ,自動前進,無敵|0
   ZP_STARS_OFFSET:    .RES 1
 
 ; -------------------------------------------------------------------
@@ -386,6 +386,7 @@ KILL_PLAYER:
   ; TODO:AND一括処理との効率比較
   SMB0 ZP_PL_STAT_FLAG      ; 無敵フラグを立てる
   SMB1 ZP_PL_STAT_FLAG      ; オート前進フラグ
+  SMB2 ZP_PL_STAT_FLAG      ; 画面フラッシュフラグ
   LDA ZP_GENERAL_CNT
   AND #%01111111
   STA ZP_DEATH_MUTEKI       ; 死亡時点を記録
