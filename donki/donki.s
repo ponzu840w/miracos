@@ -125,7 +125,10 @@ LOOP:
   BEQ PRT_STAT
   CMP #'d'
   BEQ DUMP
-@SKP_D:
+  CMP #'z'
+  BNE @SKP_Z
+  JMP PRT_ZR
+@SKP_Z:
   CMP #'g'
   BNE LOOP
 ; -------------------------------------------------------------------
@@ -134,7 +137,12 @@ LOOP:
 ;   レジスタの各情報を復帰し、対象プログラムへ移行する
 ; -------------------------------------------------------------------
   mem2mem16 VBLANK_USER_VEC16,VB_HNDR_SAVE  ; 垂直同期ユーザベクタを復帰
-  ;SEC
+  LDX #12-1
+RESTOREZRLOOP:            ; ゼロページレジスタを復帰
+  LDA ROM::ZR0_SAVE,X
+  STA ZR0,X
+  DEX
+  BPL RESTOREZRLOOP
   LDA ROM::SP_SAVE
   CLC
   ADC #3                  ; SPを割り込み前の状態に戻す
@@ -303,6 +311,29 @@ CMD_ARGS_SPLIT:
   LDA #1
 @END:
   RTS
+
+; -------------------------------------------------------------------
+;                       zコマンド ZR表示
+; -------------------------------------------------------------------
+; -------------------------------------------------------------------
+PRT_ZR:
+  ; --- レジスタ情報を表示 ---
+  ; 表示中にさらにBRKされると分かりづらいので改行
+  loadAY16 STR_NEWLINE
+  JSR FUNC_CON_OUT_STR
+  LDX #0
+@LOOP:
+  PHX
+  LDA ROM::ZR0_SAVE+1,X
+  JSR PRT_BYT
+  LDA ROM::ZR0_SAVE,X
+  JSR PRT_BYT_S
+  PLX
+  INX
+  INX
+  CPX #12
+  BNE @LOOP
+  JMP LOOP
 
 ; -------------------------------------------------------------------
 ;                    引数をHEXと信じて変換
