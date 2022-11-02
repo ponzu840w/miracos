@@ -121,12 +121,10 @@ DRAW_LINE:
   ; Yで指定された行を描画する
   TYA                       ; 行数をAに
   STZ ZP_Y                  ; シフト先をクリア
+.REPEAT 3
   ASL                       ; 行数を右にシフト
   ROR ZP_Y                  ; おこぼれをインデックスとするx3
-  ASL
-  ROR ZP_Y
-  ASL
-  ROR ZP_Y                  ; A:ページ数0~2 ZP_Y:ページ内インデックス行頭
+.ENDREP
   CLC
   ADC #>TXTVRAM768          ; TXTVRAM上位に加算
   STA ZP_TRAM_VEC16+1       ; ページ数登録
@@ -148,12 +146,10 @@ DRAW_LINE_RAW:
   STA ZP_Y
   ; インデックスの垂直部分3bitを挿入
   TYA
+.REPEAT 3
   ASL
   ROL ZP_Y
-  ASL
-  ROL ZP_Y
-  ASL
-  ROL ZP_Y
+.ENDREP
   ; 8倍
   LDA ZP_Y
   ASL
@@ -166,18 +162,15 @@ DRAW_TXT_LOOP:
   LDA #>FONT2048
   STA ZP_FONT_VEC16+1
   ; フォントあぶれ初期化
-  LDY #0
-  STY ZP_FONT_SR
+  STZ ZP_FONT_SR
   ; アスキーコード読み取り
   TXA                       ; 保存していたページ内行を復帰してインデックスに
   TAY
   LDA (ZP_TRAM_VEC16),Y
+.REPEAT 3
   ASL                       ; 8倍してあぶれた分をアドレス上位に加算
   ROL ZP_FONT_SR
-  ASL
-  ROL ZP_FONT_SR
-  ASL
-  ROL ZP_FONT_SR
+.ENDREP
   STA ZP_FONT_VEC16
   LDA ZP_FONT_SR
   ADC ZP_FONT_VEC16+1       ; キャリーは最後のROLにより0
