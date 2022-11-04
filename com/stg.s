@@ -64,6 +64,7 @@ MAX_STARS = 32        ; 星屑の最大数
   ZP_INFO_FLAG_P:     .RES 1        ; INFO描画箇所フラグ 7|???? ???,残機|0
   ZP_INFO_FLAG_S:     .RES 1        ; セカンダリ
   ZP_DEATH_MUTEKI:    .RES 1        ; 死亡時ティックカウンタを記録し、255ティックの範囲で無敵時間を調整
+  ZP_DEATH_FLASH:     .RES 1        ; 死亡時ティックカウンタを記録し、?ティックの範囲でフラッシュ時間を調整
   ZP_PL_STAT_FLAG:    .RES 1        ; 7|???? ?,画面フラッシュ,自動前進,無敵|0
   ZP_STARS_OFFSET:    .RES 1
 
@@ -145,7 +146,9 @@ INIT_GAME:
   ; ---------------------------------------------------------------
   ;   CRTCと画面の初期化
   ; FB2
-  LDA #(CRTC2::WF|2)        ; FB2を書き込み先に
+  LDA #%10000000            ; chrboxoff
+  STA CRTC2::CHRW
+  LDA #(CRTC2::WF|3)        ; FB2を書き込み先に
   STA CRTC2::CONF
   LDA #(CRTC2::TT|0)        ; 念のため16色モードを設定
   STA CRTC2::CONF
@@ -309,6 +312,9 @@ MAIN:
   ROL ; %01010101と%10101010を交換する
   ADC #0
   STA ZP_VISIBLE_FLAME
+  BBR2 ZP_PL_STAT_FLAG,@SKP_FLASH     ; 死亡フラッシュエフェクトフラグ
+  ORA #%11001100                      ; FB2 白画面を紛れさせる
+@SKP_FLASH:
   STA CRTC2::DISP
 .endmac
 
@@ -365,7 +371,9 @@ KILL_PLAYER:
   SMB2 ZP_PL_STAT_FLAG      ; 画面フラッシュフラグ
   LDA ZP_GENERAL_CNT
   AND #%01111111
-  STA ZP_DEATH_MUTEKI       ; 死亡時点を記録
+  STA ZP_DEATH_MUTEKI       ; 死亡時点を記録 無敵時間用
+  AND #%00001111
+  STA ZP_DEATH_FLASH        ; フラッシュ用
   ; リスポーン
   LDA #PLAYER_X
   STA ZP_PLAYER_X
@@ -380,7 +388,7 @@ KILL_PLAYER:
 ; -------------------------------------------------------------------
 .macro tick_player
   ; 死亡無敵解除
-  BBR0 ZP_PL_STAT_FLAG,@SKP_DEATHMUTEKI  ; bit0 無敵でなければ処理の必要なし
+  BBR0 ZP_PL_STAT_FLAG,@SKP_DEATH_PROCESS  ; bit0 無敵でなければ処理の必要なし
   LDA ZP_GENERAL_CNT
   AND #%01111111
   CMP ZP_DEATH_MUTEKI
@@ -388,6 +396,12 @@ KILL_PLAYER:
   ; $FFティック経過
   RMB0 ZP_PL_STAT_FLAG  ; bit0 無敵フラグを折る
 @SKP_DEATHMUTEKI:
+  AND #%00001111
+  CMP ZP_DEATH_FLASH
+  BNE @SKP_DEATHFLASH
+  RMB2 ZP_PL_STAT_FLAG  ; bit2 FB2表示フラグを折る
+@SKP_DEATHFLASH:
+@SKP_DEATH_PROCESS:
   ; リスポーン直後出撃モーション
   BBR1 ZP_PL_STAT_FLAG,@SKP_RESPAWN_MOVE
   STZ ZP_PL_DX
