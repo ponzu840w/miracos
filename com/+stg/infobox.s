@@ -8,18 +8,6 @@ INFO_RL_MARGIN = 2
 ; NOTE:増減のたびにやるのは非効率ではある
 .macro draw_zanki
   ; エリアを黒で塗りつぶす
-;  LDX #128-(4*ZANKI_MAX)-(INFO_RL_MARGIN/2)
-;  LDY #INFO_TOP_MARGIN
-;  LDA #BGC
-;@FILL_LOOP:
-;  STX CRTC2::PTRX
-;  STY CRTC2::PTRY
-;  .REPEAT ZANKI_MAX*4
-;  STA CRTC2::WDAT
-;  .ENDREP
-;  INY
-;  CPY #INFO_TOP_MARGIN+8
-;  BNE @FILL_LOOP
   ; 座標設定
   LDX #128-(4*ZANKI_MAX)-(INFO_RL_MARGIN/2)
   LDY #INFO_TOP_MARGIN

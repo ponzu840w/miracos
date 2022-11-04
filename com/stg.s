@@ -79,6 +79,7 @@ MAX_STARS = 32        ; 星屑の最大数
   .INCLUDE "./+stg/se.s"
   .INCLUDE "./+stg/enem.s"
   .INCLUDE "./+stg/title.s"
+  .INCLUDE "./+stg/str88.s"
 
 ; -------------------------------------------------------------------
 ;                              変数領域
@@ -144,6 +145,10 @@ INIT_GAME:
   LDA #PLAYER_Y
   STA ZP_PLAYER_Y
   ; ---------------------------------------------------------------
+  ;   効果音の初期化
+  init_se
+  init_str88
+  ; ---------------------------------------------------------------
   ;   CRTCと画面の初期化
   ; FB2
   LDA #%10000000            ; chrboxoff
@@ -170,14 +175,6 @@ INIT_GAME:
   LDA #%01010101            ; FB1
   STA ZP_VISIBLE_FLAME      ; シフトして1,2をチェンジする用変数
   STA CRTC2::DISP           ; 表示フレームを全てFB1に
-  ; chrbox設定
-  LDA #3                    ; よこ4
-  STA CRTC2::CHRW
-  LDA #7                    ; たて8
-  STA CRTC2::CHRH
-  ; ---------------------------------------------------------------
-  ;   効果音の初期化
-  init_se
   ; ---------------------------------------------------------------
   ;   割り込みハンドラの登録
   SEI
@@ -747,6 +744,8 @@ FILL:
 
 ; メッセージ画面、ゲーム画面を各背景色で
 FILL_BG:
+  LDA #%10000000            ; chrboxoff
+  STA CRTC2::CHRW
   ; message
   STZ CRTC2::PTRX
   STZ CRTC2::PTRY
@@ -781,7 +780,24 @@ FILL_LOOP_H:
   BNE FILL_LOOP_H
   DEY
   BNE FILL_LOOP_V
+  ; ---------------------------------------------------------------
+  ;   文字列描画
+  ; chrbox設定
+  LDA #3                    ; よこ4
+  STA CRTC2::CHRW
+  LDA #7                    ; たて8
+  STA CRTC2::CHRH
+  ; 文字列色設定
+  LDA #INFO_BGC
+  STA ZP_STR88_BKCOL
+  LDA #$FF
+  STA ZP_STR88_COLOR
+  str88_puts 1,2,STR_SCORE
+  str88_puts 127-((ZANKI_MAX+5)*4)-INFO_RL_MARGIN,2,STR_STOCK
   RTS
+
+STR_SCORE: .ASCIIZ "SCORE:"
+STR_STOCK: .ASCIIZ "STOCK"
 
 HLINE:
 @LOOP:
