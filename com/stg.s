@@ -296,30 +296,6 @@ MAIN:
 .endmac
 
 ; -------------------------------------------------------------------
-;                        アンチノイズ水平消去
-; -------------------------------------------------------------------
-;.macro anti_noise
-;  .local @ANLLOOP
-;  STZ CRTC::VMAH    ; 水平カーソルを左端に
-;  LDA ZP_ANT_NZ_Y   ; アンチノイズY座標
-;  STA CRTC::VMAV
-;  LDX #$20          ; 繰り返し回数
-;  LDA #BGC
-;@ANLLOOP:
-;  STA CRTC::WDBF    ; $8x$20=$100=256
-;  STA CRTC::WDBF    ; 2行の塗りつぶし
-;  STA CRTC::WDBF
-;  STA CRTC::WDBF
-;  STA CRTC::WDBF
-;  STA CRTC::WDBF
-;  STA CRTC::WDBF
-;  STA CRTC::WDBF
-;  DEX
-;  BNE @ANLLOOP
-;  INC ZP_ANT_NZ_Y
-;.endmac
-
-; -------------------------------------------------------------------
 ;                           フレーム交換
 ; -------------------------------------------------------------------
 .macro exchange_frame
@@ -665,7 +641,6 @@ TICK:
   ;   塗りつぶし
   make_blacklist_ptr          ; ブラックリストポインタ作成
   clear_by_blacklist          ; ブラックリストに沿ったエンティティ削除
-  ;anti_noise                  ; ノイズ対策に行ごと消去
   ; ---------------------------------------------------------------
   ;   キー操作
   tick_pad
