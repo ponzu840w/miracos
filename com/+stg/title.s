@@ -46,7 +46,8 @@ INIT_TITLE:
   CLI
   ; 無限ループ
 TITLE_LOOP:
-  BBR0 ZP_START_FLAG,TITLE_LOOP
+  LDA ZP_START_FLAG
+  BEQ TITLE_LOOP
   ; ---------------------------------------------------------------
   ; 脱出
   ; ---------------------------------------------------------------
@@ -55,7 +56,10 @@ TITLE_LOOP:
   mem2AY16 ZP_VB_STUB
   syscall IRQ_SETHNDR_VB
   CLI
+  BBS1 ZP_START_FLAG,@RET
   JMP INIT_GAME
+@RET:
+  syscall RESET
 
 ; -------------------------------------------------------------------
 ;                        綺羅星ティック
@@ -104,6 +108,9 @@ TITLE_VBLANK:
   BBS4 ZP_PADSTAT,@SKP_START  ; STARTボタン
   SMB0 ZP_START_FLAG          ; フラグを立てて脱出を企画する
 @SKP_START:
+  BBS5 ZP_PADSTAT,@SKP_SELECT ; SELECTボタン
+  SMB1 ZP_START_FLAG          ; フラグを立てて脱出を企画する
+@SKP_SELECT:
   kiraboshi
   INC ZP_GENERAL_CNT
   JMP (ZP_VB_STUB)            ; 片付けはBCOSにやらせる
