@@ -76,6 +76,8 @@ ZP_SHIFTER:         .RES 1        ; ゲームパッド読み取り処理用
 ZP_PRE_PADSTAT:     .RES 2
 ZP_VB_ON:           .RES 1
 
+  .INCLUDE "./+snake/se.s"
+
 ; -------------------------------------------------------------------
 ;                             実行領域
 ; -------------------------------------------------------------------
@@ -104,6 +106,7 @@ START:
   STZ ZP_SSR
   STZ ZP_SNK_LENGTHR
   STZ ZP_VB_ON                        ; VB処理オフ（PAD除く
+  init_se
   ; 割り込みハンドラの登録
   SEI
   loadAY16 VBLANK
@@ -112,6 +115,8 @@ START:
   CLI
   JSR TITLE
 GAME:
+  LDA #SE_START_NUMBER
+  JSR PLAY_SE                         ; ゲーム開始音
   JSR CLEAR_TXTVRAM                   ; 画面クリア
   ; 速度メータ表示
   LDA #']'
@@ -316,7 +321,7 @@ TITLE:
   LDA #CHR_ALLOWR               ; →
   LDX #TITLE_DIF_X+2+6
   JSR XY_PUT_DRAW
-  BRA @LOOP
+  BRA @PLAYSE
 @S:
   ; Sキー
   ; SPEEDにあるとき、STARTに移動する
@@ -339,6 +344,9 @@ TITLE:
   LDY #TITLE_PROMPT_Y
   LDX #TITLE_PROMPT_START_X
   JSR XY_PUT_DRAW
+@PLAYSE:
+  LDA #SE_MENU_NUMBER
+  JSR PLAY_SE                   ; 操作効果音
   BRA @LOOP
 @A:
   ; Aキー
@@ -359,7 +367,7 @@ TITLE:
   LDA #' '                      ; *STARTの塗りつぶし
   LDX #TITLE_PROMPT_START_X
   JSR XY_PUT_DRAW
-  BRA @LOOP
+  BRA @PLAYSE
 @A_NOT_START:
   LDA ZP_SELECTOR_STATE
   CMP #TITLE_MENU_SPEED         ; SPEEDか？
@@ -381,7 +389,7 @@ TITLE:
   INX                           ; 古い頭を削除
   LDA #' '
   JSR XY_PUT_DRAW
-  BRA @LOOP2
+  BRA @PLAYSE
 @D:
   ; Dキー
   ; EXITにあるとき、STARTにする
@@ -401,7 +409,7 @@ TITLE:
   LDA #' '                      ; *STARTの塗りつぶし
   LDX #TITLE_PROMPT_EXIT_X
   JSR XY_PUT_DRAW
-  BRA @LOOP2
+  BRA @PLAYSE
 @D_NOT_EXIT:
   LDA ZP_SELECTOR_STATE
   CMP #TITLE_MENU_SPEED         ; SPEEDか？
@@ -423,6 +431,7 @@ TITLE:
   DEX                           ; 胴を設置
   LDA #CHR_TAIL
   JSR XY_PUT_DRAW
+  JMP @PLAYSE
   ;BRA @LOOP2
 
 @SKP_START:
@@ -456,6 +465,7 @@ TITLE:
 ;                        垂直同期割り込み
 ; -------------------------------------------------------------------
 VBLANK:
+  tick_se
   ; パッド状態反映
   JSR PAD_READ            ; パッドを読む
   BBR0 ZP_VB_ON,@SKP_SEC  ; ゲーム中以外はパッド処理だけで切り上げ
@@ -564,6 +574,8 @@ MOVE_HEAD:
   JSR DRAW_LENGTH       ; ヘビ長描画
   JSR DRAW_LINE
   JSR GEN_APPLE         ; リンゴ生成
+  LDA #SE_EAT_NUMBER
+  JSR PLAY_SE           ; 咀嚼音
   PLY
   PLX                   ; XY復帰
   PLP
@@ -603,10 +615,14 @@ DRAW_LENGTHR:
 ; -------------------------------------------------------------------
 GAMEOVER:
   STZ ZP_VB_ON                        ; VB処理オフ（PAD除く
+  LDA #SE_OVER_NUMBER                 ; ゲームオーバー音
+  JSR PLAY_SE
+  ; ゲームオーバーメッセージ表示1行目
   loadmem16 ZR0,STR_GAMEOVER
   LDX #11                             ; 中央寄せ
   LDY #TITLE_Y                        ; 中央寄せ
   JSR XY_PRT_STR
+  ; ゲームオーバーメッセージ表示2行目
   loadmem16 ZR0,STR_GAMEOVER_PROM
   LDX #2                              ; 中央寄せ
   LDY #TITLE_Y+2                      ; 中央寄せ

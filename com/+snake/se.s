@@ -1,12 +1,14 @@
 ; -------------------------------------------------------------------
 ;                           効果音定数
 ; -------------------------------------------------------------------
-SE1_LENGTH = 5
-SE1_NUMBER = 1*2
-SE2_LENGTH = 5
-SE2_NUMBER = 2*2
-SE_PLSHOT_NUMBER = 3*2
-SE_PLSHOT_LENGTH = 5
+SE_MENU_LENGTH = 5
+SE_MENU_NUMBER = 1*2
+SE_EAT_LENGTH = 5
+SE_EAT_NUMBER = 2*2
+SE_START_LENGTH = 30
+SE_START_NUMBER = 3*2
+SE_OVER_LENGTH = 30
+SE_OVER_NUMBER = 4*2
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -69,26 +71,28 @@ TICK_SE_END:
 ;                        効果音種類テーブル
 ; -------------------------------------------------------------------
 SE_LENGTH_TABLE:
-  .BYTE SE1_LENGTH      ; 1
-  .BYTE SE2_LENGTH      ; 2
-  .BYTE SE_PLSHOT_LENGTH
+  .BYTE SE_MENU_LENGTH    ; 1
+  .BYTE SE_EAT_LENGTH     ; 2
+  .BYTE SE_START_LENGTH   ; 3
+  .BYTE SE_OVER_LENGTH    ; 4
   ; NOTE:ここにべた書きでよいのでは
 
 SE_TICK_JT:
-  .WORD SE1_TICK
-  .WORD SE2_TICK
-  .WORD SE_PLSHOT_TICK
+  .WORD SE_MENU_TICK
+  .WORD SE_EAT_TICK
+  .WORD SE_START_TICK
+  .WORD SE_OVER_TICK
 
 ; -------------------------------------------------------------------
 ;                         各効果音ティック
 ; -------------------------------------------------------------------
-SE1_TICK:
+SE_MENU_TICK:
   LDA ZP_SE_TIMER
-  CMP #SE1_LENGTH
+  CMP #SE_MENU_LENGTH
   BNE @a
   set_ymzreg #YMZ::IA_MIX,#%00111110
-  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/800)
-  set_ymzreg #YMZ::IA_FRQ,#<(125000/800)
+  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/900)
+  set_ymzreg #YMZ::IA_FRQ,#<(125000/900)
   set_ymzreg #YMZ::IA_VOL,#$0F
   JMP TICK_SE_RETURN
 @a:
@@ -99,26 +103,34 @@ SE1_TICK:
   STA YMZ::DATA
   JMP TICK_SE_RETURN
 
-SE2_TICK:
+SE_EAT_TICK:
   set_ymzreg #YMZ::IA_MIX,#%00110111
-  set_ymzreg #YMZ::IA_NOISE_FRQ,#>(125000/400)
+  set_ymzreg #YMZ::IA_NOISE_FRQ,#>(125000/500)
   set_ymzreg #YMZ::IA_VOL,#$0F
   JMP TICK_SE_RETURN
 
-SE_PLSHOT_TICK:
+SE_START_TICK:
   LDA ZP_SE_TIMER
-  CMP #SE1_LENGTH
+  CMP #SE_START_LENGTH
   BNE @a
+  ; 初回のみ呼ばれる
   set_ymzreg #YMZ::IA_MIX,#%00111110
-  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/1600)
-  set_ymzreg #YMZ::IA_FRQ,#<(125000/1600)
+  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/300)
+  set_ymzreg #YMZ::IA_FRQ,#<(125000/300)
   set_ymzreg #YMZ::IA_VOL,#$0F
   JMP TICK_SE_RETURN
 @a:
-  LDX #YMZ::IA_VOL
-  STX YMZ::ADDR
+  ; 継続的処理
+  LDX #YMZ::IA_FRQ
+  STX YMZ::ADDR             ; 音量をセット
   ASL                       ; タイマーの左シフト、最大8
   ADC #4
   STA YMZ::DATA
+  JMP TICK_SE_RETURN
+
+SE_OVER_TICK:
+  set_ymzreg #YMZ::IA_MIX,#%00110111
+  set_ymzreg #YMZ::IA_NOISE_FRQ,#>(125000/200)
+  set_ymzreg #YMZ::IA_VOL,#$0F
   JMP TICK_SE_RETURN
 
