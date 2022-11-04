@@ -216,9 +216,9 @@ GAME:
   LDA #RIGHT
   STA ZP_SNK_DIREC
 @END_WASD:
-  JSR MOVE_HEAD
-  BCS @SKP_TAIL
-  JSR MOVE_TAIL
+  JSR MOVE_HEAD           ; 頭部を動かす C=1でリンゴを食べて成長した
+  BCS @SKP_TAIL           ; 成長したので尾の移動を控える
+  JSR MOVE_TAIL           ; 尾を移動する
 @SKP_TAIL:
 @TICK_WAIT:
   LDA ZP_TICK_FLAG
@@ -483,13 +483,13 @@ VBLANK:
   STA ZP_MM
   LDA #0
 @SKP_NEXT_MM:
+  CLD
   STA ZP_SS
   LDX #27
   LDY #22
   JSR XY_PRT_TIME
   LDY #22
-  JSR DRAW_LINE
-  CLD
+  JSR DRAW_LINE              ; 経過時間のある行を描画
 @SKP_SEC:
   JMP (ZP_VB_STUB)           ; 片付けはBCOSにやらせる
 
@@ -534,8 +534,8 @@ GEN_APPLE:
 ;                           頭を動かす
 ; -------------------------------------------------------------------
 MOVE_HEAD:
-  CLC
-  PHP
+  CLC                   ; デフォルトでは成長がなかったことをキャリーで返す
+  PHP                   ; キャリーを切ったフラグをプッシュ
   ; 頭を胴にする
   LDA #CHR_TAIL
   LDX ZP_SNK_HEAD_X
@@ -546,29 +546,29 @@ MOVE_HEAD:
   JSR NEXT_XY
   ; そこを調べる
   JSR XY_GET
-  CMP #CHR_WALL
-  BEQ GAMEOVER
-  CMP #CHR_TAIL
-  BEQ GAMEOVER
-  CMP #CHR_APPLE
-  BNE @SKP_APPLE
-  ; 成長処理
-  SED
+  CMP #CHR_WALL         ; 壁か？
+  BEQ GAMEOVER          ;  ならゲームオーバー
+  CMP #CHR_TAIL         ; 尾か？
+  BEQ GAMEOVER          ;  ならゲームオーバー
+  CMP #CHR_APPLE        ; リンゴか？
+  BNE @SKP_APPLE        ;  でなければ成長処理スキップ
+  ; リンゴを食べた成長処理
+  SED                   ; --10進モード
   CLC
   LDA ZP_SNK_LENGTH
   ADC #1
-  STA ZP_SNK_LENGTH
-  CLD
-  PHX
+  STA ZP_SNK_LENGTH     ; len=len+1
+  CLD                   ; --10進ここまで
+  PHX                   ; XY退避
   PHY
-  JSR DRAW_LENGTH
+  JSR DRAW_LENGTH       ; ヘビ長描画
   JSR DRAW_LINE
-  JSR GEN_APPLE
+  JSR GEN_APPLE         ; リンゴ生成
   PLY
-  PLX
+  PLX                   ; XY復帰
   PLP
-  SEC
-  PHP
+  SEC                   ; 成長したことを示すフラグ
+  PHP                   ; スタック退避したフラグのキャリーを立てる
 @SKP_APPLE:
   ; 大丈夫そうだ
   ; 頭の座標を更新
@@ -581,8 +581,8 @@ MOVE_HEAD:
   LDX ZP_SNK_HEAD_PTR8    ; 更新すべき場所のポインタ
   STA SNAKE_DATA256,X     ; 向きを登録
   INC ZP_SNK_HEAD_PTR8    ; 進める
-  PLP
-  RTS
+  PLP                     ; スタック退避したフラグを復帰
+  RTS                     ; キャリーが成長を示す
 
 DRAW_LENGTH:
   LDA ZP_SNK_LENGTH
@@ -1116,4 +1116,13 @@ STR_GAMEOVER_PROM:
   .ASCIIZ " (B) to Quit / (A) to Retry"
 
 SNAKE_DATA256:  .RES 256
+
+;DEBUG_VBOFF:
+;  ; 大政奉還コード
+;  ; 割り込みハンドラの登録抹消
+;  SEI
+;  mem2AY16 ZP_VB_STUB
+;  syscall IRQ_SETHNDR_VB
+;  CLI
+;  RTS
 
