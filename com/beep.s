@@ -68,7 +68,7 @@ START:
   RTS
 
 SILENT:
-  setSound 1,1,1,1,0
+  setSound 1,1,1,%111110,0
   JSR SOUND
   RTS
 
@@ -78,12 +78,15 @@ POYO:
   RTS
 
 SOUND:
+  ; ミキシング設定
   LDA #YMZ::IA_MIX
   LDX TMP_MIX
   JSR SET_YMZREG
+  ; エンベ形状
   LDA #YMZ::IA_EVLP_SHAPE
   LDX TMP_SHAPE
   JSR SET_YMZREG
+  ; ボリューム
   LDA #YMZ::IA_VOL
   LDX TMP_VOL
   JSR SET_YMZREG
