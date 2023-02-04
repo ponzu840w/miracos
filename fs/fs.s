@@ -219,20 +219,8 @@ FUNC_FS_READ_BYTS:
   PHY
   JSR NEXTSEC                     ; 次のセクタに移行
 @RTRY:
-  JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る
-  ; debug
-  BCC @SKP_RTRY
-  ; wait
-  LDX #255
-@XX:
-  LDY #255
-@YY:
-  DEY
-  BNE @YY
-  DEX
-  BNE @XX
-  BRA @RTRY
-@SKP_RTRY:
+  JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る…1ならたぶんCMD17失敗
+  BCS @RTRY                       ; CMD17失敗をリトライで対応 TODO:大変アドホック！なんとかしろ
   PLY
   PLX
   BRA @SKP_INC_SDSEEK
