@@ -127,7 +127,7 @@ RDINIT:
   JSR SENDCMD
   CMP #$00
   BEQ @RDSUCCESS
-  CMP #$04          ; この例が多い
+  ;CMP #$04          ; この例が多い
   ;JSR DELAY
   ;BEQ RDINIT
   ;BRK

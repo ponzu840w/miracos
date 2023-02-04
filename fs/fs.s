@@ -218,7 +218,21 @@ FUNC_FS_READ_BYTS:
   PHX
   PHY
   JSR NEXTSEC                     ; 次のセクタに移行
+@RTRY:
   JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る
+  ; debug
+  BCC @SKP_RTRY
+  ; wait
+  LDX #255
+@XX:
+  LDY #255
+@YY:
+  DEY
+  BNE @YY
+  DEX
+  BNE @XX
+  BRA @RTRY
+@SKP_RTRY:
   PLY
   PLX
   BRA @SKP_INC_SDSEEK
@@ -263,7 +277,7 @@ FUNC_FS_READ_BYTS:
   ; 実際に読み込んだバイト長をAYで帰す
   mem2AY16 @ZR2_LENGTH
   CLC
-  ; debug
+  ; debug for com/test/fsread.s
   ;mem2mem16 ZR0,ZP_SDSEEK_VEC16
   ;loadAY16 FWK                    ; 実験用にFCTRLを開放
   RTS

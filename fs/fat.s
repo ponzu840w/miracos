@@ -130,6 +130,7 @@ LOAD_DWK:
   RTS
 
 RDSEC:
+  ; セクタバッファにFWK_REAL_SECを読みだす
   ;loadmem16 ZP_SDSEEK_VEC16,SECBF512         ; SECBFに縛るのは面白くない
   ;loadAY16 SECBF512                          ; 分割するとき、どうせ下位はゼロなのだからloadAYはナンセンス
   LDA #>SECBF512
@@ -139,11 +140,11 @@ RDSEC_A_DST:                                  ; Aが読み取り先ページを�
   STZ ZP_SDSEEK_VEC16
   loadmem16 ZP_SDCMDPRM_VEC16,(FWK_REAL_SEC)  ; NOTE:FWK_REAL_SECを読んで監視するBP
   JSR SD::RDSEC
-  SEC
+  SEC                                         ; C=1 ERR
   BNE @ERR
 @SKP_E:
   DEC ZP_SDSEEK_VEC16+1
-  CLC
+  CLC                                         ; C=0 OK
 @ERR:
   RTS
 
