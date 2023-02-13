@@ -78,7 +78,9 @@ TICK:
 
 NOTES:
   .BYTE 40,3
+  .BYTE 128+0,3
   .BYTE 41,6
+  .BYTE 128+0,3
   .BYTE 42,3
   .BYTE 43,6
   .BYTE 44,6

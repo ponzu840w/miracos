@@ -31,13 +31,14 @@
   ZP_LEN_CNT_B:       .RES 1
   ZP_LEN_CNT_C:       .RES 1
   ; チャンネル状態
-  ZP_CH_STATE:        .RES 1        ; 7|00000cba|0
+  ZP_CH_ENABLE:       .RES 1        ; 7|00000cba|0
+  ZP_CH_ACTIVE:       .RES 1
   ; 楽譜ポインタ
   ZP_SHEET_PTR:       .RES 2
   ; 音色状態構造体ポインタ
   ZP_SKIN_STATE_PTR:  .RES 2
   ;
-  ZP_TIEMR_WORK:      .RES 1
+  ZP_TICK_CH_SR:      .RES 1
   ZP_CH:              .RES 1
   ZP_YMZ_WORK:        .RES 1
 
@@ -76,7 +77,7 @@
   LDA #>SKIN0_BETA
   STA SKIN_STATE_A+SKIN_STATE::SKIN+1
   ; 有効チャンネルなし
-  STZ ZP_CH_STATE
+  STZ ZP_CH_ENABLE
 .endmac
 
 ; input AY=楽譜 X=ch
@@ -87,8 +88,8 @@ PLAY:
   STA SHEET_PTR_H,X
   ; チャンネル有効化
   LDA ONEHOT_TABLE,X    ; 有効化ch
-  ORA ZP_CH_STATE       ; orで有効化
-  STA ZP_CH_STATE
+  ORA ZP_CH_ENABLE       ; orで有効化
+  STA ZP_CH_ENABLE
   LDY #YMZ::IA_MIX
   STY YMZ::ADDR
   EOR #$FF
@@ -107,12 +108,12 @@ PLAY:
 TICK_YMZQ:
   ; ---------------------------------------------------------------
   ;   TIMER
-  LDA ZP_CH_STATE
-  STA ZP_TIEMR_WORK
+  LDA ZP_CH_ENABLE
+  STA ZP_TICK_CH_SR
   LDX #0
 @TIMER_LOOP:
   STX ZP_CH
-  LSR ZP_TIEMR_WORK     ; C=Ch有効/無効
+  LSR ZP_TICK_CH_SR     ; C=Ch有効/無効
   BCC @TIMER_NEXT_CH    ; 無効Chのカウントダウンをスキップ
   DEC ZP_LEN_CNT_A,X    ; 音長カウントダウン
   BNE @TIMER_NEXT_CH    ; 何もなければ次
@@ -141,12 +142,13 @@ TICK_YMZQ:
   BNE @TIMER_LOOP
   ; ---------------------------------------------------------------
   ;   DRIVE SKIN
-  LDA ZP_CH_STATE
-  STA ZP_TIEMR_WORK
+  LDA ZP_CH_ENABLE
+  AND ZP_CH_ACTIVE
+  STA ZP_TICK_CH_SR
   LDX #0
 @DRIVE_SKIN_LOOP:
   STX ZP_CH
-  LSR ZP_TIEMR_WORK     ; C=Ch有効/無効
+  LSR ZP_TICK_CH_SR     ; C=Ch有効/無効
   BCC @DRIVE_SKIN_NEXT_CH    ; 無効Chのカウントダウンをスキップ
   JSR X2SKIN_STATE_PTR        ; 構造体ポインタ取得
   LDY #SKIN_STATE::SKIN       ; 使用スキンのポインタ
@@ -238,6 +240,12 @@ SHEET_PS_COMMON_NOTE:
   INY
   LDA KEY_FRQ_TABLE+1,X     ; テーブルから周波数を取得 H
   STA (ZP_SKIN_STATE_PTR),Y
+  ; アクティベート
+  LDX ZP_CH
+  LDA ONEHOT_TABLE,X
+  ORA ZP_CH_ACTIVE
+  STA ZP_CH_ACTIVE
+SET_NEXT_TIMER:
   ; タイマーセット
   JSR GETBYT_SHEET          ; LEN取得
   STA LEN_A,X               ; XはJSRでZP_CHになっている
@@ -248,7 +256,7 @@ SHEET_PS_COMMON_NOTE:
 
 ; 楽譜から1バイト取得してポインタを進める
 GETBYT_SHEET:
-  LDX ZP_CH
+  ;LDX ZP_CH
   LDA (ZP_SHEET_PTR)  ; バイト取得
   PHA
   ; 作業用ポインタの増加
@@ -266,7 +274,19 @@ GETBYT_SHEET:
 
 ; 休符
 SPCNOTE_REST:
-;todo
+  ; ディスアクティベート
+  LDX ZP_CH
+  LDA ONEHOT_TABLE,X
+  EOR #$FF
+  AND ZP_CH_ACTIVE
+  STA ZP_CH_ACTIVE
+  ; VOL0
+  TXA
+  CLC
+  ADC #YMZ::IA_VOL
+  STA YMZ::ADDR
+  STZ YMZ::DATA
+  BRA SET_NEXT_TIMER
 
 ; テンポ変更
 SPCNOTE_TEMPO:
@@ -304,9 +324,9 @@ SKIN_STATE_STRUCT_TABLE_H:
 
 ; 特殊音符処理テーブル
 SPCNOTE_TABLE:
-  .WORD SPCNOTE_REST
-  .WORD SPCNOTE_TEMPO
-  .WORD SPCNOTE_JMP
+  .WORD SPCNOTE_REST    ; 0 休符
+  .WORD SPCNOTE_TEMPO   ; 1 テンポ設定
+  .WORD SPCNOTE_JMP     ; 2 ジャンプ
 
 SKIN_TABLE_L:
   .BYTE <SKIN0_BETA
