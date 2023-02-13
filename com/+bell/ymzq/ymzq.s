@@ -89,6 +89,10 @@ PLAY:
   STX YMZ::ADDR
   EOR #$FF
   STA YMZ::DATA
+  ; タイマーリセット
+  LDA #5
+  STA ZP_TEMPO_CNT_A
+  STA ZP_LEN_CNT_A
   RTS
 
 ; -------------------------------------------------------------------
@@ -110,13 +114,17 @@ TICK_YMZQ:
   BNE @TIMER_NEXT_CH    ; 何もなければ次
   ; カウンタ0到達
   LDA ZP_TEMPO_CNT_A,X  ; テンポカウンタの取得
+  PHA
+  JSR PRT_BYT
+  JSR PRT_LF
+  PLA
+  ;bp
   BNE @SKP_FIRE         ; ゼロでなければ発火しない
   ; 発火
   JSR SHEET_PS
   BRA @TIMER_NEXT_CH
 @SKP_FIRE:
   DEC A                 ; テンポカウンタ減算
-  LDA TEMPO_A,X         ; 定義テンポをカウンタに格納
   STA ZP_TEMPO_CNT_A,X
   LDA LEN_A,X           ; 定義LENをカウンタに格納
   STA ZP_LEN_CNT_A,X
@@ -127,48 +135,48 @@ TICK_YMZQ:
   BNE @TIMER_LOOP
   ; ---------------------------------------------------------------
   ;   DRIVE SKIN
-  LDX #2
-@DRIVE_SKIN_LOOP:
-  PHX
-  JSR X2SKIN_STATE_PTR        ; 構造体ポインタ取得
-  LDY #SKIN_STATE::SKIN       ; 使用スキンのポインタ
-  LDA (ZP_SKIN_STATE_PTR),Y
-  STA @JSR_TO_SKIN+1          ; JSR先の動的書き換え
-  INY
-  LDA (ZP_SKIN_STATE_PTR),Y
-  STA @JSR_TO_SKIN+2
-@JSR_TO_SKIN:
-  JSR 6502                    ; スキンへ
-  ; マスクに応じて実際のレジスタ書き換え
-  ; FRQ L
-  STA ZP_YMZ_WORK
-  BBR0 ZP_YMZ_WORK,@VOL
-  LDA ZP_CH
-  ASL A
-  CLC
-  ADC #YMZ::IA_FRQ
-  STA YMZ::ADDR
-  LDY #SKIN_STATE::FRQ
-  TAX
-  LDA (ZP_SKIN_STATE_PTR),Y
-  STA YMZ::DATA
-  ; FRQ H
-  INX
-  INY
-  STX YMZ::ADDR
-  LDA (ZP_SKIN_STATE_PTR),Y
-  STA YMZ::DATA
-@VOL:
-  BBR1 ZP_YMZ_WORK,@END
-  ; VOL
-  LDA #YMZ::IA_VOL
-  STA YMZ::ADDR
-  LDY #SKIN_STATE::VOL
-  LDA (ZP_SKIN_STATE_PTR),Y
-@END:
-  PLX
-  DEX
-  BPL @DRIVE_SKIN_LOOP
+;  LDX #2
+;@DRIVE_SKIN_LOOP:
+;  PHX
+;  JSR X2SKIN_STATE_PTR        ; 構造体ポインタ取得
+;  LDY #SKIN_STATE::SKIN       ; 使用スキンのポインタ
+;  LDA (ZP_SKIN_STATE_PTR),Y
+;  STA @JSR_TO_SKIN+1          ; JSR先の動的書き換え
+;  INY
+;  LDA (ZP_SKIN_STATE_PTR),Y
+;  STA @JSR_TO_SKIN+2
+;@JSR_TO_SKIN:
+;  JSR 6502                    ; スキンへ
+;  ; マスクに応じて実際のレジスタ書き換え
+;  ; FRQ L
+;  STA ZP_YMZ_WORK
+;  BBR0 ZP_YMZ_WORK,@VOL
+;  LDA ZP_CH
+;  ASL A
+;  CLC
+;  ADC #YMZ::IA_FRQ
+;  STA YMZ::ADDR
+;  LDY #SKIN_STATE::FRQ
+;  TAX
+;  LDA (ZP_SKIN_STATE_PTR),Y
+;  STA YMZ::DATA
+;  ; FRQ H
+;  INX
+;  INY
+;  STX YMZ::ADDR
+;  LDA (ZP_SKIN_STATE_PTR),Y
+;  STA YMZ::DATA
+;@VOL:
+;  BBR1 ZP_YMZ_WORK,@END
+;  ; VOL
+;  LDA #YMZ::IA_VOL
+;  STA YMZ::ADDR
+;  LDY #SKIN_STATE::VOL
+;  LDA (ZP_SKIN_STATE_PTR),Y
+;@END:
+;  PLX
+;  DEX
+;  BPL @DRIVE_SKIN_LOOP
 .endmac
 
 X2SKIN_STATE_PTR:
@@ -183,6 +191,8 @@ X2SKIN_STATE_PTR:
 ; -------------------------------------------------------------------
 ; input X=0,1,2 A,B,C ch
 SHEET_PS:
+  ;LDA #$FF
+  ;JMP BRK_VB
   ; 楽譜ポインタ作成
   LDA SHEET_PTR_L,X
   STA ZP_SHEET_PTR
@@ -215,6 +225,8 @@ SHEET_PS_COMMON_NOTE:
   JSR GETBYT_SHEET          ; LEN取得
   STA LEN_A,X               ; XはJSRでZP_CHになっている
   STA ZP_LEN_CNT_A,X
+  LDA TEMPO_A,X             ; 定義テンポをカウンタに格納
+  STA ZP_TEMPO_CNT_A,X
   RTS
 
 ; 楽譜から1バイト取得してポインタを進める
