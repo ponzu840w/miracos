@@ -115,8 +115,10 @@ TICK_YMZQ:
   ; カウンタ0到達
   LDA ZP_TEMPO_CNT_A,X  ; テンポカウンタの取得
   PHA
+  PHX
   JSR PRT_BYT
   JSR PRT_LF
+  PLX
   PLA
   ;bp
   BNE @SKP_FIRE         ; ゼロでなければ発火しない
@@ -135,48 +137,54 @@ TICK_YMZQ:
   BNE @TIMER_LOOP
   ; ---------------------------------------------------------------
   ;   DRIVE SKIN
-;  LDX #2
-;@DRIVE_SKIN_LOOP:
-;  PHX
-;  JSR X2SKIN_STATE_PTR        ; 構造体ポインタ取得
-;  LDY #SKIN_STATE::SKIN       ; 使用スキンのポインタ
-;  LDA (ZP_SKIN_STATE_PTR),Y
-;  STA @JSR_TO_SKIN+1          ; JSR先の動的書き換え
-;  INY
-;  LDA (ZP_SKIN_STATE_PTR),Y
-;  STA @JSR_TO_SKIN+2
-;@JSR_TO_SKIN:
-;  JSR 6502                    ; スキンへ
-;  ; マスクに応じて実際のレジスタ書き換え
-;  ; FRQ L
-;  STA ZP_YMZ_WORK
-;  BBR0 ZP_YMZ_WORK,@VOL
-;  LDA ZP_CH
-;  ASL A
-;  CLC
-;  ADC #YMZ::IA_FRQ
-;  STA YMZ::ADDR
-;  LDY #SKIN_STATE::FRQ
-;  TAX
-;  LDA (ZP_SKIN_STATE_PTR),Y
-;  STA YMZ::DATA
-;  ; FRQ H
-;  INX
-;  INY
-;  STX YMZ::ADDR
-;  LDA (ZP_SKIN_STATE_PTR),Y
-;  STA YMZ::DATA
-;@VOL:
-;  BBR1 ZP_YMZ_WORK,@END
-;  ; VOL
-;  LDA #YMZ::IA_VOL
-;  STA YMZ::ADDR
-;  LDY #SKIN_STATE::VOL
-;  LDA (ZP_SKIN_STATE_PTR),Y
-;@END:
-;  PLX
-;  DEX
-;  BPL @DRIVE_SKIN_LOOP
+  LDA ZP_CH_STATE
+  STA ZP_TIEMR_WORK
+  LDX #0
+@DRIVE_SKIN_LOOP:
+  STX ZP_CH
+  LSR ZP_TIEMR_WORK     ; C=Ch有効/無効
+  BCC @END    ; 無効Chのカウントダウンをスキップ
+  JSR X2SKIN_STATE_PTR        ; 構造体ポインタ取得
+  LDY #SKIN_STATE::SKIN       ; 使用スキンのポインタ
+  LDA (ZP_SKIN_STATE_PTR),Y
+  STA @JSR_TO_SKIN+1          ; JSR先の動的書き換え
+  INY
+  LDA (ZP_SKIN_STATE_PTR),Y
+  STA @JSR_TO_SKIN+2
+@JSR_TO_SKIN:
+  JSR 6502                    ; スキンへ
+  ; マスクに応じて実際のレジスタ書き換え
+  ; FRQ L
+  STA ZP_YMZ_WORK
+  BBR0 ZP_YMZ_WORK,@VOL
+  LDA ZP_CH
+  ASL A
+  CLC
+  ADC #YMZ::IA_FRQ
+  STA YMZ::ADDR
+  TAX                               ; FRQの内部アドレスをXに
+  LDY #SKIN_STATE::FRQ
+  LDA (ZP_SKIN_STATE_PTR),Y
+  STA YMZ::DATA
+  ; FRQ H
+  INX                               ; 内部アドレスを進めてHに
+  INY                               ; 構造体もHから
+  STX YMZ::ADDR
+  LDA (ZP_SKIN_STATE_PTR),Y
+  STA YMZ::DATA
+@VOL:
+  BBR1 ZP_YMZ_WORK,@END
+  ; VOL
+  LDA #YMZ::IA_VOL
+  STA YMZ::ADDR
+  LDY #SKIN_STATE::VOL
+  LDA (ZP_SKIN_STATE_PTR),Y
+  STA YMZ::DATA
+@END:
+  LDX ZP_CH
+  INX
+  CPX #3
+  BNE @DRIVE_SKIN_LOOP
 .endmac
 
 X2SKIN_STATE_PTR:
@@ -196,7 +204,7 @@ SHEET_PS:
   ; 楽譜ポインタ作成
   LDA SHEET_PTR_L,X
   STA ZP_SHEET_PTR
-  LDA SHEET_PTR_H+1,X
+  LDA SHEET_PTR_H,X
   STA ZP_SHEET_PTR+1
   ; 音色状態構造体ポインタ作成
   ; 特殊音符処理ではいらない気もするがインデックスが楽
@@ -212,7 +220,7 @@ SHEET_PS_COMMON_NOTE:
   ; 普通の音符処理
   ; 経過時間リセット
   LDA #0
-  LDA SKIN_STATE::TIME
+  LDY #SKIN_STATE::TIME
   STA (ZP_SKIN_STATE_PTR),Y
   ; 周波数設定
   LDY #SKIN_STATE::FRQ
