@@ -64,7 +64,11 @@ START:
   ; キー待機
   LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
   syscall CON_RAWIN
-  JSR SILENT
+  ;JSR SILENT
+  LDA #YMZ::IA_MIX
+  STA YMZ::ADDR
+  LDA #$FF
+  STA YMZ::DATA
   RTS
 
 SILENT:

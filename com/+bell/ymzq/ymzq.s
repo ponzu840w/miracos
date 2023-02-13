@@ -67,12 +67,16 @@
 ; -------------------------------------------------------------------
 .macro init_ymzq
   ; 本来設定可能であるべきもの
+  ; テンポ
   LDA #15
-  STA TEMPO_A  ; テンポ
+  STA TEMPO_A
+  ; スキン指定
   LDA #<SKIN0_BETA
   STA SKIN_STATE_A+SKIN_STATE::SKIN
   LDA #>SKIN0_BETA
   STA SKIN_STATE_A+SKIN_STATE::SKIN+1
+  ; 有効チャンネルなし
+  STZ ZP_CH_STATE
 .endmac
 
 ; input AY=楽譜 X=ch
@@ -82,17 +86,17 @@ PLAY:
   TYA
   STA SHEET_PTR_H,X
   ; チャンネル有効化
-  ; TODO
-  LDA #1
-  STA ZP_CH_STATE ; 強制Aのみ
-  LDX #YMZ::IA_MIX
-  STX YMZ::ADDR
+  LDA ONEHOT_TABLE,X    ; 有効化ch
+  ORA ZP_CH_STATE       ; orで有効化
+  STA ZP_CH_STATE
+  LDY #YMZ::IA_MIX
+  STY YMZ::ADDR
   EOR #$FF
   STA YMZ::DATA
   ; タイマーリセット
-  LDA #5
-  STA ZP_TEMPO_CNT_A
-  STA ZP_LEN_CNT_A
+  STZ ZP_TEMPO_CNT_A,X  ; テンポは0で即時
+  LDA #1
+  STA ZP_LEN_CNT_A,X    ; LENは1で即時
   RTS
 
 ; -------------------------------------------------------------------
@@ -143,7 +147,7 @@ TICK_YMZQ:
 @DRIVE_SKIN_LOOP:
   STX ZP_CH
   LSR ZP_TIEMR_WORK     ; C=Ch有効/無効
-  BCC @END    ; 無効Chのカウントダウンをスキップ
+  BCC @DRIVE_SKIN_NEXT_CH    ; 無効Chのカウントダウンをスキップ
   JSR X2SKIN_STATE_PTR        ; 構造体ポインタ取得
   LDY #SKIN_STATE::SKIN       ; 使用スキンのポインタ
   LDA (ZP_SKIN_STATE_PTR),Y
@@ -156,7 +160,7 @@ TICK_YMZQ:
   ; マスクに応じて実際のレジスタ書き換え
   ; FRQ L
   STA ZP_YMZ_WORK
-  BBR0 ZP_YMZ_WORK,@VOL
+  BBR0 ZP_YMZ_WORK,@VOL             ; スキンから返ったマスクコードbit0はFRQ
   LDA ZP_CH
   ASL A
   CLC
@@ -173,14 +177,19 @@ TICK_YMZQ:
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
 @VOL:
-  BBR1 ZP_YMZ_WORK,@END
+  BBR1 ZP_YMZ_WORK,@DRIVE_SKIN_NEXT_CH
   ; VOL
   LDA #YMZ::IA_VOL
   STA YMZ::ADDR
   LDY #SKIN_STATE::VOL
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
-@END:
+@DRIVE_SKIN_NEXT_CH:
+  ; 次のチャンネルのスキンをドライブする
+  LDY #SKIN_STATE::TIME
+  LDA (ZP_SKIN_STATE_PTR),Y         ; 経過時間更新
+  INC
+  STA (ZP_SKIN_STATE_PTR),Y
   LDX ZP_CH
   INX
   CPX #3
@@ -268,10 +277,14 @@ SPCNOTE_JMP:
 ;todo
 
 SKIN0_BETA:
+  LDY #SKIN_STATE::TIME
+  LDA (ZP_SKIN_STATE_PTR),Y
+  BNE @END
   LDA #15
   LDY #SKIN_STATE::VOL
   STA (ZP_SKIN_STATE_PTR),Y
   LDA #$FF
+@END:
   RTS
 
 ; -------------------------------------------------------------------
@@ -395,4 +408,9 @@ KEY_FRQ_TABLE:
 .WORD 33 ; 85 A#7
 .WORD 31 ; 86 B7
 .WORD 29 ; 87 C8
+
+ONEHOT_TABLE:
+  .BYTE %00000001
+  .BYTE %00000010
+  .BYTE %00000100
 
