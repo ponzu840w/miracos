@@ -119,12 +119,12 @@ TICK_YMZQ:
   BNE @TIMER_NEXT_CH    ; 何もなければ次
   ; カウンタ0到達
   LDA ZP_TEMPO_CNT_A,X  ; テンポカウンタの取得
-  PHA
-  PHX
-  JSR PRT_BYT
-  JSR PRT_LF
-  PLX
-  PLA
+  ;PHA
+  ;PHX
+  ;JSR PRT_BYT
+  ;JSR PRT_LF
+  ;PLX
+  ;PLA
   ;bp
   BNE @SKP_FIRE         ; ゼロでなければ発火しない
   ; 発火
@@ -340,8 +340,8 @@ SKIN_TABLE_H:
 ; https://www.tomari.org/main/java/oto.html
 ; frq.txtをmakefrq.awkにて処理
 KEY_FRQ_TABLE:
-.WORD 4545 ; 0 A0
-.WORD 4290 ; 1 A#0
+;.WORD 4545 ; 0 A0  ; 12bitの範囲をオーバー
+;.WORD 4290 ; 1 A#0 ; 12bitの範囲をオーバー
 .WORD 4049 ; 2 B0
 .WORD 3822 ; 3 C1
 .WORD 3607 ; 4 C#1
