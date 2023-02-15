@@ -6,17 +6,20 @@
 ; Vsync駆動
 ; -------------------------------------------------------------------
 
+  ; 音色状態構造体ポインタ
+  ZP_SKIN_STATE_PTR:  = ZR0
+  ZP_FLAG:            = ZR1
+
 ; -------------------------------------------------------------------
 ;                             構造体定義
 ; -------------------------------------------------------------------
 .STRUCT SKIN_STATE
   ; スキンの操作対象データ
-  CH                .RES 1  ; チャンネル 0=A 1=B 2=C NOTE 初めからXで与えれば要らないかも
   SKIN              .RES 2  ; スキンルーチンのポインタ
+  FLAG              .RES 1  ; フラグ 7|0000 00vf|0
   FRQ               .RES 2  ; 周波数
   VOL               .RES 1  ; 音量
   TIME              .RES 1  ; 経過時間
-  ;todo
 .ENDSTRUCT
 
 ; -------------------------------------------------------------------
@@ -32,17 +35,13 @@
   ZP_LEN_CNT_C:       .RES 1
   ; チャンネル状態
   ZP_CH_ENABLE:       .RES 1        ; 7|00000cba|0
-  ZP_CH_ACTIVE:       .RES 1
+  ZP_CH_NOTREST:      .RES 1
   ; 楽譜ポインタ
   ZP_SHEET_PTR:       .RES 2
-  ; 音色状態構造体ポインタ
-  ZP_SKIN_STATE_PTR:  .RES 2
   ;
   ZP_TICK_CH_SR:      .RES 1
   ZP_CH:              .RES 1
-  ZP_YMZ_WORK:        .RES 1
-  ;
-  ZP_SKIN_WORK:       .RES 1
+  ZP_ZRSAVE:          .RES 3
 
 ; -------------------------------------------------------------------
 ;                            変数領域定義
@@ -102,12 +101,43 @@ PLAY:
   STA ZP_LEN_CNT_A,X    ; LENは1で即時
   RTS
 
+.macro swap_zr          ; ゼロページレジスタを退避
+;  LDX #2                ; スワップするバイト数-1
+;@STOREZRLOOP:
+;  LDA ZR0,X
+;  STA ZRSAVE,X
+;  DEX
+;  BPL @STOREZRLOOP
+  LDA ZR0
+  STA ZP_ZRSAVE
+  LDA ZR0+1
+  STA ZP_ZRSAVE+1
+  LDA ZR0+2
+  STA ZP_ZRSAVE+2
+.endmac
+
+.macro restore_zr       ; ゼロページレジスタを復帰
+;  LDX #2
+;@RESTOREZRLOOP:
+;  LDA ZP_ZRSAVE,X
+;  STA ZR0,X
+;  DEX
+;  BPL @RESTOREZRLOOP
+  LDA ZP_ZRSAVE
+  STA ZR0
+  LDA ZP_ZRSAVE+1
+  STA ZR0+1
+  LDA ZP_ZRSAVE+2
+  STA ZR0+2
+.endmac
+
 ; -------------------------------------------------------------------
 ;                            ティック処理
 ; -------------------------------------------------------------------
 ; カウントダウン・次ノートトリガ・音色ドライブ
 .macro tick_ymzq
 TICK_YMZQ:
+  swap_zr
   ; ---------------------------------------------------------------
   ;   TIMER
   LDA ZP_CH_ENABLE
@@ -121,13 +151,6 @@ TICK_YMZQ:
   BNE @TIMER_NEXT_CH    ; 何もなければ次
   ; カウンタ0到達
   LDA ZP_TEMPO_CNT_A,X  ; テンポカウンタの取得
-  ;PHA
-  ;PHX
-  ;JSR PRT_BYT
-  ;JSR PRT_LF
-  ;PLX
-  ;PLA
-  ;bp
   BNE @SKP_FIRE         ; ゼロでなければ発火しない
   ; 発火
   JSR SHEET_PS
@@ -145,43 +168,49 @@ TICK_YMZQ:
   ; ---------------------------------------------------------------
   ;   DRIVE SKIN
   LDA ZP_CH_ENABLE
-  AND ZP_CH_ACTIVE
-  STA ZP_TICK_CH_SR
+  AND ZP_CH_NOTREST           ; チャンネルが有効でかつ休符ではないのみスキンを駆動
+  STA ZP_TICK_CH_SR           ; シフトレジスタでチャンネル制御
   LDX #0
 @DRIVE_SKIN_LOOP:
   STX ZP_CH
-  LSR ZP_TICK_CH_SR     ; C=Ch有効/無効
-  BCC @DRIVE_SKIN_NEXT_CH    ; 無効Chのカウントダウンをスキップ
-  JSR X2SKIN_STATE_PTR        ; 構造体ポインタ取得
+  ; スキン呼び出し準備
+  LSR ZP_TICK_CH_SR           ; C=Ch有効/無効
+  BCC @DRIVE_SKIN_NEXT_CH     ; 無効Chのカウントダウンをスキップ
+  x2skin_state_ptr            ; 構造体ポインタ取得
+  ; スキンルーチンへのJSR準備
   LDY #SKIN_STATE::SKIN       ; 使用スキンのポインタ
   LDA (ZP_SKIN_STATE_PTR),Y
   STA @JSR_TO_SKIN+1          ; JSR先の動的書き換え
   INY
   LDA (ZP_SKIN_STATE_PTR),Y
   STA @JSR_TO_SKIN+2
+  ; フラグ準備
+  INY
+  LDA (ZP_SKIN_STATE_PTR),Y
+  STA ZP_FLAG
 @JSR_TO_SKIN:
-  JSR 6502                    ; スキンへ
-  ; マスクに応じて実際のレジスタ書き換え
+  JSR 6502                      ; スキンへ
+  ; フラグに応じて実際のレジスタ書き換え
   ; FRQ L
-  STA ZP_YMZ_WORK
-  BBR0 ZP_YMZ_WORK,@VOL             ; スキンから返ったマスクコードbit0はFRQ
+  BBR0 ZP_FLAG,@VOL             ; スキンから返ったマスクコードbit0はFRQ
+  ; 周波数レジスタのチャンネルを合わせる
   LDA ZP_CH
   ASL A
   CLC
   ADC #YMZ::IA_FRQ
   STA YMZ::ADDR
-  TAX                               ; FRQの内部アドレスをXに
+  TAX                           ; FRQの内部アドレスをXに
   LDY #SKIN_STATE::FRQ
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
   ; FRQ H
-  INX                               ; 内部アドレスを進めてHに
-  INY                               ; 構造体もHから
+  INX                           ; 内部アドレスを進めてHに
+  INY                           ; 構造体もHから
   STX YMZ::ADDR
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
 @VOL:
-  BBR1 ZP_YMZ_WORK,@DRIVE_SKIN_NEXT_CH
+  BBR1 ZP_FLAG,@DRIVE_SKIN_NEXT_CH
   ; VOL
   LDA #YMZ::IA_VOL
   STA YMZ::ADDR
@@ -190,6 +219,9 @@ TICK_YMZQ:
   STA YMZ::DATA
 @DRIVE_SKIN_NEXT_CH:
   ; 次のチャンネルのスキンをドライブする
+  LDY #SKIN_STATE::FLAG
+  LDA ZP_FLAG
+  STA (ZP_SKIN_STATE_PTR),Y         ; フラグ更新
   LDY #SKIN_STATE::TIME
   LDA (ZP_SKIN_STATE_PTR),Y         ; 経過時間更新
   INC
@@ -198,14 +230,15 @@ TICK_YMZQ:
   INX
   CPX #3
   BNE @DRIVE_SKIN_LOOP
+  restore_zr
 .endmac
 
-X2SKIN_STATE_PTR:
+.macro x2skin_state_ptr
   LDA SKIN_STATE_STRUCT_TABLE_L,X
   STA ZP_SKIN_STATE_PTR
   LDA SKIN_STATE_STRUCT_TABLE_H,X
   STA ZP_SKIN_STATE_PTR+1
-  RTS
+.endmac
 
 ; -------------------------------------------------------------------
 ;                           楽譜プロセッサ
@@ -221,7 +254,7 @@ SHEET_PS:
   STA ZP_SHEET_PTR+1
   ; 音色状態構造体ポインタ作成
   ; 特殊音符処理ではいらない気もするがインデックスが楽
-  JSR X2SKIN_STATE_PTR
+  x2skin_state_ptr
   ; 第1コード取得
   JSR GETBYT_SHEET
   ASL                       ; 左シフト:MSBが飛びインデックスが倍に
@@ -235,8 +268,12 @@ SHEET_PS_COMMON_NOTE:
   LDA #0
   LDY #SKIN_STATE::TIME
   STA (ZP_SKIN_STATE_PTR),Y
+  ; フラグリセット
+  LDY #SKIN_STATE::FLAG
+  STA (ZP_SKIN_STATE_PTR),Y
   ; 周波数設定
-  LDY #SKIN_STATE::FRQ
+  ;LDY #SKIN_STATE::FRQ
+  INY
   LDA KEY_FRQ_TABLE,X       ; テーブルから周波数を取得 L
   STA (ZP_SKIN_STATE_PTR),Y
   INY
@@ -245,8 +282,8 @@ SHEET_PS_COMMON_NOTE:
   ; アクティベート
   LDX ZP_CH
   LDA ONEHOT_TABLE,X
-  ORA ZP_CH_ACTIVE
-  STA ZP_CH_ACTIVE
+  ORA ZP_CH_NOTREST
+  STA ZP_CH_NOTREST
 SET_NEXT_TIMER:
   ; タイマーセット
   JSR GETBYT_SHEET          ; LEN取得
@@ -280,8 +317,8 @@ SPCNOTE_REST:
   LDX ZP_CH
   LDA ONEHOT_TABLE,X
   EOR #$FF
-  AND ZP_CH_ACTIVE
-  STA ZP_CH_ACTIVE
+  AND ZP_CH_NOTREST
+  STA ZP_CH_NOTREST
   ; VOL0
   TXA
   CLC
@@ -299,13 +336,11 @@ SPCNOTE_JMP:
 ;todo
 
 SKIN0_BETA:
-  LDY #SKIN_STATE::TIME
-  LDA (ZP_SKIN_STATE_PTR),Y
-  BNE @END
+  BBS0 ZP_FLAG,@END           ; 初回以外スキップ
   LDA #15
   LDY #SKIN_STATE::VOL
   STA (ZP_SKIN_STATE_PTR),Y
-  LDA #$FF
+  DEC ZP_FLAG                 ; 0をDECして$FF
 @END:
   RTS
 
@@ -314,7 +349,7 @@ SKIN1_PIANO:
   LDA (ZP_SKIN_STATE_PTR),Y
   CMP #(15*2*2+1)
   BEQ @END
-  LSR
+  LSR                         ; 1/4T
   LSR
   STA ZP_SKIN_WORK
   LDA #$15
