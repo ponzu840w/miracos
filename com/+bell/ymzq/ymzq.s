@@ -41,6 +41,8 @@
   ZP_TICK_CH_SR:      .RES 1
   ZP_CH:              .RES 1
   ZP_YMZ_WORK:        .RES 1
+  ;
+  ZP_SKIN_WORK:       .RES 1
 
 ; -------------------------------------------------------------------
 ;                            変数領域定義
@@ -72,9 +74,9 @@
   LDA #15
   STA TEMPO_A
   ; スキン指定
-  LDA #<SKIN0_BETA
+  LDA #<SKIN1_PIANO
   STA SKIN_STATE_A+SKIN_STATE::SKIN
-  LDA #>SKIN0_BETA
+  LDA #>SKIN1_PIANO
   STA SKIN_STATE_A+SKIN_STATE::SKIN+1
   ; 有効チャンネルなし
   STZ ZP_CH_ENABLE
@@ -88,7 +90,7 @@ PLAY:
   STA SHEET_PTR_H,X
   ; チャンネル有効化
   LDA ONEHOT_TABLE,X    ; 有効化ch
-  ORA ZP_CH_ENABLE       ; orで有効化
+  ORA ZP_CH_ENABLE      ; orで有効化
   STA ZP_CH_ENABLE
   LDY #YMZ::IA_MIX
   STY YMZ::ADDR
@@ -301,6 +303,23 @@ SKIN0_BETA:
   LDA (ZP_SKIN_STATE_PTR),Y
   BNE @END
   LDA #15
+  LDY #SKIN_STATE::VOL
+  STA (ZP_SKIN_STATE_PTR),Y
+  LDA #$FF
+@END:
+  RTS
+
+SKIN1_PIANO:
+  LDY #SKIN_STATE::TIME
+  LDA (ZP_SKIN_STATE_PTR),Y
+  CMP #(15*2*2+1)
+  BEQ @END
+  LSR
+  LSR
+  STA ZP_SKIN_WORK
+  LDA #$15
+  SEC
+  SBC ZP_SKIN_WORK
   LDY #SKIN_STATE::VOL
   STA (ZP_SKIN_STATE_PTR),Y
   LDA #$FF
