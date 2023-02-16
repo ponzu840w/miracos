@@ -7,8 +7,9 @@
 ; -------------------------------------------------------------------
 
   ; 音色状態構造体ポインタ
-  ZP_SKIN_STATE_PTR:  = ZR0
-  ZP_FLAG:            = ZR1
+  ZP_SKIN_STATE_PTR  = ZR0
+  ZP_FLAG            = ZR1
+  ;ZP_WORK:            = ZR1+1
 
 ; -------------------------------------------------------------------
 ;                             構造体定義
@@ -114,6 +115,8 @@ PLAY:
   STA ZP_ZRSAVE+1
   LDA ZR0+2
   STA ZP_ZRSAVE+2
+  ;LDA ZR0+3
+  ;STA ZP_ZRSAVE+3
 .endmac
 
 .macro restore_zr       ; ゼロページレジスタを復帰
@@ -129,6 +132,8 @@ PLAY:
   STA ZR0+1
   LDA ZP_ZRSAVE+2
   STA ZR0+2
+  ;LDA ZP_ZRSAVE+3
+  ;STA ZR0+3
 .endmac
 
 ; -------------------------------------------------------------------
@@ -335,6 +340,11 @@ SPCNOTE_TEMPO:
 SPCNOTE_JMP:
 ;todo
 
+; -------------------------------------------------------------------
+; SKIN0                         BETA
+; -------------------------------------------------------------------
+; ベタに、指定周波数が最大音量で出るだけ
+; -------------------------------------------------------------------
 SKIN0_BETA:
   BBS0 ZP_FLAG,@END           ; 初回以外スキップ
   LDA #15
@@ -344,20 +354,27 @@ SKIN0_BETA:
 @END:
   RTS
 
+; -------------------------------------------------------------------
+; SKIN1                        PIANO
+; -------------------------------------------------------------------
+; 徐々に音量が減衰する、ピアノ風
+; VOLはTの関数である
+; -------------------------------------------------------------------
 SKIN1_PIANO:
   LDY #SKIN_STATE::TIME
   LDA (ZP_SKIN_STATE_PTR),Y
   CMP #(15*2*2+1)
   BEQ @END
+  ; TからVOLを算出する
   LSR                         ; 1/4T
   LSR
-  STA ZP_SKIN_WORK
-  LDA #$15
+  EOR #$FF                    ; 反転で負数に
   SEC
-  SBC ZP_SKIN_WORK
-  LDY #SKIN_STATE::VOL
+  ADC #15                     ; newVol=15+(-1/4T)
+  ;LDY #SKIN_STATE::VOL
+  DEY                         ; VOL,TIMEという並び
   STA (ZP_SKIN_STATE_PTR),Y
-  LDA #$FF
+  DEC ZP_FLAG
 @END:
   RTS
 
