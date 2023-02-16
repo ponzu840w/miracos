@@ -222,8 +222,7 @@ TICK_YMZQ:
   LDY #SKIN_STATE::VOL
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
-@DRIVE_SKIN_NEXT_CH:
-  ; 次のチャンネルのスキンをドライブする
+  ; スキン状態構造体の更新
   LDY #SKIN_STATE::FLAG
   LDA ZP_FLAG
   STA (ZP_SKIN_STATE_PTR),Y         ; フラグ更新
@@ -231,6 +230,8 @@ TICK_YMZQ:
   LDA (ZP_SKIN_STATE_PTR),Y         ; 経過時間更新
   INC
   STA (ZP_SKIN_STATE_PTR),Y
+@DRIVE_SKIN_NEXT_CH:
+  ; 次のチャンネルのスキンをドライブする
   LDX ZP_CH
   INX
   CPX #3
@@ -361,10 +362,21 @@ SKIN0_BETA:
 ; VOLはTの関数である
 ; -------------------------------------------------------------------
 SKIN1_PIANO:
+  ; 終了フラグを見て分岐
+  BBS7 ZP_FLAG,@END
+  ; 経過時間取得
+  SMB7 ZP_FLAG                ; とりあえず終了フラグを立てる、上書きされる
   LDY #SKIN_STATE::TIME
   LDA (ZP_SKIN_STATE_PTR),Y
-  CMP #(15*2*2+1)
-  BEQ @END
+  ;PHA
+  ;PHX
+  ;PHY
+  ;JSR PRT_BYT
+  ;PLY
+  ;PLX
+  ;PLA
+  CMP #(15*4+1)
+  BEQ @END                    ; 終了タイミングでは飛び、上書きされない
   ; TからVOLを算出する
   LSR                         ; 1/4T
   LSR
@@ -374,7 +386,8 @@ SKIN1_PIANO:
   ;LDY #SKIN_STATE::VOL
   DEY                         ; VOL,TIMEという並び
   STA (ZP_SKIN_STATE_PTR),Y
-  DEC ZP_FLAG
+  LDA #%00000011              ; FRQ,VOLともに更新
+  STA ZP_FLAG
 @END:
   RTS
 
