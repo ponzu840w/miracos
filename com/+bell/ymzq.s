@@ -16,7 +16,7 @@
 ; -------------------------------------------------------------------
 .STRUCT SKIN_STATE
   ; スキンの操作対象データ
-  SKIN              .RES 2  ; スキンルーチンのポインタ
+  ;SKIN              .RES 2  ; スキンルーチンのポインタ
   FLAG              .RES 1  ; フラグ 7|0000 00vf|0
   FRQ               .RES 2  ; 周波数
   VOL               .RES 1  ; 音量
@@ -52,6 +52,9 @@
   SKIN_STATE_A:       .TAG SKIN_STATE
   SKIN_STATE_B:       .TAG SKIN_STATE
   SKIN_STATE_C:       .TAG SKIN_STATE
+  ; スキンポインタ
+  SKIN_PTR_L:         .RES 3        ; A,B,C それぞれのL
+  SKIN_PTR_H:         .RES 3
   ; 楽譜ポインタ
   SHEET_PTR_L:        .RES 3        ; A,B,C それぞれのL
   SHEET_PTR_H:        .RES 3
@@ -71,13 +74,13 @@
 .macro init_ymzq
   ; 本来設定可能であるべきもの
   ; テンポ
-  LDA #15
-  STA TEMPO_A
+  ;LDA #15
+  ;STA TEMPO_A
   ; スキン指定
-  LDA #<SKIN2_VIBRATO
-  STA SKIN_STATE_A+SKIN_STATE::SKIN
-  LDA #>SKIN2_VIBRATO
-  STA SKIN_STATE_A+SKIN_STATE::SKIN+1
+  ;LDA #<SKIN2_VIBRATO
+  ;STA SKIN_PTR_L
+  ;LDA #>SKIN2_VIBRATO
+  ;STA SKIN_PTR_H
   ; 有効チャンネルなし
   STZ ZP_CH_ENABLE
 .endmac
@@ -183,14 +186,13 @@ TICK_YMZQ:
   BCC @DRIVE_SKIN_NEXT_CH     ; 無効Chのカウントダウンをスキップ
   x2skin_state_ptr            ; 構造体ポインタ取得
   ; スキンルーチンへのJSR準備
-  LDY #SKIN_STATE::SKIN       ; 使用スキンのポインタ
-  LDA (ZP_SKIN_STATE_PTR),Y
-  STA @JSR_TO_SKIN+1          ; JSR先の動的書き換え
-  INY
-  LDA (ZP_SKIN_STATE_PTR),Y
+  ;   使用スキンへのポインタをJSR先に書き換える
+  LDA SKIN_PTR_L,X
+  STA @JSR_TO_SKIN+1
+  LDA SKIN_PTR_H,X
   STA @JSR_TO_SKIN+2
   ; フラグ準備
-  INY
+  LDY #SKIN_STATE::FLAG
   LDA (ZP_SKIN_STATE_PTR),Y
   STA ZP_FLAG
 @JSR_TO_SKIN:
@@ -261,8 +263,9 @@ SHEET_PS:
   ; 音色状態構造体ポインタ作成
   ; 特殊音符処理ではいらない気もするがインデックスが楽
   x2skin_state_ptr
+SHEET_PS_FIRSTCODE:
   ; 第1コード取得
-  JSR GETBYT_SHEET
+  JSR GETBYT_SHEET_NO_LDX
   ASL                       ; 左シフト:MSBが飛びインデックスが倍に
   TAX                       ; いずれにせよインデックスアクセスに使う
   BCC SHEET_PS_COMMON_NOTE  ; 一般音符であれば特殊音符処理をスキップ
@@ -292,8 +295,8 @@ SHEET_PS_COMMON_NOTE:
   STA ZP_CH_NOTREST
 SET_NEXT_TIMER:
   ; タイマーセット
-  JSR GETBYT_SHEET          ; LEN取得
-  STA LEN_A,X               ; XはJSRでZP_CHになっている
+  JSR GETBYT_SHEET_NO_LDX   ; LEN取得 - XがChなのは保障される
+  STA LEN_A,X               ; XはZP_CHになっている
   STA ZP_LEN_CNT_A,X
   LDA TEMPO_A,X             ; 定義テンポをカウンタに格納
   STA ZP_TEMPO_CNT_A,X
@@ -301,7 +304,8 @@ SET_NEXT_TIMER:
 
 ; 楽譜から1バイト取得してポインタを進める
 GETBYT_SHEET:
-  ;LDX ZP_CH
+  LDX ZP_CH
+GETBYT_SHEET_NO_LDX:
   LDA (ZP_SHEET_PTR)  ; バイト取得
   PHA
   ; 作業用ポインタの増加
@@ -335,7 +339,22 @@ SPCNOTE_REST:
 
 ; テンポ変更
 SPCNOTE_TEMPO:
-;todo
+  JSR GETBYT_SHEET        ; テンポ値取得
+  STA TEMPO_A,X           ; テンポ値格納
+  BRA SHEET_PS_FIRSTCODE  ; 次のコードへ
+
+; スキン指定
+SPCNOTE_SKIN:
+  JSR GETBYT_SHEET        ; スキン番号取得
+  PHX                     ; push Ch
+  TAX
+  LDA SKIN_TABLE_L,X      ; L取得
+  LDY SKIN_TABLE_H,X      ; H取得
+  PLX                     ; pull Ch
+  STA SKIN_PTR_L,X        ; スキン値格納
+  TYA
+  STA SKIN_PTR_H,X        ; スキン値格納
+  JMP SHEET_PS_FIRSTCODE  ; 次のコードへ
 
 ; 相対ジャンプ
 SPCNOTE_JMP:
@@ -398,18 +417,17 @@ SKIN1_PIANO:
 ; -------------------------------------------------------------------
 SKIN2_VIBRATO:
   BBS0 ZP_FLAG,@TICK           ; 初回以外スキップ
-  ; VOL
+  ; VOL=MAX
   LDA #15
   LDY #SKIN_STATE::VOL
   STA (ZP_SKIN_STATE_PTR),Y
   ; FRQ
-  LDA #1
   LDY #SKIN_STATE::FRQ
-  CLC
-  ADC (ZP_SKIN_STATE_PTR),Y
+  LDA (ZP_SKIN_STATE_PTR),Y
+  INC
   STA (ZP_SKIN_STATE_PTR),Y
   DEC ZP_FLAG                 ; 0をDECして$FF
-  BRA @END
+  RTS
 @TICK:
   ; TIME bit0 に応じたFRQ揺らし
   LDY #SKIN_STATE::TIME
@@ -446,13 +464,18 @@ SKIN_STATE_STRUCT_TABLE_H:
 SPCNOTE_TABLE:
   .WORD SPCNOTE_REST    ; 0 休符
   .WORD SPCNOTE_TEMPO   ; 1 テンポ設定
-  .WORD SPCNOTE_JMP     ; 2 ジャンプ
+  .WORD SPCNOTE_SKIN    ; 2 スキン設定
+  .WORD SPCNOTE_JMP     ; 3 ジャンプ
 
 SKIN_TABLE_L:
   .BYTE <SKIN0_BETA
+  .BYTE <SKIN1_PIANO
+  .BYTE <SKIN2_VIBRATO
 
 SKIN_TABLE_H:
   .BYTE >SKIN0_BETA
+  .BYTE >SKIN1_PIANO
+  .BYTE >SKIN2_VIBRATO
 
 ; -------------------------------------------------------------------
 ;                           データテーブル
