@@ -4,7 +4,7 @@ ZP_END="0x40"
 SYSCALLTABLE_START="0x0600"
 TPA_START="0x0700"
 CCP_START="0x5000"
-BCOS_START="0x6000"
+BCOS_START="0x5300"
 NOUSE_START="0x8000"
 SEPARATOR="---------------------------------------------------------------------------"
 
