@@ -25,13 +25,61 @@ IMAGE_BUFFER_SECS = 32 ; 何セクタをバッファに使うか？ 48の約数
   ZP_TMP_Y_DEST:  .RES 1
   ZP_READ_VEC16:  .RES 2
   ZP_VMAV:        .RES 1
+  ZP_FINFO_SAV:   .RES 2  ; FINFO
+  ZP_4:           .RES 1
 
 ; -------------------------------------------------------------------
 ;                              変数領域
 ; -------------------------------------------------------------------
 .BSS
   FD_SAV:         .RES 1  ; ファイル記述子
-  FINFO_SAV:      .RES 2  ; FINFO
+
+; -------------------------------------------------------------------
+;                             マクロ定義
+; -------------------------------------------------------------------
+.macro check_file_ext
+CHECK_FILE_EXT:
+  ; 拡張子を確かめる
+  ; 拡張子を得る
+  LDY #FINFO::NAME
+@LOOP:
+  INY
+  LDA (ZP_FINFO_SAV),Y
+  BEQ @FAILURE
+  CMP #'.'
+  BNE @LOOP
+  ; I
+  INY
+  LDA (ZP_FINFO_SAV),Y
+  CMP #'I'
+  BNE @FAILURE
+  ; M
+  INY
+  LDA (ZP_FINFO_SAV),Y
+  CMP #'M'
+  BNE @FAILURE
+  ; F
+  INY
+  LDA (ZP_FINFO_SAV),Y
+  CMP #'F'
+  BEQ _F
+  ; 4
+  CMP #'4'
+  BEQ _4
+@FAILURE:
+  ; FAILURE
+  loadAY16 STR_EXTERR
+  syscall CON_OUT_STR
+  RTS
+
+_F:
+  STZ ZP_4
+  BRA END
+_4:
+  LDA #1
+  STA ZP_4
+END:
+.endmac
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -50,10 +98,11 @@ START:
   ; オープン
   syscall FS_FIND_FST             ; 検索
   BCS @NOTFOUND2                  ; 見つからなかったらあきらめる
-  storeAY16 FINFO_SAV             ; FINFOを格納
+  storeAY16 ZP_FINFO_SAV          ; FINFOを格納
   syscall FS_OPEN                 ; ファイルをオープン
-  BCS NOTFOUND                    ; オープンできなかったらあきらめる
+  BCS @NOTFOUND2                    ; オープンできなかったらあきらめる
   STA FD_SAV                      ; ファイル記述子をセーブ
+  check_file_ext
   ; CRTCを初期化
   LDA #(CRTC2::WF|1)              ; f1書き込み
   STA CRTC2::CONF
@@ -164,6 +213,9 @@ FILL_LOOP_H:
 
 STR_NOTFOUND:
   .BYT "Input File Not Found.",$A,$0
+
+STR_EXTERR:
+  .BYT "Only .IMF .IM4 are available extensions.",$A,$0
 
 .BSS
 TEXT:
