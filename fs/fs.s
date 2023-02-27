@@ -305,7 +305,8 @@ FUNC_FS_FIND_NXT:
   DEY
   BPL @DLFWK_LOOP                     ; FINFOコピー終了
   loadreg16 FINFO_WK+FINFO::DIR_CLUS
-  JSR CLUS2FWK                        ; FINFOの親ディレクトリの現在クラスタをFWKに展開、ただしSEC=0
+  JSR HEAD2FWK                        ; FINFOの親ディレクトリの現在クラスタをFWKに展開、ただしSEC=0
+                                      ;   先頭扱いでコールしているが先頭クラスタは覚えていない
   LDA FINFO_WK+FINFO::DIR_SEC         ; クラスタ内セクタ番号を取得
   STA FWK+FCTRL::CUR_SEC              ; 現在セクタ反映
   JSR FLASH_REALSEC

@@ -44,12 +44,12 @@ INTOPEN_ROOT:
   ; ルートディレクトリを開く
   loadreg16 DWK+DINFO::BPB_ROOTCLUS
 OPENCLUS:
-  JSR CLUS2FWK
+  JSR HEAD2FWK
   JSR RDSEC
   RTS
 
-CLUS2FWK:
-  ; AXで与えられたクラスタ番号から、ファイル構造体を展開
+HEAD2FWK:
+  ; AXで与えられた先頭クラスタ番号から、ファイル構造体を展開
   ; サイズに触れないため、ディレクトリにも使える
   ; --- ファイル構造体の展開
   ; 先頭クラスタ番号
@@ -64,6 +64,7 @@ FILE_REOPEN:
   JSR AX_DST
   loadreg16 FWK+FCTRL::HEAD
   JSR L_LD_AXS
+CLUS_REOPEN:
   ; 現在クラスタ内セクタ番号をゼロに
   STZ FWK+FCTRL::CUR_SEC
   ; リアルセクタ番号を展開
@@ -287,16 +288,56 @@ DIR_GETENT:
 
 NEXTSEC:
   ; ファイル構造体を更新し、次のセクタを開く
+  loadreg16 (FWK_REAL_SEC)
+  JSR AX_DST                    ; リアルセクタをDSTに
   ; クラスタ内セクタ番号の更新
   LDA FWK+FCTRL::CUR_SEC
   CMP DWK+DINFO::BPB_SECPERCLUS ; クラスタ内最終セクタか
   BNE @SKP_NEXTCLUS             ; まだならFATチェーン読み取りキャンセル
-  BRK                           ; TODO:FATを読む
+  ; 次のクラスタの先頭セクタを開く
+  ;BRK                           ; TODO:FATを読む
+  LDA FWK+FCTRL::CUR_CLUS       ; 現在クラスタ番号{N}->FAT論理セクタ
+  ASL                           ; x4/512 : /128 : >>7 最下位バイトからはMSBしか採れない
+  ; 0
+  LDA FWK+FCTRL::CUR_CLUS+1
+  ROL
+  STA FWK_REAL_SEC
+  ; 1
+  LDA FWK+FCTRL::CUR_CLUS+2
+  ROL
+  STA FWK_REAL_SEC
+  ; 2
+  LDA FWK+FCTRL::CUR_CLUS+3
+  ROL
+  STA FWK_REAL_SEC+2
+  ; 3
+  STZ FWK_REAL_SEC+3
+  ROL FWK_REAL_SEC+3
+  ; FATSTART加算
+  loadreg16 (DWK+DINFO::FATSTART)
+  JSR L_ADD_AXS
+  ; FATロード
+  JSR RDSEC
+  ; 参照ベクタ作成
+  LDA #>SECBF512                  ; ソース上位をSECBFに
+  STA ZP_LSRC0_VEC16+1
+  LDA FWK+FCTRL::CUR_CLUS         ; 現在クラスタ最下位バイト
+  ASL                             ; <<2
+  ASL
+  BCC @SKP_INCPAGE                ; C=0 上部 $03 ？ 逆では
+  INC ZP_SDSEEK_VEC16+1           ; C=1 下部 $04
+@SKP_INCPAGE:
+  STA ZP_LSRC0_VEC16
+  ; 現在クラスタにFATからコピー
+  loadreg16 (FWK+FCTRL::CUR_CLUS)
+  JSR AX_DST
+  JSR L_LD
+  JMP CLUS_REOPEN                 ; 更新された現在クラスタをもとにFWK再展開
 @SKP_NEXTCLUS:
   INC FWK+FCTRL::CUR_SEC
   ; リアルセクタ番号を更新
-  loadreg16 (FWK_REAL_SEC)
-  JSR AX_DST
+  ;loadreg16 (FWK_REAL_SEC)
+  ;JSR AX_DST
   LDA #1
   JSR L_ADD_BYT
   RTS

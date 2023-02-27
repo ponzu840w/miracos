@@ -31,7 +31,7 @@
   SIZ               .RES 4  ; ファイルサイズ
   ; 次を検索するためのデータ
   DRV_NUM           .RES 1  ; ドライブ番号
-  DIR_CLUS          .RES 4  ; 親ディレクトリ現在クラスタ
+  DIR_CLUS          .RES 4  ; 親ディレクトリ現在クラスタ  親の先頭クラスタはどうでもいい？
   DIR_SEC           .RES 1  ; 親ディレクトリ現在クラスタ内セクタ
   DIR_ENT           .RES 1  ; セクタ内エントリ番号（SDSEEKの下位を右に1シフトしてMSBが後半フラグ
 .ENDSTRUCT
