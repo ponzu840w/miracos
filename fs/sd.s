@@ -24,7 +24,13 @@ DUMPSEC:
   INC ZP_SDSEEK_VEC16+1
   rdpage
   ; コマンド終了
-  cs0high
+  ;cs0high
+  LDA VIA::PORTB
+  ORA #VIA::SPI_CS0
+  STA VIA::PORTB
+  ;debug
+  ;LDA #$48
+  ;STA CRTC2::WDAT
   LDA #0
   RTS
 

@@ -13,7 +13,7 @@
 .ENDPROC
 .INCLUDE "../syscall.mac"
 
-IMAGE_BUFFER_SECS = 32 ; 何セクタをバッファに使うか？ 48の約数
+IMAGE_BUFFER_SECS = 24 ; 何セクタをバッファに使うか？ 48の約数
 
 ; -------------------------------------------------------------------
 ;                               ZP領域
@@ -76,12 +76,14 @@ LOOP:
   loadAY16 512*IMAGE_BUFFER_SECS  ; 数セクタをバッファに読み込み
   syscall FS_READ_BYTS            ; ロード
   BCS @CLOSE
+@HERE:
+  BRA @HERE
   ; 読み取ったセクタ数をバッファ出力ループのイテレータに
   TYA
   LSR
   TAX
   ; バッファ出力
-  loadmem16 ZP_READ_VEC16, TEXT
+  loadmem16 ZP_READ_VEC16,TEXT
   ; バッファ出力ループ
   ;LDX #IMAGE_BUFFER_SECS
 @BUFFER_LOOP:
