@@ -188,6 +188,7 @@ DIR_NEXTENT:
   BNE @SKP_NEXTSEC            ; 下位桁が最終エントリならこのセクタは読み切った
   JSR NEXTSEC                 ; 次のセクタに進む
   JSR RDSEC                   ; セクタを読み出す
+  ; TODO C=1ならセクタリードに失敗しているので、ここでエラー処理するのが望ましい
   BRA @ENT
 @SKP_NEXTSEC:
   ; シーク

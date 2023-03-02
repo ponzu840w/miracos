@@ -144,16 +144,16 @@ RDINIT:
   ;print STR_S
   ;JSR SD_WAITRES  ; データを待つ
   cs0low
-  LDY #0
+  ;LDY #0
 @WAIT_DAT:         ;  有効トークン$FEは、負数だ
   JSR SPI::RDBYT
   CMP #$FF
   BNE @TOKEN
-  DEY
-  BNE @WAIT_DAT
-  LDA #$03        ; EC3:TokenError2
-  RTS
-  ;BRA @WAIT_DAT
+  ;DEY
+  ;BNE @WAIT_DAT
+  ;LDA #$03        ; EC3:TokenError2 タイムアウトの懸念有れど1ループでは足りない
+  ;RTS              ; 2ループはめんどくさいので
+  BRA @WAIT_DAT
 @TOKEN:
   CMP #$FE
   BEQ @RDGOTDAT
