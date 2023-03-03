@@ -226,34 +226,37 @@ FUNC_RESET:
   SMB2 ZP_CON_DEV_CFG
 @INIT_PS2_END:
   ; --- PS/2キーボードの初期化処理  ここまで
-  .IF !SRECBUILD                  ; 分離部分の配置は、UARTロードの時は不要
-    ; SYSCALL.SYSを配置する
-    loadAY16 PATH_SYSCALL
-    JSR FS::FUNC_FS_OPEN            ; フォントファイルをオープン
-    STA ZR1
-    PHA
-    loadmem16 ZR0,$0600             ; 書き込み先
-    loadAY16  256                   ; 長さ
-    JSR FS::FUNC_FS_READ_BYTS       ; ロード
-    PLA
-    JSR FS::FUNC_FS_CLOSE           ; クローズ
-    ; CCP.SYSを配置する
-    loadAY16 PATH_CCP
-    JSR FS::FUNC_FS_OPEN            ; CCPをオープン
-    STA ZR1
-    PHA
-    loadmem16 ZR0,$5000             ; 書き込み先
-    loadAY16  1024                  ; 長さ決め打ち、長い分には害はないはず
-    JSR FS::FUNC_FS_READ_BYTS       ; ロード
-    PLA
-    JSR FS::FUNC_FS_CLOSE           ; クローズ
+  .IF SRECBUILD                  ; 分離部分の配置は、UARTロードの時は不要
+    BRA @JUMP_CCP
+  .ELSE
+    NOP
+    NOP
   .ENDIF
+  ; SYSCALL.SYSを配置する
+  loadAY16 PATH_SYSCALL
+  JSR FS::FUNC_FS_OPEN            ; フォントファイルをオープン
+  STA ZR1
+  PHA
+  loadmem16 ZR0,$0600             ; 書き込み先
+  loadAY16  256                   ; 長さ
+  JSR FS::FUNC_FS_READ_BYTS       ; ロード
+  PLA
+  JSR FS::FUNC_FS_CLOSE           ; クローズ
+  ; CCP.SYSを配置する
+  loadAY16 PATH_CCP
+  JSR FS::FUNC_FS_OPEN            ; CCPをオープン
+  STA ZR1
+  PHA
+  loadmem16 ZR0,$5000             ; 書き込み先
+  loadAY16  1024                  ; 長さ決め打ち、長い分には害はないはず
+  JSR FS::FUNC_FS_READ_BYTS       ; ロード
+  PLA
+  JSR FS::FUNC_FS_CLOSE           ; クローズ
+@JUMP_CCP:
   JMP $5000                       ; CCP（仮）へ飛ぶ
 
-.IF !SRECBUILD
   PATH_SYSCALL:         .ASCIIZ "A:/MCOS/SYSCALL.SYS"
   PATH_CCP:             .ASCIIZ "A:/MCOS/CCP.SYS"
-.ENDIF
 
 ; -------------------------------------------------------------------
 ; BCOS 1                  コンソール文字入力

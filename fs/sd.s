@@ -27,9 +27,7 @@ DUMPSEC:
   ;cs0high
   NOP                 ; CRTC::REPT防止になる なんで？
   LDA VIA::PORTB
-  NOP
   ORA #VIA::SPI_CS0
-  NOP
   STA VIA::PORTB
   LDA #0
   RTS
