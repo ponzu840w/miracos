@@ -129,9 +129,6 @@ FUNC_FS_READ_BYTS:
   LDA ZR1
   PHA                             ; fdをプッシュ
   pushmem16 ZR0                   ; 書き込み先アドレス退避
-  ;debug
-  ;LDA #$0F
-  ;STA CRTC2::WDAT
   LDA ZR1
   ; ---------------------------------------------------------------
   ;   LENGTHの算出
@@ -251,9 +248,6 @@ FUNC_FS_READ_BYTS:
   loadmem16 ZP_SDCMDPRM_VEC16,  FWK_REAL_SEC    ; リアルセクタをコマンドパラメータに
 @LOOP_SEC:
   JSR SD::RDSEC                   ; 実際にロード
-  ;debug
-  ;LDA #$7A
-  ;STA CRTC2::WDAT
   JSR NEXTSEC                     ; 次弾装填
   INC ZP_SDSEEK_VEC16+1           ; 書き込み先ページの更新
   DEC @ZR4_ITR                    ; 残りセクタ数を減算
