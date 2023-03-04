@@ -247,13 +247,7 @@ FUNC_FS_READ_BYTS:
   mem2mem16 ZP_SDSEEK_VEC16  ,  @ZR3_BFPTR      ; 書き込み先をBFPTRに（初回のみ）
   loadmem16 ZP_SDCMDPRM_VEC16,  FWK_REAL_SEC    ; リアルセクタをコマンドパラメータに
 @LOOP_SEC:
-  ;debug
-  ;LDA #$F0
-  ;STA CRTC2::WDAT
   JSR SD::RDSEC                   ; 実際にロード
-  ;debug
-  ;LDA #$55
-  ;STA CRTC2::WDAT
   JSR NEXTSEC                     ; 次弾装填
   INC ZP_SDSEEK_VEC16+1           ; 書き込み先ページの更新
   DEC @ZR4_ITR                    ; 残りセクタ数を減算

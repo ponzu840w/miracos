@@ -292,6 +292,7 @@ NEXTSEC:
   loadreg16 (FWK_REAL_SEC)
   JSR AX_DST                    ; リアルセクタをDSTに
   ; クラスタ内セクタ番号の更新
+  INC FWK+FCTRL::CUR_SEC
   LDA FWK+FCTRL::CUR_SEC
   CMP DWK+DINFO::BPB_SECPERCLUS ; クラスタ内最終セクタか
   BNE @SKP_NEXTCLUS             ; まだならFATチェーン読み取りキャンセル
@@ -337,8 +338,8 @@ NEXTSEC:
   LDA FWK+FCTRL::CUR_CLUS         ; 現在クラスタ最下位バイト
   ASL                             ; <<2
   ASL
-  BCC @SKP_INCPAGE                ; C=0 上部 $03 ？ 逆では
-  INC ZP_SDSEEK_VEC16+1           ; C=1 下部 $04
+  BCC @SKP_INCPAGE                ; C=0 上部 $03
+  INC ZP_LSRC0_VEC16+1           ; C=1 下部 $04
 @SKP_INCPAGE:
   STA ZP_LSRC0_VEC16
   ; 現在クラスタにFATからコピー
@@ -347,14 +348,12 @@ NEXTSEC:
   JSR L_LD
   JSR CLUS_REOPEN                 ; 更新された現在クラスタをもとにFWK再展開
   pullmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ復帰
-    ; bp
-    ;loadreg16 FWK
+    ;bp
+    ;loadreg16 FWK+FCTRL::CUR_CLUS
     ;BRK
     ;NOP
   RTS
 @SKP_NEXTCLUS:
-  ; クラスタ内セクタ番号を更新
-  INC FWK+FCTRL::CUR_SEC
   ; リアルセクタ番号を更新
   ;loadreg16 (FWK_REAL_SEC) ; DST設定済み
   ;JSR AX_DST

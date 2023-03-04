@@ -134,31 +134,29 @@ IM4:
   ; CRTCを初期化
   LDA #(CRTC2::TT|0)              ; 16色モード
   STA CRTC2::CONF
-;  LDA #%00011011                  ; f0123表示
-  LDA #%00000000                  ; f0123表示
+  LDA #%00011011                  ; f0123表示
   STA CRTC2::DISP
   LDA #%10000000                  ; ChrBox off
   STA CRTC2::CHRW
+  LDA #$FF
+  JSR FILL4                       ; 塗りつぶし
   ;0
   LDA #(CRTC2::WF|0)              ; f0書き込み
   JSR IM4_FLAME
   ;1
-;  LDA #(CRTC2::WF|1)              ; f1書き込み
+  LDA #(CRTC2::WF|1)              ; f1書き込み
   JSR IM4_FLAME
   ;2
-;  LDA #(CRTC2::WF|2)              ; f2書き込み
+  LDA #(CRTC2::WF|2)              ; f2書き込み
   JSR IM4_FLAME
   ;3
-;  LDA #(CRTC2::WF|3)              ; f3書き込み
+  LDA #(CRTC2::WF|3)              ; f3書き込み
   JSR IM4_FLAME
   JMP CLOSE_AND_EXIT
 
 IM4_FLAME:
   ; フレームを設定
   STA CRTC2::CONF
-  ; 塗りつぶし
-  LDA #$FF
-  JSR FILL
   ; 書き込み座標リセット
   STZ CRTC2::PTRX
   STZ CRTC2::PTRY
@@ -180,6 +178,10 @@ CHUNK:
   LSR   ; /2
   TAX   ; Xに
   JSR DRAW_SECTORS
+  ;debug
+    ; キー待機
+    ;LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
+    ;syscall CON_RAWIN
   RTS
 
 ; Xで指定されたセクタ数ぶんをバッファから描画する
@@ -229,6 +231,19 @@ PRT_LF:
   LDA #$A
   JMP PRT_C_CALL
 
+FILL4:
+  LDX #(CRTC2::WF|0)
+  STX CRTC2::CONF
+  JSR FILL
+  LDX #(CRTC2::WF|1)
+  STX CRTC2::CONF
+  JSR FILL
+  LDX #(CRTC2::WF|2)
+  STX CRTC2::CONF
+  JSR FILL
+  LDX #(CRTC2::WF|3)
+  STX CRTC2::CONF
+
 ; 画面全体をAの値で埋め尽くす
 FILL:
   STZ CRTC2::PTRX
@@ -238,7 +253,7 @@ FILL:
 FILL_LOOP_V:
   LDX #$80
 FILL_LOOP_H:
-  LDA CRTC2::REPT
+  STA CRTC2::REPT
   DEX
   BNE FILL_LOOP_H
   DEY
