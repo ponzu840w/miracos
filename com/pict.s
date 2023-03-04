@@ -62,23 +62,15 @@ CHECK_FILE_EXT:
   INY
   LDA (ZP_FINFO_SAV),Y
   CMP #'F'
-  BEQ _F
+  BEQ IMF
   ; 4
   CMP #'4'
-  BEQ _4
+  BEQ IM4
 @FAILURE:
   ; FAILURE
   loadAY16 STR_EXTERR
   syscall CON_OUT_STR
   RTS
-
-_F:
-  STZ ZP_4
-  BRA END
-_4:
-  LDA #1
-  STA ZP_4
-END:
 .endmac
 
 ; -------------------------------------------------------------------
@@ -103,6 +95,17 @@ START:
   BCS @NOTFOUND2                    ; オープンできなかったらあきらめる
   STA FD_SAV                      ; ファイル記述子をセーブ
   check_file_ext
+  ; クローズ
+CLOSE_AND_EXIT:
+  LDA FD_SAV
+  syscall FS_CLOSE                ; クローズ
+  BCS BCOS_ERROR
+  ; キー待機
+  LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
+  syscall CON_RAWIN
+  RTS
+
+IMF:
   ; CRTCを初期化
   LDA #(CRTC2::WF|1)              ; f1書き込み
   STA CRTC2::CONF
@@ -117,22 +120,29 @@ START:
   ; 書き込み座標リセット
   STZ CRTC2::PTRX
   STZ CRTC2::PTRY
-LOOP:
+IMF_LOOP:
   ; ロード
   LDA FD_SAV
   STA ZR1                         ; 規約、ファイル記述子はZR1！
   loadmem16 ZR0,TEXT              ; 書き込み先
-  loadAY16 512*IMAGE_BUFFER_SECS  ; 数セクタをバッファに読み込み
+  ;loadAY16 512*IMAGE_BUFFER_SECS  ; 数セクタをバッファに読み込み
+  loadAY16 512*24
   syscall FS_READ_BYTS            ; ロード
-  BCS @CLOSE
+  BCS CLOSE_AND_EXIT
   ; 読み取ったセクタ数をバッファ出力ループのイテレータに
-  TYA
-  LSR
-  TAX
+  TYA   ; 上位をAに
+  LSR   ; /2
+  TAX   ; Xに
+  JSR DRAW_SECTORS
+  BRA IMF_LOOP
+
+IM4:
+
+; Xで指定されたセクタ数ぶんをバッファから描画する
+DRAW_SECTORS:
   ; バッファ出力
   loadmem16 ZP_READ_VEC16,TEXT
   ; バッファ出力ループ
-  ;LDX #IMAGE_BUFFER_SECS
 @BUFFER_LOOP:
   ; 256バイト出力ループx2
   ; 前編
@@ -154,23 +164,6 @@ LOOP:
   ; 512バイト出力終了
   DEX
   BNE @BUFFER_LOOP
-  ; バッファ出力終了
-  ; 垂直アドレスの更新
-  ; 512バイトは4行に相当する
-  ; キー待機
-  ;LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
-  ;syscall CON_RAWIN
-  CLC
-  BRA LOOP
-  ; 最終バイトがあるとき
-  ; クローズ
-@CLOSE:
-  LDA FD_SAV
-  syscall FS_CLOSE                ; クローズ
-  BCS BCOS_ERROR
-  ; キー待機
-  LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
-  syscall CON_RAWIN
   RTS
 
 NOTFOUND:
@@ -182,7 +175,7 @@ BCOS_ERROR:
   JSR PRT_LF
   syscall ERR_GET
   syscall ERR_MES
-  JMP LOOP
+  RTS
 
 ;PRT_BYT:
 ;  JSR BYT2ASC
