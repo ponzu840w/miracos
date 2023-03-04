@@ -22,13 +22,11 @@ DUMPSEC:
   ; 512バイト読み取り
   rdpage
   INC ZP_SDSEEK_VEC16+1
+  ;LDA #$88
+  ;STA CRTC2::WDAT
   rdpage
   ; コマンド終了
-  ;cs0high
-  NOP                 ; CRTC::REPT防止になる なんで？
-  LDA VIA::PORTB
-  ORA #VIA::SPI_CS0
-  STA VIA::PORTB
+  cs0high
   LDA #0
   RTS
 

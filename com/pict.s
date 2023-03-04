@@ -157,6 +157,9 @@ LOOP:
   ; バッファ出力終了
   ; 垂直アドレスの更新
   ; 512バイトは4行に相当する
+  ; キー待機
+  ;LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
+  ;syscall CON_RAWIN
   CLC
   BRA LOOP
   ; 最終バイトがあるとき
