@@ -105,6 +105,12 @@ CLOSE_AND_EXIT:
   syscall CON_RAWIN
   RTS
 
+BCOS_ERROR:
+  JSR PRT_LF
+  syscall ERR_GET
+  syscall ERR_MES
+  RTS
+
 IMF:
   ; CRTCを初期化
   LDA #(CRTC2::WF|1)              ; f1書き込み
@@ -120,7 +126,47 @@ IMF:
   ; 書き込み座標リセット
   STZ CRTC2::PTRX
   STZ CRTC2::PTRY
-IMF_LOOP:
+  JSR CHUNK
+  JSR CHUNK
+  JMP CLOSE_AND_EXIT
+
+IM4:
+  ; CRTCを初期化
+  LDA #(CRTC2::TT|0)              ; 16色モード
+  STA CRTC2::CONF
+  LDA #%00011011                  ; f0123表示
+  STA CRTC2::DISP
+  LDA #%10000000                  ; ChrBox off
+  STA CRTC2::CHRW
+  ;0
+  LDA #(CRTC2::WF|0)              ; f0書き込み
+  JSR IM4_FLAME
+  ;1
+  LDA #(CRTC2::WF|1)              ; f1書き込み
+  JSR IM4_FLAME
+  ;2
+  LDA #(CRTC2::WF|2)              ; f2書き込み
+  JSR IM4_FLAME
+  ;3
+  LDA #(CRTC2::WF|3)              ; f3書き込み
+  JSR IM4_FLAME
+  JMP CLOSE_AND_EXIT
+
+IM4_FLAME:
+  ; フレームを設定
+  STA CRTC2::CONF
+  ; 塗りつぶし
+  LDA #$FF
+  JSR FILL
+  ; 書き込み座標リセット
+  STZ CRTC2::PTRX
+  STZ CRTC2::PTRY
+  JSR CHUNK
+  JSR CHUNK
+  RTS
+
+; 1チャンクをロードして描画
+CHUNK:
   ; ロード
   LDA FD_SAV
   STA ZR1                         ; 規約、ファイル記述子はZR1！
@@ -128,15 +174,12 @@ IMF_LOOP:
   ;loadAY16 512*IMAGE_BUFFER_SECS  ; 数セクタをバッファに読み込み
   loadAY16 512*24
   syscall FS_READ_BYTS            ; ロード
-  BCS CLOSE_AND_EXIT
   ; 読み取ったセクタ数をバッファ出力ループのイテレータに
   TYA   ; 上位をAに
   LSR   ; /2
   TAX   ; Xに
   JSR DRAW_SECTORS
-  BRA IMF_LOOP
-
-IM4:
+  RTS
 
 ; Xで指定されたセクタ数ぶんをバッファから描画する
 DRAW_SECTORS:
@@ -169,12 +212,6 @@ DRAW_SECTORS:
 NOTFOUND:
   loadAY16 STR_NOTFOUND
   syscall CON_OUT_STR
-  RTS
-
-BCOS_ERROR:
-  JSR PRT_LF
-  syscall ERR_GET
-  syscall ERR_MES
   RTS
 
 ;PRT_BYT:
