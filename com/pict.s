@@ -134,7 +134,8 @@ IM4:
   ; CRTCを初期化
   LDA #(CRTC2::TT|0)              ; 16色モード
   STA CRTC2::CONF
-  LDA #%00011011                  ; f0123表示
+;  LDA #%00011011                  ; f0123表示
+  LDA #%00000000                  ; f0123表示
   STA CRTC2::DISP
   LDA #%10000000                  ; ChrBox off
   STA CRTC2::CHRW
@@ -142,13 +143,13 @@ IM4:
   LDA #(CRTC2::WF|0)              ; f0書き込み
   JSR IM4_FLAME
   ;1
-  LDA #(CRTC2::WF|1)              ; f1書き込み
+;  LDA #(CRTC2::WF|1)              ; f1書き込み
   JSR IM4_FLAME
   ;2
-  LDA #(CRTC2::WF|2)              ; f2書き込み
+;  LDA #(CRTC2::WF|2)              ; f2書き込み
   JSR IM4_FLAME
   ;3
-  LDA #(CRTC2::WF|3)              ; f3書き込み
+;  LDA #(CRTC2::WF|3)              ; f3書き込み
   JSR IM4_FLAME
   JMP CLOSE_AND_EXIT
 

@@ -296,7 +296,10 @@ NEXTSEC:
   CMP DWK+DINFO::BPB_SECPERCLUS ; クラスタ内最終セクタか
   BNE @SKP_NEXTCLUS             ; まだならFATチェーン読み取りキャンセル
   ; 次のクラスタの先頭セクタを開く
-  ;BRK                           ; TODO:FATを読む
+    ; bp
+    ;loadreg16 FWK+FCTRL::CUR_CLUS
+    ;BRK
+    ;NOP
   LDA FWK+FCTRL::CUR_CLUS       ; 現在クラスタ番号{N}->FAT論理セクタ
   ASL                           ; x4/512 : /128 : >>7 最下位バイトからはMSBしか採れない
   ; 0
@@ -306,7 +309,7 @@ NEXTSEC:
   ; 1
   LDA FWK+FCTRL::CUR_CLUS+2
   ROL
-  STA FWK_REAL_SEC
+  STA FWK_REAL_SEC+1
   ; 2
   LDA FWK+FCTRL::CUR_CLUS+3
   ROL
@@ -314,9 +317,18 @@ NEXTSEC:
   ; 3
   STZ FWK_REAL_SEC+3
   ROL FWK_REAL_SEC+3
+    ; bp
+    ;loadreg16 FWK_REAL_SEC
+    ;BRK
+    ;NOP
   ; FATSTART加算
   loadreg16 (DWK+DINFO::FATSTART)
   JSR L_ADD_AXS
+    ; bp
+    ;loadreg16 FWK_REAL_SEC
+    ;BRK
+    ;NOP
+  pushmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ退避
   ; FATロード
   JSR RDSEC
   ; 参照ベクタ作成
@@ -333,11 +345,18 @@ NEXTSEC:
   loadreg16 (FWK+FCTRL::CUR_CLUS)
   JSR AX_DST
   JSR L_LD
-  JMP CLUS_REOPEN                 ; 更新された現在クラスタをもとにFWK再展開
+  JSR CLUS_REOPEN                 ; 更新された現在クラスタをもとにFWK再展開
+  pullmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ復帰
+    ; bp
+    ;loadreg16 FWK
+    ;BRK
+    ;NOP
+  RTS
 @SKP_NEXTCLUS:
+  ; クラスタ内セクタ番号を更新
   INC FWK+FCTRL::CUR_SEC
   ; リアルセクタ番号を更新
-  ;loadreg16 (FWK_REAL_SEC)
+  ;loadreg16 (FWK_REAL_SEC) ; DST設定済み
   ;JSR AX_DST
   LDA #1
   JSR L_ADD_BYT
