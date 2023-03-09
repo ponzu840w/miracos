@@ -5,8 +5,10 @@
 ; ひとまず、BCOSの一部として常駐する
 ; -------------------------------------------------------------------
 ; TODO 専用コマンドライン
+;       一括で二つの引数を取るのではなく、コマンドごとにトークン取得ルーチンを呼べばどうか
 ; TODO ソフトウェアブレーク処理ルーチン
 CMD_ARG_NUM = ZR0
+SETTING     = ZR0+1
 CMD_ARG_1   = ZR1
 CMD_ARG_2   = ZR2
 
@@ -48,6 +50,7 @@ SKIPHDEC:
   mem2mem16 VB_HNDR_SAVE,VBLANK_USER_VEC16  ; ユーザベクタを退避
   loadAY16 IRQ::VBLANK_STUB
   storeAY16 VBLANK_USER_VEC16               ; スタブに差し替え
+  STZ SETTING
 ; -------------------------------------------------------------------
 ;                       rコマンド 状態表示
 ; -------------------------------------------------------------------
@@ -125,6 +128,8 @@ LOOP:
   BEQ PRT_STAT
   CMP #'d'
   BEQ DUMP
+  CMP #'D'
+  BEQ WDUMP
   CMP #'z'
   BNE @SKP_Z
   JMP PRT_ZR
@@ -161,19 +166,30 @@ RESTOREZRLOOP:            ; ゼロページレジスタを復帰
 STR_NEWLINE: .BYT $A,"+",$0
 
 ; -------------------------------------------------------------------
+;                    Dコマンド ワイドメモリダンプ
+; -------------------------------------------------------------------
+;   UART前提：画面サイズにとらわれず1行16バイト表示する
+; -------------------------------------------------------------------
+WDUMP:
+  SMB0 SETTING
+  BRA DUMP1
+
+; -------------------------------------------------------------------
 ;                       dコマンド メモリダンプ
 ; -------------------------------------------------------------------
 ;   第1引数から第2引数までをダンプ表示
 ;   第2引数がなければ第1引数から256バイト
 ; -------------------------------------------------------------------
 DUMP:
+  RMB0 SETTING
+DUMP1:
   ;DUMP_SUB_FUNCPTR=ZR3 ; データ表示/アスキー表示関数ポインタ
   ; ---------------------------------------------------------------
   ;   引数の数に応じた処理
   LDA CMD_ARG_NUM
-  BEQ @END          ; 引数ゼロなら何もしない
+  BEQ @END              ; 引数ゼロなら何もしない
   CMP #2
-  BEQ @SET_ZR3      ; 2でないなら、ARG1+63をARG2にする
+  BEQ @SET_ZR3          ; 2でないなら、ARG1+63をARG2にする
   LDA CMD_ARG_1
   CLC
   ;ADC #63
@@ -187,6 +203,7 @@ DUMP:
   ;   ループ
 @LINE:
   ; アドレス表示部すっ飛ばすか否かの判断
+  BBS0 SETTING,@PRT_ADDR ; ワイドモード:アドレス毎行表示
   DEC ZR3
   BNE @DATA
 @SET_ZR3:
@@ -196,6 +213,7 @@ DUMP:
   ;   アドレス表示部
   ;"<1234>--------------------------"
   JSR PRT_LF            ; 視認性向上のための空行は行の下にした方がよさそうだが、
+@PRT_ADDR:
   JSR PRT_LF            ;   最大の情報を表示しつつ作業用コマンドラインを出すにはこうする。
   LDA #'<'              ; アドレス左修飾
   JSR FUNC_CON_OUT_CHR
@@ -205,6 +223,7 @@ DUMP:
   JSR PRT_BYT
   LDA #'>'              ; アドレス右修飾
   JSR FUNC_CON_OUT_CHR
+  BBS0 SETTING,@DATA_NOLF    ; ワイドモード:ハイフンスキップ
   LDA #'-'
   LDX #32-(4+2)         ; 画面幅からこれまで表示したものを減算
   JSR PRT_FEW_CHARS     ; 画面右までハイフン
@@ -212,6 +231,7 @@ DUMP:
   ;   データ表示部
 @DATA:
   JSR PRT_LF
+@DATA_NOLF:
   ;loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_DATA
   pushmem16 CMD_ARG_1
   LDA #<(DUMP_SUB_DATA-(DUMP_SUB_BRA+2))
@@ -241,9 +261,13 @@ DUMP:
 ; ポインタ切り替えでHEXかASCIIを表示する
 DUMP_SUB:
   STA DUMP_SUB_BRA+1
-  LDX #8            ; X=行ダウンカウンタ
+  BBS0 SETTING,@SKP8  ; ワイドモード:1行16バイト
+  LDX #8              ; X=行ダウンカウンタ
+  BRA DATALOOP
+@SKP8:
+  LDX #16
 DATALOOP:
-  LDA (CMD_ARG_1)   ; バイト取得
+  LDA (CMD_ARG_1)     ; バイト取得
   PHX
   ;JMP (DUMP_SUB_FUNCPTR)
 DUMP_SUB_BRA:
