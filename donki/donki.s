@@ -11,6 +11,11 @@ CMD_ARG_NUM = ZR0
 SETTING     = ZR0+1
 CMD_ARG_1   = ZR1
 CMD_ARG_2   = ZR2
+LOAD_CKSM   = ZR3
+LOAD_BYTCNT = ZR3+1
+ADDR_INDEX  = ZR4
+
+EOT = $04 ; EOFでもある
 
 ENT_DONKI:
 SAV_STAT:
@@ -51,6 +56,7 @@ SKIPHDEC:
   loadAY16 IRQ::VBLANK_STUB
   storeAY16 VBLANK_USER_VEC16               ; スタブに差し替え
   STZ SETTING
+
 ; -------------------------------------------------------------------
 ;                       rコマンド 状態表示
 ; -------------------------------------------------------------------
@@ -126,16 +132,21 @@ LOOP:
   LDA COMMAND_BUF
   CMP #'r'
   BEQ PRT_STAT
-  CMP #'d'
-  BEQ DUMP
-  CMP #'D'
-  BEQ WDUMP
   CMP #'z'
   BNE @SKP_Z
   JMP PRT_ZR
 @SKP_Z:
+  CMP #'l'
+  BNE @SKP_L
+  JMP LOAD
+@SKP_L:
+  CMP #'d'
+  BEQ DUMP
+  CMP #'D'
+  BEQ WDUMP
   CMP #'g'
   BNE LOOP
+
 ; -------------------------------------------------------------------
 ;                     gコマンド プログラムの実行
 ; -------------------------------------------------------------------
@@ -440,6 +451,93 @@ PRT_REG:
   RTS
 
 ; -------------------------------------------------------------------
+;                     lコマンド データロード
+; -------------------------------------------------------------------
+;  UARTからSRECを受け取ってメモリに展開する
+; -------------------------------------------------------------------
+LOAD:
+  ;JSR PRT_LF ; Lコマンド開始時改行
+  ;STZ ECHO_F  ; エコーを切ったら速いかもしれない
+LOAD_CHECKTYPE:
+  JSR RAWIN
+  CMP #'S'
+  BNE LOAD_CHECKTYPE  ; 最初の文字がSじゃないというのはありえないが
+  JSR RAWIN
+  CMP #'9'
+  BEQ LOAD_SKIPLAST  ; 最終レコード
+  CMP #'1'
+  BNE LOAD_CHECKTYPE  ; S1以外のレコードはどうでもいい
+  STZ LOAD_CKSM
+  JSR INPUT_BYT
+  SEC
+  SBC #$2
+  STA LOAD_BYTCNT
+  ; 何バイトのレコードかを表示
+  ;JSR PRT_LF
+  ;JSR PRT_BYT
+  ;JSR PRT_LF
+
+; --- アドレス部 ---
+  JSR INPUT_BYT
+  STA ADDR_INDEX+1
+  JSR INPUT_BYT
+  STA ADDR_INDEX
+
+; --- データ部 ---
+LOAD_STORE_DATA:
+  JSR INPUT_BYT
+  DEC LOAD_BYTCNT
+  BEQ LOAD_ZEROBYT_CNT  ; 全バイト読んだ
+  STA (ADDR_INDEX)      ; Zero Page Indirect
+  INC ADDR_INDEX
+  BNE LOAD_SKIPINC
+  INC ADDR_INDEX+1
+LOAD_SKIPINC:
+  JMP LOAD_STORE_DATA
+
+; --- ゼロバイトを数える ---
+LOAD_ZEROBYT_CNT:
+  LDA #'#'    ; ここがレコード端のはずだからメッセージ
+  JSR FUNC_CON_OUT_CHR
+  INC LOAD_CKSM
+  BEQ LOAD_CHECKTYPE  ; チェックサムが256超えたらOK
+  BRK
+  NOP
+  ;JMP HATENA  ; おかしいのでハテナ出して終了
+
+; --- 最終レコードを読み飛ばす ---
+LOAD_SKIPLAST:
+  JSR RAWIN
+  CMP #EOT
+  BNE LOAD_SKIPLAST
+  ;LDA #%10000000
+  ;STA ECHO_F  ; エコーをもどす
+  JMP LOOP
+
+; Aレジスタに2桁のhexを値として取り込み
+INPUT_BYT:
+  JSR RAWIN
+  CMP #$0A      ; 改行だったらCTRLに戻る
+  BNE @SKP
+  JMP LOOP
+@SKP:
+  JSR CHR2NIB
+  ASL
+  ASL
+  ASL
+  ASL
+  STA ZR0       ; LOADしか使わないだろうから大丈夫だろう
+  JSR RAWIN
+  JSR CHR2NIB
+  ORA ZR0
+  STA ZR0
+  CLC
+  ADC LOAD_CKSM
+  STA LOAD_CKSM
+  LDA ZR0
+  RTS
+
+; -------------------------------------------------------------------
 ;                          汎用関数群
 ; -------------------------------------------------------------------
 ; どうする？ライブラリ？システムコール？
@@ -521,5 +619,10 @@ NIB2ASC:
   BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
   ADC #$06
 @SKP_ADC:
+  RTS
+
+RAWIN:
+  LDA #2
+  JSR FUNC_CON_RAWIN
   RTS
 
