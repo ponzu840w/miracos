@@ -63,6 +63,7 @@ TIMEOUT_T1H = %01000000
 ; OS側変数領域
 .SEGMENT "COSVAR"
   .INCLUDE "fs/varfs2.s"
+  .INCLUDE "varbcos2.s"
 
 ; ROMとの共通バッファ
 .SEGMENT "ROMBF100"         ; $0200~

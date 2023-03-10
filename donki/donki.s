@@ -7,13 +7,13 @@
 ; TODO 専用コマンドライン
 ;       一括で二つの引数を取るのではなく、コマンドごとにトークン取得ルーチンを呼べばどうか
 ; TODO ソフトウェアブレーク処理ルーチン
-CMD_ARG_NUM = ZR0
-SETTING     = ZR0+1
-CMD_ARG_1   = ZR1
-CMD_ARG_2   = ZR2
-LOAD_CKSM   = ZR3
-LOAD_BYTCNT = ZR3+1
-ADDR_INDEX  = ZR4
+ZR1_FROM        = ZR1
+ZR2_TO          = ZR2
+LOAD_CKSM       = ZR3
+LOAD_BYTCNT     = ZR3+1
+ADDR_INDEX      = ZR4
+SETTING         = ZR5
+ZR5H_CMD_IDX    = ZR5+1
 
 EOT = $04 ; EOFでもある
 
@@ -99,35 +99,36 @@ PRT_STAT:  ; print contents of stack
   ;JMP LOOP
 
 ; コマンドラインを要素に分解する
-.macro purse_args
-  ; ゼロチェック
-  BEQ LOOP
-  ; 第1引数の検索
-  STZ CMD_ARG_NUM                 ; 引数の数
-  LDX #1
-  JSR CMD_ARGS_SPLIT
-  BEQ @END_PURSE
-  ; 第1引数存在
-  INC CMD_ARG_NUM
-  PHY
-  JSR ARG2NUM
-  mem2mem16 CMD_ARG_1,CMD_ARG_2
-  PLX
-  ; 第2引数の検索
-  JSR CMD_ARGS_SPLIT
-  BEQ @END_PURSE
-  ; 第2引数存在
-  INC CMD_ARG_NUM
-  JSR ARG2NUM
-@END_PURSE:
-.endmac
+;.macro purse_args
+;  ; ゼロチェック
+;  BEQ LOOP
+;  ; 第1引数の検索
+;  STZ CMD_ARG_NUM                 ; 引数の数
+;  LDX #1
+;  JSR CMD_ARGS_SPLIT
+;  BEQ @END_PURSE
+;  ; 第1引数存在
+;  INC CMD_ARG_NUM
+;  PHY
+;  JSR ARG2NUM
+;  mem2mem16 ZR1_FROM,ZR2_TO
+;  PLX
+;  ; 第2引数の検索
+;  JSR CMD_ARGS_SPLIT
+;  BEQ @END_PURSE
+;  ; 第2引数存在
+;  INC CMD_ARG_NUM
+;  JSR ARG2NUM
+;@END_PURSE:
+;.endmac
 
 LOOP:
   loadAY16 STR_NEWLINE
   JSR FUNC_CON_OUT_STR
   loadAY16 COMMAND_BUF
   JSR FUNC_CON_IN_STR       ; コマンド行を取得
-  purse_args
+  LDA #1
+  STA ZR5H_CMD_IDX
   ; コマンド処理
   LDA COMMAND_BUF
   CMP #'r'
@@ -197,18 +198,20 @@ DUMP1:
   ;DUMP_SUB_FUNCPTR=ZR3 ; データ表示/アスキー表示関数ポインタ
   ; ---------------------------------------------------------------
   ;   引数の数に応じた処理
-  LDA CMD_ARG_NUM
-  BEQ @END              ; 引数ゼロなら何もしない
-  CMP #2
-  BEQ @SET_ZR3          ; 2でないなら、ARG1+63をARG2にする
-  LDA CMD_ARG_1
-  CLC
-  ;ADC #63
-  ADC #128-1
-  STA CMD_ARG_2
-  LDA CMD_ARG_1+1
+  JSR GET_ARG_HEX         ; 第1引数取得
+  BCS @END                ; 引数ゼロ FROM指定がないなら何もしない
+  mem2mem16 ZR1_FROM,ZR2  ; FROM変数に格納
+  JSR GET_ARG_HEX         ; 第2引数取得
+  BCC @SET_ZR3            ; 取得できればデフォ処理をスキップ
+  LDA #255-1              ; 非ワイドモード:デフォ半ページ
+  BBS0 SETTING,@SKP_127   ; ワイドモード:デフォ1ページ
+  LDA #127-1
+@SKP_127:
+  ADC ZR2_TO              ; 以下加算
+  STA ZR2_TO
+  LDA ZR2_TO+1
   ADC #0
-  STA CMD_ARG_2+1
+  STA ZR2_TO+1
   BRA @SET_ZR3
   ; ---------------------------------------------------------------
   ;   ループ
@@ -228,15 +231,16 @@ DUMP1:
   JSR PRT_LF            ;   最大の情報を表示しつつ作業用コマンドラインを出すにはこうする。
   LDA #'<'              ; アドレス左修飾
   JSR FUNC_CON_OUT_CHR
-  LDA CMD_ARG_1+1       ; アドレス上位
+  LDA ZR1_FROM+1       ; アドレス上位
   JSR PRT_BYT
-  LDA CMD_ARG_1         ; アドレス下位
+  LDA ZR1_FROM         ; アドレス下位
   JSR PRT_BYT
   LDA #'>'              ; アドレス右修飾
   JSR FUNC_CON_OUT_CHR
+  JSR PRT_S
   BBS0 SETTING,@DATA_NOLF    ; ワイドモード:ハイフンスキップ
   LDA #'-'
-  LDX #32-(4+2)         ; 画面幅からこれまで表示したものを減算
+  LDX #32-(4+2+1)       ; 画面幅からこれまで表示したものを減算
   JSR PRT_FEW_CHARS     ; 画面右までハイフン
   ; ---------------------------------------------------------------
   ;   データ表示部
@@ -244,7 +248,7 @@ DUMP1:
   JSR PRT_LF
 @DATA_NOLF:
   ;loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_DATA
-  pushmem16 CMD_ARG_1
+  pushmem16 ZR1_FROM
   LDA #<(DUMP_SUB_DATA-(DUMP_SUB_BRA+2))
   JSR DUMP_SUB
   BEQ @SKP_PADDING
@@ -262,7 +266,7 @@ DUMP1:
   ; ---------------------------------------------------------------
   ;   ASCII表示部
   ;loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_ASCII
-  pullmem16 CMD_ARG_1
+  pullmem16 ZR1_FROM
   LDA #<(DUMP_SUB_ASCII-(DUMP_SUB_BRA+2))
   JSR DUMP_SUB
   BEQ @LINE
@@ -278,7 +282,7 @@ DUMP_SUB:
 @SKP8:
   LDX #16
 DATALOOP:
-  LDA (CMD_ARG_1)     ; バイト取得
+  LDA (ZR1_FROM)     ; バイト取得
   PHX
   ;JMP (DUMP_SUB_FUNCPTR)
 DUMP_SUB_BRA:
@@ -287,14 +291,14 @@ DUMP_SUB_BRA:
 DUMP_SUB_RETURN:
   PLX
   ; 終了チェック
-  LDA CMD_ARG_1+1
-  CMP CMD_ARG_2+1
+  LDA ZR1_FROM+1
+  CMP ZR2_TO+1
   BNE @SKP_ENDCHECK_LOW
-  LDA CMD_ARG_1
-  CMP CMD_ARG_2
+  LDA ZR1_FROM
+  CMP ZR2_TO
   BEQ @END_DATALOOP
 @SKP_ENDCHECK_LOW:
-  inc16 CMD_ARG_1   ; アドレスインクリメント
+  inc16 ZR1_FROM   ; アドレスインクリメント
   DEX
   BNE DATALOOP
 @END_DATALOOP:      ; 到達時点でX=0なら8バイト表示した、それ以外ならのこったバイト数+1
@@ -321,6 +325,7 @@ DUMP_SUB_ASCII:
 ; スペースで区切ることが出来る
 ; 何もなければゼロフラグが立つ
 CMD_ARGS_SPLIT:
+  LDX ZR5H_CMD_IDX    ; 現在インデックス
   ; 先頭取得
 @START_LOOP:
   LDA COMMAND_BUF,X
@@ -343,6 +348,7 @@ CMD_ARGS_SPLIT:
   BRA @END_LOOP
 @SKP_END_LOOP:
   ; Yに終端インデックスが取得された
+  STY ZR5H_CMD_IDX
   LDA #1
 @END:
   RTS
@@ -369,53 +375,6 @@ PRT_ZR:
   CPX #12
   BNE @LOOP
   JMP LOOP
-
-; -------------------------------------------------------------------
-;                    引数をHEXと信じて変換
-; -------------------------------------------------------------------
-;   input:  X = 左インデックス
-;           Y = 右インデックス
-;   output: ZR2 = 値
-; -------------------------------------------------------------------
-ARG2NUM:
-  @NUMBER16=ZR2
-  @START=ZR0+1
-  ; X=start
-  ; Y=\0
-  STX @START
-  LDX #0
-  STZ @NUMBER16
-  STZ @NUMBER16+1
-@BYT_LOOP:
-  ; 下位nibble
-  CPY @START
-  BEQ @END
-  DEY
-  LDA COMMAND_BUF,Y
-  JSR CHR2NIB
-  BCS @ERR
-  STA @NUMBER16,X
-  ; 上位nibble
-  CPY @START
-  BEQ @END
-  DEY
-  LDA COMMAND_BUF,Y
-  JSR CHR2NIB
-  BCS @ERR
-  ASL
-  ASL
-  ASL
-  ASL
-  ORA @NUMBER16,X
-  STA @NUMBER16,X
-  INX
-  BRA @BYT_LOOP
-@END:
-  CLC
-  RTS
-@ERR:
-  SEC
-  RTS
 
 ; *
 ; --- Aレジスタの一文字をNibbleとして値にする ---
@@ -535,6 +494,66 @@ INPUT_BYT:
   ADC LOAD_CKSM
   STA LOAD_CKSM
   LDA ZR0
+  RTS
+
+; コマンドラインから次の引数を文字として得る
+GET_ARG_CHR:
+  JSR CMD_ARGS_SPLIT  ; 次のトークンの前後を得る。なければZ=1
+  BEQ ERR_SEC_RTS     ; なければ異常終了
+  LDA COMMAND_BUF,X
+  RTS
+
+; コマンドラインから次の引数を数値として得る
+GET_ARG_HEX:
+  JSR CMD_ARGS_SPLIT  ; 次のトークンの前後を得る。なければZ=1
+  BEQ ERR_SEC_RTS     ; なければ異常終了
+
+; -------------------------------------------------------------------
+;                    引数をHEXと信じて変換
+; -------------------------------------------------------------------
+;   input:  X = 左インデックス
+;           Y = 右インデックス
+;   output: ZR2 = 値
+; -------------------------------------------------------------------
+ARG2NUM:
+  @NUMBER16=ZR2
+  @START=ZR0+1
+  ; X=start
+  ; Y=\0
+  STX @START
+  LDX #0
+  STZ @NUMBER16
+  STZ @NUMBER16+1
+@BYT_LOOP:
+  ; 下位nibble
+  CPY @START
+  BEQ END_CLC_RTS
+  DEY
+  LDA COMMAND_BUF,Y
+  JSR CHR2NIB
+  BCS ERR_SEC_RTS
+  STA @NUMBER16,X
+  ; 上位nibble
+  CPY @START
+  BEQ END_CLC_RTS
+  DEY
+  LDA COMMAND_BUF,Y
+  JSR CHR2NIB
+  BCS ERR_SEC_RTS
+  ASL
+  ASL
+  ASL
+  ASL
+  ORA @NUMBER16,X
+  STA @NUMBER16,X
+  INX
+  BRA @BYT_LOOP
+
+ERR_SEC_RTS:
+  SEC
+  RTS
+END_CLC_RTS:
+  CLC
   RTS
 
 ; -------------------------------------------------------------------
