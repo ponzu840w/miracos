@@ -266,11 +266,11 @@ FUNC_RESET:
 ; 何らかのキーで中断する？（CTRL+C？）
 ; 使う場面がわからない…（改行もエコーするよこれ）
 ; -------------------------------------------------------------------
-FUNC_CON_IN_CHR:
-  LDA #$2
-  JSR FUNC_CON_RAWIN      ; 待機入力するがエコーしない
-  JSR FUNC_CON_OUT_CHR    ; エコー
-  RTS
+;FUNC_CON_IN_CHR:
+;  LDA #$2
+;  JSR FUNC_CON_RAWIN      ; 待機入力するがエコーしない
+;  JSR FUNC_CON_OUT_CHR    ; エコー
+;  RTS
 
 ; -------------------------------------------------------------------
 ; BCOS 2                  コンソール文字出力
@@ -308,7 +308,9 @@ FUNC_CON_RAWIN:
   RTS
 @NOT_BUFLEN:            ; 待機するかしないか、エコーせずに返す
   ROR
-  BCS @SKP_WAIT         ; FDでなければ（FFなら）待機はしない
+  BCC @WAIT             ; A=2なら待機する
+  LDA ZP_CONINBF_LEN
+  BEQ END               ; バッファに何もないなら0を返す
 @WAIT:
   ; 乱数の更新
   INC ZP_RND16
@@ -318,9 +320,6 @@ FUNC_CON_RAWIN:
   LDA ZP_CONINBF_LEN
   BEQ @WAIT             ; バッファに何もないなら待つ
 @SKP_WAIT:
-C_RAWWAITIN:
-  LDA ZP_CONINBF_LEN
-  BEQ END               ; バッファに何もないなら0を返す
   LDX ZP_CONINBF_RD_P   ; インデックス
   LDA CONINBF_BASE,X    ; バッファから読む、ここからRTSまでA使わない
   INC ZP_CONINBF_RD_P   ; 読み取りポインタ増加
@@ -334,6 +333,7 @@ C_RAWWAITIN:
   LDA #UART::XON
   JSR BCOS_UART::OUT_CHR
   PLA
+FUNC_CON_IN_CHR = @SKP_RNDH
 END:
   RTS
 
@@ -343,8 +343,7 @@ END:
 ; input:A=エンキューする文字
 ; -------------------------------------------------------------------
 FUNC_CON_INTERRUPT_CHR:
-  JSR IRQ::TRAP
-  RTS
+  JMP IRQ::TRAP
 
 ; -------------------------------------------------------------------
 ; BCOS 4                 コンソール文字列出力
@@ -374,7 +373,7 @@ FUNC_CON_OUT_STR:
 ; input   : AY   = buff
 ;           ZR0L = バッファ長さ（1～255）
 ; output  : A    = 実際に入力された字数
-; TODO:バックスペースや矢印キーを用いた行編集機能
+; TODO:矢印キーを用いた行編集機能
 ; -------------------------------------------------------------------
 FUNC_CON_IN_STR:
   storeAY16 ZR1         ; ZR1をバッファインデックスに
