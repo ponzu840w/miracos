@@ -350,24 +350,40 @@ CMD_ARGS_SPLIT:
 ; -------------------------------------------------------------------
 ; -------------------------------------------------------------------
 PRT_ZR:
-  ; --- レジスタ情報を表示 ---
-  ; 表示中にさらにBRKされると分かりづらいので改行
-  ;loadAY16 STR_NEWLINE
-  ;JSR FUNC_CON_OUT_STR
+  ; ---------------------------------------------------------------
+  ;   ZR編集
+  JSR GET_ARG_HEX   ; レジスタ名取得 0...5
+  BCS @SHOW         ; レジスタ名取得失敗
+  LDA ZR2
+  ASL
+  CMP #12
+  BPL @SHOW         ; レジスタ名範囲外
+  PHA
+  JSR GET_ARG_HEX   ; 値取得
+  PLX
+  BCS @SHOW         ; 値取得失敗
+  LDA ZR2
+  STA ROM::ZR0_SAVE,X
+  LDA ZR2+1
+  STA ROM::ZR0_SAVE+1,X
+  ; ---------------------------------------------------------------
+  ;   ZR表示
+@SHOW:
   JSR PRT_LF
   LDX #0
 @LOOP:
-  PHX
+  STX ZR5H_CMD_IDX      ; 名前と異なる用途
   LDA ROM::ZR0_SAVE+1,X
   JSR PRT_BYT
+  LDX ZR5H_CMD_IDX
   LDA ROM::ZR0_SAVE,X
   JSR PRT_BYT_S
-  PLX
+  LDX ZR5H_CMD_IDX
   INX
   INX
   CPX #12
   BNE @LOOP
-  JMP LOOP
+  BRA JMP_LOOP
 
 ; *
 ; --- Aレジスタの一文字をNibbleとして値にする ---
@@ -401,6 +417,9 @@ PRT_REG:
   PLA
   JSR PRT_BYT_S
   RTS
+
+JMP_LOOP:
+JMP LOOP
 
 ; -------------------------------------------------------------------
 ;                     lコマンド データロード
@@ -465,9 +484,7 @@ LOAD_SKIPLAST:
   JSR FUNC_CON_IN_CHR_RPD
   CMP #EOT
   BNE LOAD_SKIPLAST
-  ;LDA #%10000000
-  ;STA ECHO_F  ; エコーをもどす
-  JMP LOOP
+  BRA JMP_LOOP
 
 ; Aレジスタに2桁のhexを値として取り込み
 INPUT_BYT:
@@ -489,9 +506,6 @@ INPUT_BYT:
   STA LOAD_CKSM
   LDA ZR0
   RTS
-
-JMP_LOOP:
-JMP LOOP
 
 ; -------------------------------------------------------------------
 ;                   rコマンド レジスタセット&表示
@@ -605,29 +619,6 @@ END_CLC_RTS:
 ; -------------------------------------------------------------------
 ; どうする？ライブラリ？システムコール？
 ; -------------------------------------------------------------------
-BCOS_ERROR:
-  JSR PRT_LF
-  JSR ERR::FUNC_ERR_GET
-  JSR ERR::FUNC_ERR_MES
-  JMP LOOP
-
-PRT_BIN:
-  LDX #8
-@LOOP:
-  ASL
-  PHA
-  LDA #'0'    ; キャリーが立ってなければ'0'
-  BCC @SKP_ADD1
-  INC         ; キャリーが立ってたら'1'
-@SKP_ADD1:
-  PHX
-  JSR FUNC_CON_OUT_CHR
-  PLX
-  PLA
-  DEX
-  BNE @LOOP
-  RTS
-
 PRT_BYT:
   JSR BYT2ASC
   PHY
