@@ -397,10 +397,10 @@ LOAD:
   JSR PRT_LF ; Lコマンド開始時改行
   ;STZ ECHO_F  ; エコーを切ったら速いかもしれない
 LOAD_CHECKTYPE:
-  JSR RAWIN
+  JSR FUNC_CON_IN_CHR_RPD
   CMP #'S'
   BNE LOAD_CHECKTYPE  ; 最初の文字がSじゃないというのはありえないが
-  JSR RAWIN
+  JSR FUNC_CON_IN_CHR_RPD
   CMP #'9'
   BEQ LOAD_SKIPLAST  ; 最終レコード
   CMP #'1'
@@ -445,7 +445,7 @@ LOAD_ZEROBYT_CNT:
 
 ; --- 最終レコードを読み飛ばす ---
 LOAD_SKIPLAST:
-  JSR RAWIN
+  JSR FUNC_CON_IN_CHR_RPD
   CMP #EOT
   BNE LOAD_SKIPLAST
   ;LDA #%10000000
@@ -454,7 +454,7 @@ LOAD_SKIPLAST:
 
 ; Aレジスタに2桁のhexを値として取り込み
 INPUT_BYT:
-  JSR RAWIN
+  JSR FUNC_CON_IN_CHR_RPD
   CMP #$0A      ; 改行だったらCTRLに戻る
   BEQ JMP_LOOP
   JSR CHR2NIB
@@ -463,7 +463,7 @@ INPUT_BYT:
   ASL
   ASL
   STA ZR0       ; LOADしか使わないだろうから大丈夫だろう
-  JSR RAWIN
+  JSR FUNC_CON_IN_CHR_RPD
   JSR CHR2NIB
   ORA ZR0
   STA ZR0
@@ -665,9 +665,5 @@ NIB2ASC:
   BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
   ADC #$06
 @SKP_ADC:
-  RTS
-
-RAWIN:
-  JSR FUNC_CON_IN_CHR_RPD
   RTS
 
