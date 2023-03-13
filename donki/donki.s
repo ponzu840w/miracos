@@ -53,6 +53,8 @@ SKIPHDEC:
   mem2mem16 VB_HNDR_SAVE,VBLANK_USER_VEC16  ; ユーザベクタを退避
   loadAY16 IRQ::VBLANK_STUB
   storeAY16 VBLANK_USER_VEC16               ; スタブに差し替え
+  LDA ZP_CON_DEV_CFG
+  STA CONDEV_SAVE
   STZ SETTING
 
 PRT_STAT:  ; print contents of stack
@@ -92,6 +94,8 @@ PRT_STAT:  ; print contents of stack
   ;JMP LOOP
 
 LOOP:
+  LDA CONDEV_SAVE
+  STA ZP_CON_DEV_CFG
   loadAY16 STR_NEWLINE
   JSR FUNC_CON_OUT_STR
   loadAY16 COMMAND_BUF
@@ -156,6 +160,8 @@ STR_NEWLINE: .BYT $A,"+",$0
 ; -------------------------------------------------------------------
 WDUMP:
   SMB0 SETTING
+  LDA #%00000011 ; only UART
+  STA ZP_CON_DEV_CFG
   BRA DUMP1
 
 ; -------------------------------------------------------------------
@@ -385,6 +391,9 @@ PRT_REG:
 ;  UARTからSRECを受け取ってメモリに展開する
 ; -------------------------------------------------------------------
 LOAD:
+  LDA #%00000111 ; only UART + PS/2
+  AND CONDEV_SAVE
+  STA ZP_CON_DEV_CFG
   JSR PRT_LF ; Lコマンド開始時改行
   ;STZ ECHO_F  ; エコーを切ったら速いかもしれない
 LOAD_CHECKTYPE:
@@ -659,7 +668,6 @@ NIB2ASC:
   RTS
 
 RAWIN:
-  LDA #2
-  JSR FUNC_CON_RAWIN
+  JSR FUNC_CON_IN_CHR_RPD
   RTS
 

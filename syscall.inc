@@ -34,4 +34,5 @@ TIMEOUT             = 22
 CRTC_SETBASE        = 23
 CRTC_RETBASE        = 24
 IRQ_SETHNDR_C       = 25
+CON_IN_CHR_RPD      = 26
 

@@ -169,6 +169,7 @@ SYSCALL_TABLE:
   .WORD GCHR::FUNC_CRTC_SETBASE   ; 23 CRTC基底状態を設定
   .WORD GCHR::FUNC_CRTC_RETBASE   ; 24 CRTC基底状態に回帰
   .WORD IRQ::FUNC_IRQ_SETHNDR_C   ; 25 CTRL+Cハンドラを設定
+  .WORD FUNC_CON_IN_CHR_RPD       ; 26 無駄のないコンソール入力
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン
@@ -267,11 +268,11 @@ FUNC_RESET:
 ; 何らかのキーで中断する？（CTRL+C？）
 ; 使う場面がわからない…（改行もエコーするよこれ）
 ; -------------------------------------------------------------------
-;FUNC_CON_IN_CHR:
-;  LDA #$2
-;  JSR FUNC_CON_RAWIN      ; 待機入力するがエコーしない
-;  JSR FUNC_CON_OUT_CHR    ; エコー
-;  RTS
+FUNC_CON_IN_CHR:
+  LDA #$2
+  JSR FUNC_CON_RAWIN      ; 待機入力するがエコーしない
+  JSR FUNC_CON_OUT_CHR    ; エコー
+  RTS
 
 ; -------------------------------------------------------------------
 ; BCOS 2                  コンソール文字出力
@@ -334,7 +335,7 @@ FUNC_CON_RAWIN:
   LDA #UART::XON
   JSR BCOS_UART::OUT_CHR
   PLA
-FUNC_CON_IN_CHR = @SKP_RNDH
+FUNC_CON_IN_CHR_RPD = @SKP_RNDH
 END:
   RTS
 
