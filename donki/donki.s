@@ -4,8 +4,6 @@
 ; デバッガ
 ; ひとまず、BCOSの一部として常駐する
 ; -------------------------------------------------------------------
-; TODO 専用コマンドライン
-;       一括で二つの引数を取るのではなく、コマンドごとにトークン取得ルーチンを呼べばどうか
 ; TODO ソフトウェアブレーク処理ルーチン
 ZR1_FROM        = ZR1
 ZR2_TO          = ZR2
@@ -57,11 +55,6 @@ SKIPHDEC:
   storeAY16 VBLANK_USER_VEC16               ; スタブに差し替え
   STZ SETTING
 
-; -------------------------------------------------------------------
-;                       rコマンド 状態表示
-; -------------------------------------------------------------------
-; レジスタ状態を表示する
-; -------------------------------------------------------------------
 PRT_STAT:  ; print contents of stack
   ; --- レジスタ情報を表示 ---
   ; 表示中にさらにBRKされると分かりづらいので改行
@@ -98,30 +91,6 @@ PRT_STAT:  ; print contents of stack
   CLI
   ;JMP LOOP
 
-; コマンドラインを要素に分解する
-;.macro purse_args
-;  ; ゼロチェック
-;  BEQ LOOP
-;  ; 第1引数の検索
-;  STZ CMD_ARG_NUM                 ; 引数の数
-;  LDX #1
-;  JSR CMD_ARGS_SPLIT
-;  BEQ @END_PURSE
-;  ; 第1引数存在
-;  INC CMD_ARG_NUM
-;  PHY
-;  JSR ARG2NUM
-;  mem2mem16 ZR1_FROM,ZR2_TO
-;  PLX
-;  ; 第2引数の検索
-;  JSR CMD_ARGS_SPLIT
-;  BEQ @END_PURSE
-;  ; 第2引数存在
-;  INC CMD_ARG_NUM
-;  JSR ARG2NUM
-;@END_PURSE:
-;.endmac
-
 LOOP:
   loadAY16 STR_NEWLINE
   JSR FUNC_CON_OUT_STR
@@ -131,21 +100,17 @@ LOOP:
   STA ZR5H_CMD_IDX
   ; コマンド処理
   LDA COMMAND_BUF
-  CMP #'r'
-  BEQ PRT_STAT
-  CMP #'z'
-  BNE @SKP_Z
-  JMP PRT_ZR
-@SKP_Z:
-  CMP #'l'
-  BNE @SKP_L
-  JMP LOAD
-@SKP_L:
-  CMP #'d'
+  CMP #'r'          ; [r] レジスタ状態編集・表示
+  BEQ TO_SET_REGS
+  CMP #'z'          ; [z] ZR状態編集・表示
+  BEQ TO_PRT_ZR
+  CMP #'l'          ; [l] SRECロード
+  BEQ TO_LOAD
+  CMP #'d'          ; [d] 指定範囲ダンプ、GCON用
   BEQ DUMP
-  CMP #'D'
+  CMP #'D'          ; [D] 指定範囲ダンプ、UART用
   BEQ WDUMP
-  CMP #'g'
+  CMP #'g'          ; [g] ユーザコードへのジャンプ
   BNE LOOP
 
 ; -------------------------------------------------------------------
@@ -174,6 +139,13 @@ RESTOREZRLOOP:            ; ゼロページレジスタを復帰
   ;CLC
   ;CLI
   JMP (PC_SAVE)           ; 復帰ジャンプ
+
+TO_PRT_ZR:
+  JMP PRT_ZR
+TO_LOAD:
+  JMP LOAD
+TO_SET_REGS:
+  JMP SET_REGS
 
 STR_NEWLINE: .BYT $A,"+",$0
 
@@ -477,9 +449,7 @@ LOAD_SKIPLAST:
 INPUT_BYT:
   JSR RAWIN
   CMP #$0A      ; 改行だったらCTRLに戻る
-  BNE @SKP
-  JMP LOOP
-@SKP:
+  BEQ JMP_LOOP
   JSR CHR2NIB
   ASL
   ASL
@@ -495,6 +465,53 @@ INPUT_BYT:
   STA LOAD_CKSM
   LDA ZR0
   RTS
+
+JMP_LOOP:
+JMP LOOP
+
+; -------------------------------------------------------------------
+;                   rコマンド レジスタセット&表示
+; -------------------------------------------------------------------
+; レジスタを設定後、落ちた時と同様に表示する
+; 文法: +r a 10 p 5300
+; -------------------------------------------------------------------
+SET_REGS:
+  JSR GET_ARG_CHR     ; レジスタ名取得
+  BEQ JMP_PRT_STAT
+  PHA
+  JSR GET_ARG_HEX
+  PLX
+  LDA ZR2
+  LDY #0
+  CPX #'f'
+  BEQ EDIT_FLAGS
+  CPX #'p'
+  BEQ EDIT_PC
+  CPX #'s'
+  BEQ EDIT_S_PTR
+  CPX #'a'
+  BEQ EDIT_A_REG
+  CPX #'x'
+  BEQ EDIT_X_REG
+  CPX #'y'
+  BNE JMP_PRT_STAT        ; defalut
+EDIT_Y_REG:
+  INY
+EDIT_X_REG:
+  INY
+EDIT_A_REG:
+  INY
+EDIT_S_PTR:
+  STA ROM::SP_SAVE,Y
+  BRA JMP_PRT_STAT
+EDIT_PC:
+  LDX ZR2+1
+  STX PC_SAVE+1
+  INY
+EDIT_FLAGS:
+  STA FLAG_SAVE,Y
+JMP_PRT_STAT:
+  JMP PRT_STAT
 
 ; コマンドラインから次の引数を文字として得る
 GET_ARG_CHR:
