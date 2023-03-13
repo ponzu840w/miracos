@@ -385,7 +385,7 @@ PRT_REG:
 ;  UARTからSRECを受け取ってメモリに展開する
 ; -------------------------------------------------------------------
 LOAD:
-  ;JSR PRT_LF ; Lコマンド開始時改行
+  JSR PRT_LF ; Lコマンド開始時改行
   ;STZ ECHO_F  ; エコーを切ったら速いかもしれない
 LOAD_CHECKTYPE:
   JSR RAWIN
