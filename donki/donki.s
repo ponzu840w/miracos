@@ -5,11 +5,11 @@
 ; ひとまず、BCOSの一部として常駐する
 ; -------------------------------------------------------------------
 ; TODO ソフトウェアブレーク処理ルーチン
-ZR1_FROM        = ZR1
 ZR2_TO          = ZR2
 LOAD_CKSM       = ZR3
 LOAD_BYTCNT     = ZR3+1
-ADDR_INDEX      = ZR4
+ZR4_FROM        = ZR4
+ZR4_ADDR_INDEX  = ZR4
 SETTING         = ZR5
 ZR5H_CMD_IDX    = ZR5+1
 
@@ -104,10 +104,11 @@ LOOP:
   JSR FUNC_CON_OUT_CHR
   loadAY16 COMMAND_BUF
   JSR FUNC_CON_IN_STR       ; コマンド行を取得
-  LDA #1
-  STA ZR5H_CMD_IDX
+  STZ ZR5H_CMD_IDX
   ; コマンド処理
   LDA COMMAND_BUF
+  CMP #'m'          ; [m] メモリ内容表示・編集
+  BEQ TO_MEMORY
   CMP #'r'          ; [r] レジスタ状態編集・表示
   BEQ TO_SET_REGS
   CMP #'z'          ; [z] ZR状態編集・表示
@@ -154,6 +155,8 @@ TO_LOAD:
   JMP LOAD
 TO_SET_REGS:
   JMP SET_REGS
+TO_MEMORY:
+  JMP MEMORY
 
 ;STR_NEWLINE: .BYT $A,"+",$0
 
@@ -181,14 +184,15 @@ DUMP1:
   ; ---------------------------------------------------------------
   ;   引数の数に応じた処理
   JSR GET_ARG_HEX         ; 第1引数取得
-  BCS LOOP                ; 引数ゼロ FROM指定がないなら何もしない
-  mem2mem16 ZR1_FROM,ZR2  ; FROM変数に格納
-  JSR GET_ARG_CHR         ; 次は+か
-  CMP #'+'
-  BEQ @ADD_USER_LEN
-  DEC ZR5H_CMD_IDX
+  BCS @END                ; 引数ゼロ FROM指定がないなら何もしない
+  mem2mem16 ZR4_FROM,ZR2  ; FROM変数に格納
   JSR GET_ARG_HEX         ; 第2引数取得
   BCC @SET_ZR3            ; 取得できればデフォ処理をスキップ
+  STZ ZR5H_CMD_IDX        ; 第2引数は純粋HEXでないので先頭から
+  JSR GET_ARG_HEX         ; arg1読み飛ばし
+  JSR GET_ARG_CHR         ; 次は+か
+  CMP #'+'
+  BNE @END
 @ADD_USER_LEN:
   JSR GET_ARG_HEX         ; +後の引数取得
   BCC @MAKE_ZR2_TO        ; 成功したらデフォスキップ
@@ -200,10 +204,10 @@ DUMP1:
   STA ZR2_TO
   STZ ZR2_TO+1            ; デフォ:上位0
 @MAKE_ZR2_TO:
-  LDA ZR1_FROM            ; * TO=FROM+ZR2
+  LDA ZR4_FROM            ; * TO=FROM+ZR2
   ADC ZR2_TO              ; |
   STA ZR2_TO              ; |
-  LDA ZR1_FROM+1          ; |
+  LDA ZR4_FROM+1          ; |
   ADC ZR2_TO+1            ; |
   STA ZR2_TO+1            ; |
   BRA @SET_ZR3
@@ -221,17 +225,8 @@ DUMP1:
   ;   アドレス表示部
   ;"<1234>--------------------------"
   JSR PRT_LF            ; 視認性向上のための空行は行の下にした方がよさそうだが、
-@PRT_ADDR:
-  JSR PRT_LF            ;   最大の情報を表示しつつ作業用コマンドラインを出すにはこうする。
-  LDA #'<'              ; アドレス左修飾
-  JSR FUNC_CON_OUT_CHR
-  LDA ZR1_FROM+1       ; アドレス上位
-  JSR PRT_BYT
-  LDA ZR1_FROM         ; アドレス下位
-  JSR PRT_BYT
-  LDA #'>'              ; アドレス右修飾
-  JSR FUNC_CON_OUT_CHR
-  JSR PRT_S
+@PRT_ADDR:              ;   最大の情報を表示しつつ作業用コマンドラインを出すにはこうする。
+  JSR PRT_ZR4_ZDDR      ; <1234>_:mコマンドと共用
   BBS0 SETTING,@DATA_NOLF    ; ワイドモード:ハイフンスキップ
   LDA #'-'
   LDX #32-(4+2+1)       ; 画面幅からこれまで表示したものを減算
@@ -242,7 +237,7 @@ DUMP1:
   JSR PRT_LF
 @DATA_NOLF:
   ;loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_DATA
-  pushmem16 ZR1_FROM
+  pushmem16 ZR4_FROM
   LDA #<(DUMP_SUB_DATA-(DUMP_SUB_BRA+2))
   JSR DUMP_SUB
   BEQ @SKP_PADDING
@@ -260,12 +255,12 @@ DUMP1:
   ; ---------------------------------------------------------------
   ;   ASCII表示部
   ;loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_ASCII
-  pullmem16 ZR1_FROM
+  pullmem16 ZR4_FROM
   LDA #<(DUMP_SUB_ASCII-(DUMP_SUB_BRA+2))
   JSR DUMP_SUB
   BEQ @LINE
 @END:
-  JMP LOOP
+  BRA JMP_LOOP3
 
 ; ポインタ切り替えでHEXかASCIIを表示する
 DUMP_SUB:
@@ -276,7 +271,7 @@ DUMP_SUB:
 @SKP8:
   LDX #16
 DATALOOP:
-  LDA (ZR1_FROM)     ; バイト取得
+  LDA (ZR4_FROM)     ; バイト取得
   PHX
   ;JMP (DUMP_SUB_FUNCPTR)
 DUMP_SUB_BRA:
@@ -285,14 +280,14 @@ DUMP_SUB_BRA:
 DUMP_SUB_RETURN:
   PLX
   ; 終了チェック
-  LDA ZR1_FROM+1
+  LDA ZR4_FROM+1
   CMP ZR2_TO+1
   BNE @SKP_ENDCHECK_LOW
-  LDA ZR1_FROM
+  LDA ZR4_FROM
   CMP ZR2_TO
   BEQ @END_DATALOOP
 @SKP_ENDCHECK_LOW:
-  inc16 ZR1_FROM   ; アドレスインクリメント
+  inc16 ZR4_FROM   ; アドレスインクリメント
   DEX
   BNE DATALOOP
 @END_DATALOOP:      ; 到達時点でX=0なら8バイト表示した、それ以外ならのこったバイト数+1
@@ -314,36 +309,6 @@ DUMP_SUB_ASCII:
 @SKP_7F:
   JSR FUNC_CON_OUT_CHR
   BRA DUMP_SUB_RETURN
-
-; コマンドバッファの引数の先頭Xと終端Yを取得
-; スペースで区切ることが出来る
-; 何もなければゼロフラグが立つ
-CMD_ARGS_SPLIT:
-  LDX ZR5H_CMD_IDX    ; 現在インデックス
-  ; 先頭取得
-@START_LOOP:
-  LDA COMMAND_BUF,X
-  BEQ @END
-  CMP #' '
-  BNE @SKP_START_LOOP ; ' '以外を発見して脱出
-  INX
-  BRA @START_LOOP
-@SKP_START_LOOP:
-  ; Xに先頭インデックスが取得された
-  TXA
-  TAY
-  ; 終端取得
-@END_LOOP:
-  LDA COMMAND_BUF,Y
-  BEQ @SKP_END_LOOP   ; 終端を発見して脱出
-  CMP #' '
-  BEQ @SKP_END_LOOP   ; ' 'を発見して脱出
-  INY
-  BRA @END_LOOP
-@SKP_END_LOOP:
-  LDA #1
-@END:
-  RTS
 
 ; -------------------------------------------------------------------
 ;                       zコマンド ZR表示
@@ -383,6 +348,7 @@ PRT_ZR:
   INX
   CPX #12
   BNE @LOOP
+JMP_LOOP3:
   BRA JMP_LOOP
 
 ; *
@@ -453,19 +419,19 @@ LOAD_CHECKTYPE:
 
 ; --- アドレス部 ---
   JSR INPUT_BYT
-  STA ADDR_INDEX+1
+  STA ZR4_ADDR_INDEX+1
   JSR INPUT_BYT
-  STA ADDR_INDEX
+  STA ZR4_ADDR_INDEX
 
 ; --- データ部 ---
 LOAD_STORE_DATA:
   JSR INPUT_BYT
   DEC LOAD_BYTCNT
   BEQ LOAD_ZEROBYT_CNT  ; 全バイト読んだ
-  STA (ADDR_INDEX)      ; Zero Page Indirect
-  INC ADDR_INDEX
+  STA (ZR4_ADDR_INDEX)      ; Zero Page Indirect
+  INC ZR4_ADDR_INDEX
   BNE LOAD_SKIPINC
-  INC ADDR_INDEX+1
+  INC ZR4_ADDR_INDEX+1
 LOAD_SKIPINC:
   JMP LOAD_STORE_DATA
 
@@ -484,6 +450,7 @@ LOAD_SKIPLAST:
   JSR FUNC_CON_IN_CHR_RPD
   CMP #EOT
   BNE LOAD_SKIPLAST
+JMP_LOOP2:
   BRA JMP_LOOP
 
 ; Aレジスタに2桁のhexを値として取り込み
@@ -551,11 +518,41 @@ EDIT_FLAGS:
 JMP_PRT_STAT:
   JMP PRT_STAT
 
+; -------------------------------------------------------------------
+;                     mコマンド メモリの編集
+; -------------------------------------------------------------------
+;  メモリ内容を逐次表示・編集する
+; -------------------------------------------------------------------
+MEMORY:
+  JSR GET_ARG_HEX           ; コマンドライン引数:開始アドレス
+@BCS_JMP_LOOP2:
+  BCS JMP_LOOP2             ; 引数がおかしければ離脱
+  mem2mem16 ZR4_ADDR_INDEX,ZR2
+@LOOP:
+  JSR PRT_ZR4_ZDDR          ; <1234>_
+  LDA (ZR4_ADDR_INDEX)
+  JSR PRT_BYT_S             ; <1234> FD_
+  loadAY16 COMMAND_BUF+1
+  JSR FUNC_CON_IN_STR       ; コマンド行を取得
+  LDA COMMAND_BUF+1         ; * if(arg.len==0)next;
+  BEQ @NEXT                 ; |
+  STZ ZR5H_CMD_IDX          ; * *target=arg.tonum();
+  JSR GET_ARG_HEX           ; |
+  BCS @BCS_JMP_LOOP2        ; |
+  LDA ZR2                   ; |
+  STA (ZR4_ADDR_INDEX)      ; |
+@NEXT:
+  INC ZR4_ADDR_INDEX        ; * target++;
+  BNE @SKP_INCH             ; |
+  INC ZR4_ADDR_INDEX+1      ; |
+@SKP_INCH:
+  BRA @LOOP
+
 ; コマンドラインから次の引数を文字として得る
 GET_ARG_CHR:
   JSR CMD_ARGS_SPLIT  ; 次のトークンの前後を得る。なければZ=1
   BEQ ERR_SEC_RTS     ; なければ異常終了
-  LDA COMMAND_BUF,X
+  LDA COMMAND_BUF+1,X
   INX
   STX ZR5H_CMD_IDX
   RTS
@@ -587,7 +584,7 @@ ARG2NUM:
   CPY @START
   BEQ END_CLC_RTS
   DEY
-  LDA COMMAND_BUF,Y
+  LDA COMMAND_BUF+1,Y
   JSR CHR2NIB
   BCS ERR_SEC_RTS
   STA @NUMBER16,X
@@ -595,7 +592,7 @@ ARG2NUM:
   CPY @START
   BEQ END_CLC_RTS
   DEY
-  LDA COMMAND_BUF,Y
+  LDA COMMAND_BUF+1,Y
   JSR CHR2NIB
   BCS ERR_SEC_RTS
   ASL
@@ -612,6 +609,50 @@ ERR_SEC_RTS:
   RTS
 END_CLC_RTS:
   CLC
+  RTS
+
+; d,mで共用のアドレス表示部
+PRT_ZR4_ZDDR:
+  JSR PRT_LF
+  LDA #'<'              ; アドレス左修飾
+  JSR FUNC_CON_OUT_CHR
+  LDA ZR4_FROM+1        ; アドレス上位
+  JSR PRT_BYT
+  LDA ZR4_FROM          ; アドレス下位
+  JSR PRT_BYT
+  LDA #'>'              ; アドレス右修飾
+  JSR FUNC_CON_OUT_CHR
+  JSR PRT_S
+  RTS
+
+; コマンドバッファの引数の先頭Xと終端Yを取得
+; スペースで区切ることが出来る
+; 何もなければゼロフラグが立つ
+CMD_ARGS_SPLIT:
+  LDX ZR5H_CMD_IDX    ; 現在インデックス
+  ; 先頭取得
+@START_LOOP:
+  LDA COMMAND_BUF+1,X
+  BEQ @END
+  CMP #' '
+  BNE @SKP_START_LOOP ; ' '以外を発見して脱出
+  INX
+  BRA @START_LOOP
+@SKP_START_LOOP:
+  ; Xに先頭インデックスが取得された
+  TXA
+  TAY
+  ; 終端取得
+@END_LOOP:
+  LDA COMMAND_BUF+1,Y
+  BEQ @SKP_END_LOOP   ; 終端を発見して脱出
+  CMP #' '
+  BEQ @SKP_END_LOOP   ; ' 'を発見して脱出
+  INY
+  BRA @END_LOOP
+@SKP_END_LOOP:
+  LDA #1
+@END:
   RTS
 
 ; -------------------------------------------------------------------
