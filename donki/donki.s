@@ -97,8 +97,11 @@ PRT_STAT:  ; print contents of stack
 LOOP:
   LDA CONDEV_SAVE
   STA ZP_CON_DEV_CFG
-  loadAY16 STR_NEWLINE
-  JSR FUNC_CON_OUT_STR
+  ;loadAY16 STR_NEWLINE
+  ;JSR FUNC_CON_OUT_STR
+  JSR PRT_LF
+  LDA #'+'
+  JSR FUNC_CON_OUT_CHR
   loadAY16 COMMAND_BUF
   JSR FUNC_CON_IN_STR       ; コマンド行を取得
   LDA #1
@@ -152,7 +155,7 @@ TO_LOAD:
 TO_SET_REGS:
   JMP SET_REGS
 
-STR_NEWLINE: .BYT $A,"+",$0
+;STR_NEWLINE: .BYT $A,"+",$0
 
 ; -------------------------------------------------------------------
 ;                    Dコマンド ワイドメモリダンプ
