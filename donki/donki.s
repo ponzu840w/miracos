@@ -60,10 +60,11 @@ SKIPHDEC:
 PRT_STAT:  ; print contents of stack
   ; --- レジスタ情報を表示 ---
   ; 表示中にさらにBRKされると分かりづらいので改行
-  loadAY16 STR_NEWLINE
-  JSR FUNC_CON_OUT_STR
+  ;loadAY16 STR_NEWLINE
+  ;JSR FUNC_CON_OUT_STR
+  JSR PRT_LF
   ; A
-  JSR PRT_S
+  ;JSR PRT_S
   LDA #'a'
   LDX ROM::A_SAVE       ; Acc reg
   JSR PRT_REG
@@ -177,19 +178,31 @@ DUMP1:
   ; ---------------------------------------------------------------
   ;   引数の数に応じた処理
   JSR GET_ARG_HEX         ; 第1引数取得
-  BCS @END                ; 引数ゼロ FROM指定がないなら何もしない
+  BCS LOOP                ; 引数ゼロ FROM指定がないなら何もしない
   mem2mem16 ZR1_FROM,ZR2  ; FROM変数に格納
+  JSR GET_ARG_CHR         ; 次は+か
+  CMP #'+'
+  BEQ @ADD_USER_LEN
+  DEC ZR5H_CMD_IDX
   JSR GET_ARG_HEX         ; 第2引数取得
   BCC @SET_ZR3            ; 取得できればデフォ処理をスキップ
+@ADD_USER_LEN:
+  JSR GET_ARG_HEX         ; +後の引数取得
+  BCC @MAKE_ZR2_TO        ; 成功したらデフォスキップ
+@ADD_DEFAULT_LEN:
   LDA #255-1              ; 非ワイドモード:デフォ半ページ
   BBS0 SETTING,@SKP_127   ; ワイドモード:デフォ1ページ
   LDA #127-1
 @SKP_127:
-  ADC ZR2_TO              ; 以下加算
   STA ZR2_TO
-  LDA ZR2_TO+1
-  ADC #0
-  STA ZR2_TO+1
+  STZ ZR2_TO+1            ; デフォ:上位0
+@MAKE_ZR2_TO:
+  LDA ZR1_FROM            ; * TO=FROM+ZR2
+  ADC ZR2_TO              ; |
+  STA ZR2_TO              ; |
+  LDA ZR1_FROM+1          ; |
+  ADC ZR2_TO+1            ; |
+  STA ZR2_TO+1            ; |
   BRA @SET_ZR3
   ; ---------------------------------------------------------------
   ;   ループ
@@ -336,8 +349,9 @@ CMD_ARGS_SPLIT:
 PRT_ZR:
   ; --- レジスタ情報を表示 ---
   ; 表示中にさらにBRKされると分かりづらいので改行
-  loadAY16 STR_NEWLINE
-  JSR FUNC_CON_OUT_STR
+  ;loadAY16 STR_NEWLINE
+  ;JSR FUNC_CON_OUT_STR
+  JSR PRT_LF
   LDX #0
 @LOOP:
   PHX
