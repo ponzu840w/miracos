@@ -319,8 +319,6 @@ CMD_ARGS_SPLIT:
   INY
   BRA @END_LOOP
 @SKP_END_LOOP:
-  ; Yに終端インデックスが取得された
-  STY ZR5H_CMD_IDX
   LDA #1
 @END:
   RTS
@@ -518,12 +516,15 @@ GET_ARG_CHR:
   JSR CMD_ARGS_SPLIT  ; 次のトークンの前後を得る。なければZ=1
   BEQ ERR_SEC_RTS     ; なければ異常終了
   LDA COMMAND_BUF,X
+  INX
+  STX ZR5H_CMD_IDX
   RTS
 
 ; コマンドラインから次の引数を数値として得る
 GET_ARG_HEX:
   JSR CMD_ARGS_SPLIT  ; 次のトークンの前後を得る。なければZ=1
   BEQ ERR_SEC_RTS     ; なければ異常終了
+  STY ZR5H_CMD_IDX    ; Yに終端インデックスが取得された
 
 ; -------------------------------------------------------------------
 ;                    引数をHEXと信じて変換
