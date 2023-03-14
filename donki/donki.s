@@ -183,22 +183,23 @@ DUMP1:
   ;DUMP_SUB_FUNCPTR=ZR3 ; データ表示/アスキー表示関数ポインタ
   ; ---------------------------------------------------------------
   ;   引数の数に応じた処理
-  JSR GET_ARG_HEX         ; 第1引数取得
-  BCS @END                ; 引数ゼロ FROM指定がないなら何もしない
-  mem2mem16 ZR4_FROM,ZR2  ; FROM変数に格納
-  JSR GET_ARG_HEX         ; 第2引数取得
-  BCC @SET_ZR3            ; 取得できればデフォ処理をスキップ
-  STZ ZR5H_CMD_IDX        ; 第2引数は純粋HEXでないので先頭から
+  JSR GET_ARG_HEX         ; arg1取得          * ZR1=arg1.num();
+  BCS LOOP                ; argなし           |   ERR: exit
+  mem2mem16 ZR4_FROM,ZR2  ;                   |   OK: ->
+  JSR GET_ARG_HEX         ; arg2取得          * ZR2=arg2.num();
+  BCC @SET_ZR3            ; すんなり          |   OK: 完成
+  STZ ZR5H_CMD_IDX        ; 初めから              ERR: ->
   JSR GET_ARG_HEX         ; arg1読み飛ばし
-  JSR GET_ARG_CHR         ; 次は+か
-  CMP #'+'
-  BNE @END
-@ADD_USER_LEN:
+  JSR GET_ARG_CHR         ;                   * ZR2=arg2.char().head;
+  BEQ @ADD_DEFAULT_LEN    ;                   |   ERR: ->@ADD_DEFAULT_LEN
+  CMP #'+'                ;                   |   '+': ->@ADD_USER_LEN
+  BNE @END                ;                   |   others: exit
+@ADD_USER_LEN:            ; +指定長さ
   JSR GET_ARG_HEX         ; +後の引数取得
-  BCC @MAKE_ZR2_TO        ; 成功したらデフォスキップ
-@ADD_DEFAULT_LEN:
-  LDA #255-1              ; 非ワイドモード:デフォ半ページ
-  BBS0 SETTING,@SKP_127   ; ワイドモード:デフォ1ページ
+  BCC @MAKE_ZR2_TO        ; 成功->加算
+@ADD_DEFAULT_LEN:         ; デフォルト長さ
+  LDA #255-1              ; 非ワイド:半ページ
+  BBS0 SETTING,@SKP_127   ; ワイド  :1ページ
   LDA #127-1
 @SKP_127:
   STA ZR2_TO
