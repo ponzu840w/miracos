@@ -359,12 +359,16 @@ CHR2NIB:
   CMP #'0'
   BMI @ERR
   CMP #'9'+1
-  BPL @ABCDEF
+  BPL @aAbBcC
   SEC
   SBC #'0'
   CLC
   RTS
-@ABCDEF:
+@aAbBcC:
+  JSR @ABC
+  BCC @RTS
+  SBC #'a'-'A'
+@ABC:
   CMP #'A'
   BMI @ERR
   CMP #'F'+1
@@ -375,6 +379,7 @@ CHR2NIB:
   RTS
 @ERR:
   SEC
+@RTS:
   RTS
 
 PRT_REG:
