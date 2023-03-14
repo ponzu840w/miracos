@@ -356,19 +356,16 @@ JMP_LOOP3:
 ; --- Aレジスタの一文字をNibbleとして値にする ---
 ; *
 CHR2NIB:
+  JSR FUNC_UPPER_CHR
   CMP #'0'
   BMI @ERR
   CMP #'9'+1
-  BPL @aAbBcC
+  BPL @ABCDEF
   SEC
   SBC #'0'
   CLC
   RTS
-@aAbBcC:
-  JSR @ABC
-  BCC @RTS
-  SBC #'a'-'A'
-@ABC:
+@ABCDEF:
   CMP #'A'
   BMI @ERR
   CMP #'F'+1
@@ -379,7 +376,6 @@ CHR2NIB:
   RTS
 @ERR:
   SEC
-@RTS:
   RTS
 
 PRT_REG:
