@@ -257,8 +257,8 @@ FUNC_RESET:
 @JUMP_CCP:
   JMP $5000                       ; CCP（仮）へ飛ぶ
 
-  PATH_SYSCALL:         .ASCIIZ "A:/MCOS/SYSCALL.SYS"
-  PATH_CCP:             .ASCIIZ "A:/MCOS/CCP.SYS"
+  PATH_SYSCALL:         .ASCIIZ "MC*/SYSC*"
+  PATH_CCP:             .ASCIIZ "MC*/CCP*"
 
 ; -------------------------------------------------------------------
 ; BCOS 1                  コンソール文字入力
@@ -416,12 +416,12 @@ FUNC_CON_IN_STR:
 ; -------------------------------------------------------------------
 FUNC_UPPER_CHR:
   CMP #'a'
-  BMI @EXT
+  BMI FUNC15_RTS
   CMP #'z'+1
-  BPL @EXT
+  BPL FUNC15_RTS
   SEC
   SBC #'a'-'A'
-@EXT:
+FUNC15_RTS:
   RTS
 
 ; -------------------------------------------------------------------
@@ -435,12 +435,18 @@ FUNC_UPPER_STR:
 @LOOP:
   INY
   LDA (ZR0),Y
-  BEQ @END
+  BEQ FUNC15_RTS
   JSR FUNC_UPPER_CHR
   STA (ZR0),Y
-  BRA @LOOP
-@END:
-  RTS
+  CMP #'"' ;"
+  BNE @LOOP
+  ; "
+@SKIPLOOP:
+  INY
+  LDA (ZR0),Y
+  CMP #'"' ;"
+  BEQ @LOOP
+  BRA @SKIPLOOP
 
 ; -------------------------------------------------------------------
 ; BCOS 20                    アドレス取得
