@@ -706,8 +706,6 @@ BYT2ASC:
   LSR
   LSR
   LSR
-  JSR NIB2ASC
-  RTS
 
 NIB2ASC:
   ; #$0?をアスキー一文字にする
