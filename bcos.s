@@ -257,8 +257,8 @@ FUNC_RESET:
 @JUMP_CCP:
   JMP $5000                       ; CCP（仮）へ飛ぶ
 
-  PATH_SYSCALL:         .ASCIIZ "MC*/SYSC*"
-  PATH_CCP:             .ASCIIZ "MC*/CCP*"
+  PATH_SYSCALL:         .ASCIIZ "A:/MCOS/SYSCALL.SYS"
+  PATH_CCP:             .ASCIIZ "A:/MCOS/CCP.SYS"
 
 ; -------------------------------------------------------------------
 ; BCOS 1                  コンソール文字入力

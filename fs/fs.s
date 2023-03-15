@@ -179,7 +179,14 @@ FUNC_FS_READ_BYTS:
   ; 読み取り長さの上位をイテレータに
   LDA @ZR2_LENGTH+1
   STA @ZR4_ITR
-  JSR RDSEC                       ; セクタ読み取り、SDSEEKは起点
+  ; debug
+    BRA @RTRY_first2
+@RTRY2:
+    ;BRK
+    ;NOP
+    @RTRY_first2:
+  JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る…1ならたぶんCMD17失敗
+  BCS @RTRY2                      ; CMD17失敗をリトライで対応 TODO:大変アドホック！なんとかしろ
   ; SDSEEKの初期位置をシークポインタから計算
   LDA FWK+FCTRL::SEEK_PTR+1       ; 第1バイト
   LSR                             ; bit 0 をキャリーに
@@ -218,7 +225,12 @@ FUNC_FS_READ_BYTS:
   PHX
   PHY
   JSR NEXTSEC                     ; 次のセクタに移行
+  ; debug
+    BRA @RTRY_first
 @RTRY:
+    ;BRK
+    ;NOP
+    @RTRY_first:
   JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る…1ならたぶんCMD17失敗
   BCS @RTRY                       ; CMD17失敗をリトライで対応 TODO:大変アドホック！なんとかしろ
   PLY
