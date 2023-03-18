@@ -16,11 +16,10 @@
 ; -------------------------------------------------------------------
 .STRUCT SKIN_STATE
   ; スキンの操作対象データ
-  ;SKIN              .RES 2  ; スキンルーチンのポインタ
-  FLAG              .RES 1  ; フラグ 7|0000 00vf|0
+  TIME              .RES 1  ; 経過時間
+  FLAG              .RES 1  ; フラグ 7|0000 0nvf|0
   FRQ               .RES 2  ; 周波数
   VOL               .RES 1  ; 音量
-  TIME              .RES 1  ; 経過時間
 .ENDSTRUCT
 
 ; -------------------------------------------------------------------
@@ -175,6 +174,14 @@ TICK_SKIN:
   JSR 6502                      ; スキンへ
   ; ---------------------------------------------------------------
   ;   POST DRIVE SKIN
+  ; スキン状態構造体の更新
+  ;LDY #SKIN_STATE::TIME
+  LDA (ZP_SKIN_STATE_PTR)           ; 経過時間更新
+  INC
+  STA (ZP_SKIN_STATE_PTR)
+  LDY #SKIN_STATE::FLAG
+  LDA ZP_FLAG
+  STA (ZP_SKIN_STATE_PTR),Y         ; フラグ更新
   ; フラグに応じて実際のレジスタ書き換え
   BBR0 ZP_FLAG,@VOL             ; スキンから返ったマスクコードbit0はFRQ
   ; 周波数レジスタのチャンネルを合わせる
@@ -183,7 +190,7 @@ TICK_SKIN:
   STA YMZ::ADDR
   TAX
   ; FRQ L
-  LDY #SKIN_STATE::FRQ
+  INY                           ; LDY #SKIN_STATE::FRQ
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
   ; FRQ H
@@ -193,21 +200,16 @@ TICK_SKIN:
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
 @VOL:
-  BBR1 ZP_FLAG,@DRIVE_SKIN_NEXT_CH
+  BBR1 ZP_FLAG,@NOISE
   ; VOL
   LDA #YMZ::IA_VOL
   STA YMZ::ADDR
   LDY #SKIN_STATE::VOL
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
-  ; スキン状態構造体の更新
-  LDY #SKIN_STATE::FLAG
-  LDA ZP_FLAG
-  STA (ZP_SKIN_STATE_PTR),Y         ; フラグ更新
-  LDY #SKIN_STATE::TIME
-  LDA (ZP_SKIN_STATE_PTR),Y         ; 経過時間更新
-  INC
-  STA (ZP_SKIN_STATE_PTR),Y
+@NOISE:
+  ; NOISE
+  BBR2 ZP_FLAG,@DRIVE_SKIN_NEXT_CH
 @DRIVE_SKIN_NEXT_CH:
   ; 次のチャンネルのスキンをドライブする
   LDX ZP_CH
@@ -251,14 +253,13 @@ SHEET_PS_COMMON_NOTE:
   ; 普通の音符処理
   ; 経過時間リセット
   LDA #0
-  LDY #SKIN_STATE::TIME
-  STA (ZP_SKIN_STATE_PTR),Y
+  ;LDY #SKIN_STATE::TIME
+  STA (ZP_SKIN_STATE_PTR)
   ; フラグリセット
   LDY #SKIN_STATE::FLAG
   STA (ZP_SKIN_STATE_PTR),Y
   ; 周波数設定
-  ;LDY #SKIN_STATE::FRQ
-  INY
+  INY                       ; LDY #SKIN_STATE::FRQ
   LDA KEY_FRQ_TABLE,X       ; テーブルから周波数を取得 L
   STA (ZP_SKIN_STATE_PTR),Y
   INY
@@ -372,15 +373,8 @@ SKIN1_PIANO:
   BBS7 ZP_FLAG,@END
   ; 経過時間取得
   SMB7 ZP_FLAG                ; とりあえず終了フラグを立てる、上書きされる
-  LDY #SKIN_STATE::TIME
-  LDA (ZP_SKIN_STATE_PTR),Y
-  ;PHA
-  ;PHX
-  ;PHY
-  ;JSR PRT_BYT
-  ;PLY
-  ;PLX
-  ;PLA
+  ;LDY #SKIN_STATE::TIME
+  LDA (ZP_SKIN_STATE_PTR)
   CMP #(15*4+1)
   BEQ @END                    ; 終了タイミングでは飛び、上書きされない
   ; TからVOLを算出する
@@ -389,8 +383,7 @@ SKIN1_PIANO:
   EOR #$FF                    ; 反転で負数に
   SEC
   ADC #15                     ; newVol=15+(-1/4T)
-  ;LDY #SKIN_STATE::VOL
-  DEY                         ; VOL,TIMEという並び
+  LDY #SKIN_STATE::VOL
   STA (ZP_SKIN_STATE_PTR),Y
   LDA #%00000011              ; FRQ,VOLともに更新
   STA ZP_FLAG
@@ -417,8 +410,8 @@ SKIN2_VIBRATO:
   RTS
 @TICK:
   ; TIME bit0 に応じたFRQ揺らし
-  LDY #SKIN_STATE::TIME
-  LDA (ZP_SKIN_STATE_PTR),Y
+  ;LDY #SKIN_STATE::TIME
+  LDA (ZP_SKIN_STATE_PTR)
   ROR A                       ; C=TIME bit0
   LDY #SKIN_STATE::FRQ
   LDA (ZP_SKIN_STATE_PTR),Y
