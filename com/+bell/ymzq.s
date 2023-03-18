@@ -358,7 +358,18 @@ SPCNOTE_SKIN:
 
 ; 相対ジャンプ
 SPCNOTE_JMP:
-;todo
+  JSR GETBYT_SHEET
+  CLC
+  ADC ZP_SHEET_PTR
+  PHA
+  PHP
+  JSR GETBYT_SHEET
+  PLP
+  ADC ZP_SHEET_PTR+1
+  STA ZP_SHEET_PTR+1
+  PLA
+  STA ZP_SHEET_PTR
+  JMP SHEET_PS_FIRSTCODE  ; 次のコードへ
 
 ; -------------------------------------------------------------------
 ; SKIN0                         BETA
