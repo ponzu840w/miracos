@@ -16,10 +16,11 @@
 ; -------------------------------------------------------------------
 .STRUCT SKIN_STATE
   ; スキンの操作対象データ
-  TIME              .RES 1  ; 経過時間
+  ;SKIN              .RES 2  ; スキンルーチンのポインタ
   FLAG              .RES 1  ; フラグ 7|0000 00vf|0
   FRQ               .RES 2  ; 周波数
   VOL               .RES 1  ; 音量
+  TIME              .RES 1  ; 経過時間
 .ENDSTRUCT
 
 ; -------------------------------------------------------------------
@@ -39,7 +40,8 @@
   ; 楽譜ポインタ
   ZP_SHEET_PTR:       .RES 2
   ;
-  ZP_TICK_CH_SR:      .RES 1
+  ZP_TICK_TIMER_SR:   .RES 1
+  ZP_TICK_SKIN_SR:    .RES 1
   ZP_CH:              .RES 1
   ZP_ZRSAVE:          .RES 3
 
@@ -145,14 +147,16 @@ PLAY:
 .macro tick_ymzq
 TICK_YMZQ:
   swap_zr
+  LDA ZP_CH_ENABLE
+  STA ZP_TICK_TIMER_SR  ; 有効なチャンネルがカウントダウン対象
+  AND ZP_CH_NOTREST     ; チャンネルが有効でかつ休符ではないのみスキンを駆動
+  STA ZP_TICK_SKIN_SR   ; シフトレジスタでチャンネル制御
   ; ---------------------------------------------------------------
   ;   TIMER
-  LDA ZP_CH_ENABLE
-  STA ZP_TICK_CH_SR
-  LDX #3
-@TIMER_LOOP:
+  LDX #0
+TICK_LOOP:
   STX ZP_CH
-  LSR ZP_TICK_CH_SR     ; C=Ch有効/無効
+  LSR ZP_TICK_TIMER_SR  ; C=Ch有効/無効
   BCC @TIMER_NEXT_CH    ; 無効Chのカウントダウンをスキップ
   DEC ZP_LEN_CNT_A,X    ; 音長カウントダウン
   BNE @TIMER_NEXT_CH    ; 何もなければ次
@@ -168,19 +172,11 @@ TICK_YMZQ:
   LDA LEN_A,X           ; 定義LENをカウンタに格納
   STA ZP_LEN_CNT_A,X
 @TIMER_NEXT_CH:
-  LDX ZP_CH
-  DEX
-  BPL @TIMER_LOOP
   ; ---------------------------------------------------------------
   ;   PRE DRIVE SKIN
-  LDA ZP_CH_ENABLE
-  AND ZP_CH_NOTREST           ; チャンネルが有効でかつ休符ではないのみスキンを駆動
-  STA ZP_TICK_CH_SR           ; シフトレジスタでチャンネル制御
-  LDX #3
-@DRIVE_SKIN_LOOP:
-  STX ZP_CH
+TICK_SKIN:
   ; スキン呼び出し準備
-  LSR ZP_TICK_CH_SR           ; C=Ch有効/無効
+  LSR ZP_TICK_SKIN_SR         ; C=Ch有効/無効
   BCC @DRIVE_SKIN_NEXT_CH     ; 無効Chのカウントダウンをスキップ
   x2skin_state_ptr            ; 構造体ポインタ取得
   ; スキンルーチンへのJSR準備
@@ -197,23 +193,15 @@ TICK_YMZQ:
   JSR 6502                      ; スキンへ
   ; ---------------------------------------------------------------
   ;   POST DRIVE SKIN
-  ; スキン状態構造体の更新
-  ;LDY #SKIN_STATE::TIME
-  LDA (ZP_SKIN_STATE_PTR)       ; 経過時間更新
-  INC
-  STA (ZP_SKIN_STATE_PTR)
-  LDY #SKIN_STATE::FLAG
-  LDA ZP_FLAG
-  STA (ZP_SKIN_STATE_PTR),Y     ; フラグ更新
   ; フラグに応じて実際のレジスタ書き換え
   BBR0 ZP_FLAG,@VOL             ; スキンから返ったマスクコードbit0はFRQ
   ; 周波数レジスタのチャンネルを合わせる
   LDX ZP_CH
-  LDA CH2FRQADDR_TABLE,X        ; base+ch*2を少し高速化するLUT
+  LDA CH2FRQADDR_TABLE,X
   STA YMZ::ADDR
   TAX
   ; FRQ L
-  INY                           ; LDY #SKIN_STATE::FRQ
+  LDY #SKIN_STATE::FRQ
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
   ; FRQ H
@@ -230,11 +218,20 @@ TICK_YMZQ:
   LDY #SKIN_STATE::VOL
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
+  ; スキン状態構造体の更新
+  LDY #SKIN_STATE::FLAG
+  LDA ZP_FLAG
+  STA (ZP_SKIN_STATE_PTR),Y         ; フラグ更新
+  LDY #SKIN_STATE::TIME
+  LDA (ZP_SKIN_STATE_PTR),Y         ; 経過時間更新
+  INC
+  STA (ZP_SKIN_STATE_PTR),Y
 @DRIVE_SKIN_NEXT_CH:
   ; 次のチャンネルのスキンをドライブする
   LDX ZP_CH
-  DEX
-  BPL @DRIVE_SKIN_LOOP
+  INX
+  CPX #3
+  BNE TICK_LOOP
   restore_zr
 .endmac
 
@@ -393,7 +390,8 @@ SKIN1_PIANO:
   BBS7 ZP_FLAG,@END
   ; 経過時間取得
   SMB7 ZP_FLAG                ; とりあえず終了フラグを立てる、上書きされる
-  LDA (ZP_SKIN_STATE_PTR)     ; TIME
+  LDY #SKIN_STATE::TIME
+  LDA (ZP_SKIN_STATE_PTR),Y
   ;PHA
   ;PHX
   ;PHY
@@ -409,7 +407,8 @@ SKIN1_PIANO:
   EOR #$FF                    ; 反転で負数に
   SEC
   ADC #15                     ; newVol=15+(-1/4T)
-  LDY #SKIN_STATE::VOL
+  ;LDY #SKIN_STATE::VOL
+  DEY                         ; VOL,TIMEという並び
   STA (ZP_SKIN_STATE_PTR),Y
   LDA #%00000011              ; FRQ,VOLともに更新
   STA ZP_FLAG
