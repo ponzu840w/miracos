@@ -107,37 +107,21 @@ PLAY:
   RTS
 
 .macro swap_zr          ; ゼロページレジスタを退避
-;  LDX #2                ; スワップするバイト数-1
-;@STOREZRLOOP:
-;  LDA ZR0,X
-;  STA ZRSAVE,X
-;  DEX
-;  BPL @STOREZRLOOP
   LDA ZR0
   STA ZP_ZRSAVE
   LDA ZR0+1
   STA ZP_ZRSAVE+1
   LDA ZR0+2
   STA ZP_ZRSAVE+2
-  ;LDA ZR0+3
-  ;STA ZP_ZRSAVE+3
 .endmac
 
 .macro restore_zr       ; ゼロページレジスタを復帰
-;  LDX #2
-;@RESTOREZRLOOP:
-;  LDA ZP_ZRSAVE,X
-;  STA ZR0,X
-;  DEX
-;  BPL @RESTOREZRLOOP
   LDA ZP_ZRSAVE
   STA ZR0
   LDA ZP_ZRSAVE+1
   STA ZR0+1
   LDA ZP_ZRSAVE+2
   STA ZR0+2
-  ;LDA ZP_ZRSAVE+3
-  ;STA ZR0+3
 .endmac
 
 ; -------------------------------------------------------------------
@@ -161,14 +145,12 @@ TICK_LOOP:
   DEC ZP_LEN_CNT_A,X    ; 音長カウントダウン
   BNE @TIMER_NEXT_CH    ; 何もなければ次
   ; カウンタ0到達
-  LDA ZP_TEMPO_CNT_A,X  ; テンポカウンタの取得
-  BNE @SKP_FIRE         ; ゼロでなければ発火しない
-  ; 発火
+  DEC ZP_TEMPO_CNT_A,X  ; テンポカウンタ減算
+  BPL @SKP_FIRE
+  ; テンポカウンタオーバで発火
   JSR SHEET_PS
   BRA @TIMER_NEXT_CH
 @SKP_FIRE:
-  DEC A                 ; テンポカウンタ減算
-  STA ZP_TEMPO_CNT_A,X
   LDA LEN_A,X           ; 定義LENをカウンタに格納
   STA ZP_LEN_CNT_A,X
 @TIMER_NEXT_CH:
