@@ -54,7 +54,7 @@ INIT:
   syscall IRQ_SETHNDR_VB
   storeAY16 ZP_VB_STUB
 
-  LDX #0
+  LDX #1
   loadAY16 NOTES
   JSR PLAY
   CLI

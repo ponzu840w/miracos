@@ -193,6 +193,16 @@ TICK_SKIN:
   INY                           ; LDY #SKIN_STATE::FRQ
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
+  CPX #YMZ::IA_FRQ+4            ; CH_Cの時のみ、ノイズFRQも更新
+  BNE @FRQ_H                    ;
+  ; NOISE_FRQ
+  INX
+  INX                           ; LDX #YMX::IA_NFRQ
+  STX YMZ::ADDR
+  STA YMZ::DATA
+  DEX
+  .BYTE $2C
+@FRQ_H:
   ; FRQ H
   INX                           ; 内部アドレスを進めてHに
   INY                           ; 構造体もHから
@@ -202,20 +212,30 @@ TICK_SKIN:
 @VOL:
   BBR1 ZP_FLAG,@NOISE
   ; VOL
-  LDA #YMZ::IA_VOL
+  ; 音量レジスタのチャンネルを合わせる
+  LDX ZP_CH
+  CLC
+  ADC #YMZ::IA_VOL
   STA YMZ::ADDR
   LDY #SKIN_STATE::VOL
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
 @NOISE:
-  ; NOISE
   BBR2 ZP_FLAG,@DRIVE_SKIN_NEXT_CH
+  ; NOISE
+  LDA #YMZ::IA_NOISE_FRQ
+  STA YMZ::ADDR
+  LDY #SKIN_STATE::FRQ
+  LDA (ZP_SKIN_STATE_PTR),Y
+  STA YMZ::DATA
 @DRIVE_SKIN_NEXT_CH:
   ; 次のチャンネルのスキンをドライブする
   LDX ZP_CH
   INX
   CPX #3
-  BNE TICK_LOOP
+  BEQ @SKP_TICK_LOOP          ; TODO BNE
+  JMP TICK_LOOP
+@SKP_TICK_LOOP:
   restore_zr
 .endmac
 
@@ -348,6 +368,24 @@ SPCNOTE_JMP:
   STA ZP_SHEET_PTR
   JMP SHEET_PS_FIRSTCODE  ; 次のコードへ
 
+; CH_Cをノイズモードに
+SPCNOTE_SETNOISE:
+  SMB5 ZP_CH_ENABLE       ; CH_Cのノイズ有効化
+  RMB2 ZP_CH_ENABLE       ; CH_C無効化
+SPCNOTE_SETNOISE1:
+  LDA ZP_CH_ENABLE
+  LDY #YMZ::IA_MIX
+  STY YMZ::ADDR
+  EOR #$FF
+  STA YMZ::DATA
+  JMP SHEET_PS_FIRSTCODE  ; 次のコードへ
+
+; CH_Cを通常モードに
+SPCNOTE_ENDNOISE:
+  RMB5 ZP_CH_ENABLE       ; CH_Cのノイズ無効化
+  SMB2 ZP_CH_ENABLE       ; CH_C有効化
+  BRA SPCNOTE_SETNOISE1
+
 ; -------------------------------------------------------------------
 ; SKIN0                         BETA
 ; -------------------------------------------------------------------
@@ -426,6 +464,21 @@ SKIN2_VIBRATO:
   RTS
 
 ; -------------------------------------------------------------------
+; SKIN3                         NOISE
+; -------------------------------------------------------------------
+; ノイズ
+; -------------------------------------------------------------------
+SKIN3_NOISE:
+  BBS0 ZP_FLAG,@END           ; 初回以外スキップ
+  LDA #15
+  LDY #SKIN_STATE::VOL
+  STA (ZP_SKIN_STATE_PTR),Y
+  DEC ZP_FLAG                 ; 0をDECして$FF
+@END:
+  RTS
+
+
+; -------------------------------------------------------------------
 ;                          ポインタテーブル
 ; -------------------------------------------------------------------
 ; 音色状態構造体ポインタテーブル
@@ -442,20 +495,24 @@ SKIN_STATE_STRUCT_TABLE_H:
 
 ; 特殊音符処理テーブル
 SPCNOTE_TABLE:
-  .WORD SPCNOTE_REST    ; 0 休符
-  .WORD SPCNOTE_TEMPO   ; 1 テンポ設定
-  .WORD SPCNOTE_SKIN    ; 2 スキン設定
-  .WORD SPCNOTE_JMP     ; 3 ジャンプ
+  .WORD SPCNOTE_REST      ; 0 休符
+  .WORD SPCNOTE_TEMPO     ; 1 テンポ設定
+  .WORD SPCNOTE_SKIN      ; 2 スキン設定
+  .WORD SPCNOTE_JMP       ; 3 ジャンプ
+  .WORD SPCNOTE_SETNOISE  ; 4 ノイズ有効化
+  .WORD SPCNOTE_ENDNOISE  ; 5 ノイズ無効化
 
 SKIN_TABLE_L:
   .BYTE <SKIN0_BETA
   .BYTE <SKIN1_PIANO
   .BYTE <SKIN2_VIBRATO
+  .BYTE <SKIN3_NOISE
 
 SKIN_TABLE_H:
   .BYTE >SKIN0_BETA
   .BYTE >SKIN1_PIANO
   .BYTE >SKIN2_VIBRATO
+  .BYTE >SKIN3_NOISE
 
 ; -------------------------------------------------------------------
 ;                           データテーブル
