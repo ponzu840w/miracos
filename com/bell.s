@@ -54,8 +54,12 @@ INIT:
   syscall IRQ_SETHNDR_VB
   storeAY16 ZP_VB_STUB
 
-  LDX #1
+  LDX #0
   loadAY16 NOTES
+  JSR PLAY
+
+  LDX #2
+  loadAY16 NOISE_NOTES
   JSR PLAY
   CLI
 
@@ -76,10 +80,25 @@ TICK:
   tick_ymzq
   JMP (ZP_VB_STUB)            ; 片付けはBCOSにやらせる
 
+NOISE_NOTES:
+.BYTE 128+1,12
+.BYTE 128+2,0   ; ノイズ
+.BYTE 128+4     ; ノイズ有効化
+.BYTE 51,2
+.BYTE 128,2
+.BYTE 44,1
+.BYTE 128,1
+.BYTE 46,1
+.BYTE 128,1
+.BYTE 128+3
+.WORD .LOWORD(NOISE_NOTES-*-1)
+
 NOTES:
 
 .BYTE 128+1,12
-.BYTE 128+2,0   ; ストレート
+;.BYTE 128+2,0   ; ストレート
+.BYTE 128+2,0   ; ノイズ
+.BYTE 128+4     ; ノイズ有効化
 
 NOTE1:
 .BYTE 51,2

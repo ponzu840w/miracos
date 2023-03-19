@@ -201,7 +201,7 @@ TICK_SKIN:
   STX YMZ::ADDR
   STA YMZ::DATA
   DEX
-  .BYTE $2C
+  .BYTE $24
 @FRQ_H:
   ; FRQ H
   INX                           ; 内部アドレスを進めてHに
@@ -210,27 +210,19 @@ TICK_SKIN:
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
 @VOL:
-  BBR1 ZP_FLAG,@NOISE
+  LDX ZP_CH
+  BBR1 ZP_FLAG,@DRIVE_SKIN_NEXT_CH
   ; VOL
   ; 音量レジスタのチャンネルを合わせる
-  LDX ZP_CH
+  TXA
   CLC
   ADC #YMZ::IA_VOL
   STA YMZ::ADDR
   LDY #SKIN_STATE::VOL
   LDA (ZP_SKIN_STATE_PTR),Y
   STA YMZ::DATA
-@NOISE:
-  BBR2 ZP_FLAG,@DRIVE_SKIN_NEXT_CH
-  ; NOISE
-  LDA #YMZ::IA_NOISE_FRQ
-  STA YMZ::ADDR
-  LDY #SKIN_STATE::FRQ
-  LDA (ZP_SKIN_STATE_PTR),Y
-  STA YMZ::DATA
 @DRIVE_SKIN_NEXT_CH:
   ; 次のチャンネルのスキンをドライブする
-  LDX ZP_CH
   INX
   CPX #3
   BEQ @SKP_TICK_LOOP          ; TODO BNE
@@ -370,10 +362,10 @@ SPCNOTE_JMP:
 
 ; CH_Cをノイズモードに
 SPCNOTE_SETNOISE:
-  SMB5 ZP_CH_ENABLE       ; CH_Cのノイズ有効化
-  RMB2 ZP_CH_ENABLE       ; CH_C無効化
-SPCNOTE_SETNOISE1:
   LDA ZP_CH_ENABLE
+  AND #%11111011          ; CH_C無効化
+  ORA #%00100000          ; CH_Cのノイズ有効化
+SPCNOTE_SETNOISE1:
   LDY #YMZ::IA_MIX
   STY YMZ::ADDR
   EOR #$FF
@@ -382,8 +374,9 @@ SPCNOTE_SETNOISE1:
 
 ; CH_Cを通常モードに
 SPCNOTE_ENDNOISE:
-  RMB5 ZP_CH_ENABLE       ; CH_Cのノイズ無効化
-  SMB2 ZP_CH_ENABLE       ; CH_C有効化
+  LDA ZP_CH_ENABLE
+  AND #%11011111          ; CH_C無効化
+  ORA #%00000100          ; CH_Cのノイズ有効化
   BRA SPCNOTE_SETNOISE1
 
 ; -------------------------------------------------------------------
