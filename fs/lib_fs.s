@@ -17,6 +17,9 @@ PATTERNMATCH:                   ; http://www.6502.org/source/strings/patmatch.ht
 @REG:
   CMP FINFO_WK+FINFO::NAME,X    ; 文字が等しいか？
   BEQ @EQ
+  JSR FUNC_UPPER_CHR
+  CMP FINFO_WK+FINFO::NAME,X    ; 文字が等しいか2
+  BEQ @EQ
   CMP #'/'                      ; これらは終端か2
   BEQ @FOUND
   BRA @FAIL
