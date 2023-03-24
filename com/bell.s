@@ -81,24 +81,21 @@ TICK:
   JMP (ZP_VB_STUB)            ; 片付けはBCOSにやらせる
 
 NOISE_NOTES:
-.BYTE 128+1,12
+.BYTE 128+1,2
+.BYTE 128+2,0   ; ノイズ
+.BYTE 128+5     ; ノイズ有効化
+.BYTE 50,1
+.BYTE 128,2
 .BYTE 128+2,0   ; ノイズ
 .BYTE 128+4     ; ノイズ有効化
-.BYTE 51,2
-.BYTE 128,2
-.BYTE 44,1
-.BYTE 128,1
-.BYTE 46,1
-.BYTE 128,1
-.BYTE 128+3
+.BYTE 50,4
+.BYTE 128,4
+.BYTE 128+3     ; bra
 .WORD .LOWORD(NOISE_NOTES-*-1)
 
 NOTES:
-
-.BYTE 128+1,12
-;.BYTE 128+2,0   ; ストレート
-.BYTE 128+2,0   ; ノイズ
-.BYTE 128+4     ; ノイズ有効化
+.BYTE 128+1,10
+.BYTE 128+2,2   ; ビブラート
 
 NOTE1:
 .BYTE 51,2
@@ -207,7 +204,7 @@ NOTE2:
 .BYTE 51,6
 
 .BYTE 128+2,1   ; ピアノ
-.BYTE 128+1,30  ; ゆっくり
+.BYTE 128+1,10
 
 .BYTE 51,2
 .BYTE 44,1
