@@ -15,6 +15,7 @@ INIT_TITLE:
   ; ---------------------------------------------------------------
   ;   YMZ
   JSR MUTE_ALL
+  init_ymzq
   ; ---------------------------------------------------------------
   ;   CRTC
   ; FB1
@@ -37,6 +38,9 @@ INIT_TITLE:
   ; CRTC再設定
   ;LDA #%00000000            ; 全フレーム16色モード、16色モード座標書き込み、書き込みカウントアップ無効
   ;STA CRTC::CFG
+  LDX #0
+  loadAY16 NOTES
+  JSR PLAY
   ; ---------------------------------------------------------------
   ;   割り込みハンドラの登録
   SEI
@@ -104,6 +108,7 @@ KIRABOSHI_LOOP:
 ;                        垂直同期割り込み
 ; -------------------------------------------------------------------
 TITLE_VBLANK:
+  tick_ymzq
   JSR PAD_READ                ; パッド状態更新
   BBS4 ZP_PADSTAT,@SKP_START  ; STARTボタン
   SMB0 ZP_START_FLAG          ; フラグを立てて脱出を企画する
@@ -136,4 +141,153 @@ TITLE_STARS_LIST:
 
   .BYT 120,  43, %01111111,   0,  30
   .BYT 102, 140, %00111111,  50,  35
+
+TITLE_BGM_A:
+NOTES:
+.BYTE 128+1,12
+.BYTE 128+2,0   ; ストレート
+
+NOTE1:
+.BYTE 51,2
+.BYTE 44,1
+.BYTE 46,1
+.BYTE 48,1
+.BYTE 49,1
+.BYTE 51,2
+.BYTE 44,2
+.BYTE 44,2
+.BYTE 53,2
+.BYTE 49,1
+.BYTE 51,1
+.BYTE 53,1
+.BYTE 55,1
+.BYTE 56,2
+.BYTE 44,2
+.BYTE 44,2
+.BYTE 49,2
+.BYTE 51,1
+.BYTE 49,1
+.BYTE 48,1
+.BYTE 46,1
+.BYTE 48,2
+.BYTE 49,1
+.BYTE 48,1
+.BYTE 46,1
+.BYTE 44,1
+.BYTE 43,2
+.BYTE 44,1
+.BYTE 46,1
+.BYTE 48,1
+.BYTE 44,1
+.BYTE 46,6
+
+.BYTE 128+1,10
+.BYTE 128+2,1   ; ピアノ
+
+.BYTE 51,2
+.BYTE 44,1
+.BYTE 46,1
+.BYTE 48,1
+.BYTE 49,1
+.BYTE 51,2
+.BYTE 44,2
+.BYTE 44,2
+.BYTE 53,2
+.BYTE 49,1
+.BYTE 51,1
+.BYTE 53,1
+.BYTE 55,1
+.BYTE 56,2
+.BYTE 44,2
+.BYTE 44,2
+.BYTE 49,2
+.BYTE 51,1
+.BYTE 49,1
+.BYTE 48,1
+.BYTE 46,1
+.BYTE 48,2
+.BYTE 49,1
+.BYTE 48,1
+.BYTE 46,1
+.BYTE 44,1
+.BYTE 46,2
+.BYTE 48,1
+.BYTE 46,1
+.BYTE 44,1
+.BYTE 43,1
+.BYTE 44,6
+
+.BYTE 128+2,2   ; ビブラート
+
+NOTE2:
+.BYTE 60,2
+.BYTE 56,1
+.BYTE 58,1
+.BYTE 60,1
+.BYTE 56,1
+.BYTE 58,2
+.BYTE 51,1
+.BYTE 53,1
+.BYTE 55,1
+.BYTE 51,1
+.BYTE 56,2
+.BYTE 53,1
+.BYTE 55,1
+.BYTE 56,1
+.BYTE 51,1
+.BYTE 50,2
+.BYTE 48,1
+.BYTE 50,1
+.BYTE 46,2
+.BYTE 46,1
+.BYTE 48,1
+.BYTE 50,1
+.BYTE 51,1
+.BYTE 53,1
+.BYTE 55,1
+.BYTE 56,2
+.BYTE 55,2
+.BYTE 53,2
+.BYTE 55,2
+.BYTE 46,2
+.BYTE 50,2
+.BYTE 51,6
+
+.BYTE 128+2,1   ; ピアノ
+.BYTE 128+1,30  ; ゆっくり
+
+.BYTE 51,2
+.BYTE 44,1
+.BYTE 43,1
+.BYTE 44,2
+.BYTE 53,2
+.BYTE 44,1
+.BYTE 43,1
+.BYTE 44,2
+.BYTE 51,2
+.BYTE 49,2
+.BYTE 49,2
+.BYTE 48,2
+.BYTE 46,1
+.BYTE 44,1
+.BYTE 43,1
+.BYTE 44,1
+.BYTE 46,2
+.BYTE 39,1
+.BYTE 41,1
+.BYTE 43,1
+.BYTE 44,1
+.BYTE 46,1
+.BYTE 48,1
+.BYTE 49,2
+.BYTE 48,2
+.BYTE 46,2
+.BYTE 48,1
+.BYTE 51,1
+.BYTE 44,2
+.BYTE 43,2
+.BYTE 44,6
+
+.BYTE 128+3
+.WORD .LOWORD(NOTES-*-1)
 

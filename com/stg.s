@@ -74,9 +74,10 @@ MAX_STARS = 32        ; 星屑の最大数
   .PROC IMF
     .INCLUDE "./+stg/imf.s"
   .ENDPROC
+  .INCLUDE "./+stg/ymzq.s"
   .INCLUDE "./+stg/infobox.s"
   .INCLUDE "./+stg/dmk.s"
-  .INCLUDE "./+stg/se.s"
+  ;.INCLUDE "./+stg/se.s"
   .INCLUDE "./+stg/enem.s"
   .INCLUDE "./+stg/title.s"
   .INCLUDE "./+stg/str88.s"
@@ -146,8 +147,15 @@ INIT_GAME:
   STA ZP_PLAYER_Y
   ; ---------------------------------------------------------------
   ;   効果音の初期化
-  init_se
+  ;init_se
+  init_ymzq
   init_str88
+  LDX #0
+  loadAY16 BGM_FIELD_A
+  JSR PLAY
+  LDX #1
+  loadAY16 BGM_FIELD_B
+  JSR PLAY
   ; ---------------------------------------------------------------
   ;   CRTCと画面の初期化
   ; FB2
@@ -351,8 +359,8 @@ KILL_PLAYER:
   ; 無敵ならキャンセル
   BBS0 ZP_PL_STAT_FLAG,@SKP_KILL
   ; 効果音
-  LDA #SE2_NUMBER
-  JSR PLAY_SE               ; 撃破効果音
+  ;LDA #SE2_NUMBER
+  ;JSR PLAY_SE               ; 撃破効果音
   ; 残機処理
   DEC ZP_ZANKI              ; 残機減少
   LDA ZP_ZANKI
@@ -630,8 +638,8 @@ TICK_PAD:
   LDA #PLAYER_SHOOTRATE
   STA ZP_PL_COOLDOWN          ; クールダウン更新
   make_pl_blt                 ; PL弾生成
-  LDA #SE_PLSHOT_NUMBER
-  JSR PLAY_SE                 ; 発射音再生
+  ;LDA #SE_PLSHOT_NUMBER
+  ;JSR PLAY_SE                 ; 発射音再生
 @SKP_B:
   BBS6 ZP_PADSTAT,@SKP_Y      ; Y button 敵召喚
   DEC ZP_PL_COOLDOWN          ; クールダウンチェック
@@ -664,7 +672,8 @@ TICK:
   tick_dmk1
   tick_enem
   term_blacklist              ; ブラックリスト終端
-  tick_se                     ; 効果音
+  ;tick_se                     ; 効果音
+  tick_ymzq                   ; PSGシーケンサ
   tick_infobox                ; 情報画面
   exchange_frame              ; フレーム交換
   ; ---------------------------------------------------------------
@@ -840,7 +849,7 @@ PAD_READ:
   RTS
 
 MUTE_ALL:
-  set_ymzreg #YMZ::IA_MIX,#%00111111
+  ;set_ymzreg #YMZ::IA_MIX,#%00111111
   RTS
 
 CHAR_DAT_ZIKI:
@@ -963,3 +972,18 @@ STARS_LIST:
   ;for i in {0..127}; do echo -n $(((RANDOM % 128) * 2 + 1))","; done | clip.exe
   .BYTE 197,23,229,223,97,55,187,133,155,177,71,255,253,197,59,159,153,141,141,101,233,251,159,165,97,105,41,27,133,241,39,83,171,67,199,243,33,201,115,21,59,133,225,251,139,233,235,199,247,141,55,225,55,79,249,131,245,163,161,249,71,77,143,75,55,29,117,89,215,175,147,247,85,207,195,191,31,253,169,107,65,133,203,13,197,11,37,1,13,167,67,191,17,213,43,111,43,255,123,95,133,119,47,77,195,211,151,19,37,243,249,249,3,199,167,43,97,27,193,251,135,159,65,61,67,45,163,33
   .BYTE 1,78,236,249,125,252,207,227,53,170,170,23,45,149,111,205,223,221,220,30,184,254,80,29,53,125,220,76,236,97,138,21,51,22,5,49,122,124,164,228,78,19,238,157,222,99,47,197,187,197,49,64,100,125,224,170,71,147,68,147,235,104,120,248,153,68,27,96,10,183,238,219,5,33,84,189,145,198,50,145,124,210,157,42,198,18,108,236,170,228,236,165,121,202,18,87,207,106,176,180,171,241,112,69,38,229,58,213,98,177,144,180,202,56,205,2,227,56,115,241,22,88,196,53,146,249,17,194
+
+BGM_FIELD_A:
+.BYTE 128+1,2
+.BYTE 128+2,1   ; ピアノ
+  .INCLUDE "./+stg/bgm_field08_A.s"
+.BYTE 128+3     ; 相対ジャンプ
+.WORD .LOWORD(BGM_FIELD_A-*-1)
+
+BGM_FIELD_B:
+.BYTE 128+1,6
+.BYTE 128+2,1   ; ビブラート
+  .INCLUDE "./+stg/bgm_field08_B.s"
+.BYTE 128+3     ; 相対ジャンプ
+.WORD .LOWORD(BGM_FIELD_B-*-1)
+
