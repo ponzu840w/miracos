@@ -59,6 +59,7 @@ LOOP:
   loadAY16 512*IMAGE_BUFFER_SECS  ; 数セクタをバッファに読み込み
   syscall FS_READ_BYTS            ; ロード
   BCS @CLOSE
+  STZ CRTC2::PTRX
   ; 読み取ったセクタ数をバッファ出力ループのイテレータに
   TYA
   LSR

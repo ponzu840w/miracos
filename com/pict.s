@@ -178,6 +178,7 @@ CHUNK:
   loadAY16 512*24
   syscall FS_READ_BYTS            ; ロード
   ; 読み取ったセクタ数をバッファ出力ループのイテレータに
+  STZ CRTC2::PTRX
   TYA   ; 上位をAに
   LSR   ; /2
   TAX   ; Xに
