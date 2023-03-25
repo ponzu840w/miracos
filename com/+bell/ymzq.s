@@ -128,7 +128,7 @@ PLAY:
 ; -------------------------------------------------------------------
 ; カウントダウン・次ノートトリガ・音色ドライブ
 .macro tick_ymzq
-TICK_YMZQ:
+@TICK_YMZQ:
   swap_zr
   LDA ZP_CH_ENABLE
   STA ZP_TICK_TIMER_SR  ; 有効なチャンネルがカウントダウン対象
@@ -137,7 +137,7 @@ TICK_YMZQ:
   ; ---------------------------------------------------------------
   ;   TIMER
   LDX #0
-TICK_LOOP:
+@TICK_LOOP:
   STX ZP_CH
   LSR ZP_TICK_TIMER_SR  ; C=Ch有効/無効
   BCC @TIMER_NEXT_CH    ; 無効Chのカウントダウンをスキップ
@@ -155,7 +155,7 @@ TICK_LOOP:
 @TIMER_NEXT_CH:
   ; ---------------------------------------------------------------
   ;   PRE DRIVE SKIN
-TICK_SKIN:
+@TICK_SKIN:
   ; スキン呼び出し準備
   LSR ZP_TICK_SKIN_SR         ; C=Ch有効/無効
   BCC @DRIVE_SKIN_NEXT_CH     ; 無効Chのカウントダウンをスキップ
@@ -226,7 +226,7 @@ TICK_SKIN:
   INX
   CPX #3
   BEQ @SKP_TICK_LOOP          ; TODO BNE
-  JMP TICK_LOOP
+  JMP @TICK_LOOP
 @SKP_TICK_LOOP:
   restore_zr
 .endmac

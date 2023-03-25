@@ -981,7 +981,7 @@ BGM_FIELD_A:
 .WORD .LOWORD(BGM_FIELD_A-*-1)
 
 BGM_FIELD_B:
-.BYTE 128+1,6
+.BYTE 128+1,2
 .BYTE 128+2,1   ; ビブラート
   .INCLUDE "./+stg/bgm_field08_B.s"
 .BYTE 128+3     ; 相対ジャンプ

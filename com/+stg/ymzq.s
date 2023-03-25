@@ -83,6 +83,10 @@
   ;STA SKIN_PTR_H
   ; 有効チャンネルなし
   STZ ZP_CH_ENABLE
+  LDA #YMZ::IA_MIX
+  STA YMZ::ADDR
+  LDA #$FF
+  STA YMZ::DATA
 .endmac
 
 ; input AY=楽譜 X=ch
