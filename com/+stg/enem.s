@@ -228,8 +228,8 @@ NANAMETTA_UPDATE:
   CLC
   ADC #4
   STA ZP_DMK1_TERMIDX       ; DMK1終端更新
-  LDA #SE1_NUMBER
-  JSR PLAY_SE               ; 発射音再生 X使用
+  ;LDA #SE1_NUMBER
+  ;JSR PLAY_SE               ; 発射音再生 X使用
 @SKP_SHOT:
   ; ---------------------------------------------------------------
   ;   移動
@@ -293,8 +293,8 @@ YOKOGIRYA_UPDATE:
   CLC
   ADC #4
   STA ZP_DMK1_TERMIDX       ; DMK1終端更新
-  LDA #SE1_NUMBER
-  JSR PLAY_SE               ; 発射音再生 X使用
+  ;LDA #SE1_NUMBER
+  ;JSR PLAY_SE               ; 発射音再生 X使用
 @SKP_SHOT:
   ; ---------------------------------------------------------------
   ;   移動
@@ -409,8 +409,8 @@ ENEM_HIT_JT:
 NANAMETTA_HIT:
   LDX ZP_ENEM_XWK
   JSR DEL_ENEM              ; 敵削除
-  LDA #SE2_NUMBER
-  JSR PLAY_SE               ; 撃破効果音
+  ;LDA #SE2_NUMBER
+  ;JSR PLAY_SE               ; 撃破効果音
   LDX ZP_ENEM_XWK
   PLY                       ; BLPTR
   JMP TICK_ENEM_LOOP

@@ -55,11 +55,11 @@ INIT:
   storeAY16 ZP_VB_STUB
 
   LDX #0
-  loadAY16 NOTES
+  loadAY16 TEST_NOTE1
   JSR PLAY
 
-  LDX #2
-  loadAY16 NOISE_NOTES
+  LDX #1
+  loadAY16 TEST_NOTE2
   JSR PLAY
   CLI
 
