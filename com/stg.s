@@ -33,6 +33,14 @@ ZANKI_MAX = 6         ; ストック可能な自機の最大数
 ZANKI_START = 3       ; 残機の初期値
 MAX_STARS = 32        ; 星屑の最大数
 
+; 特殊ステージコマンド
+.PROC CMD_EXT
+  END         = $FF
+  WAIT        = $FE
+  LOOP_START  = $FD
+  LOOP_END    = $FC
+.ENDPROC
+
 ; -------------------------------------------------------------------
 ;                               ZP領域
 ; -------------------------------------------------------------------
@@ -67,6 +75,7 @@ MAX_STARS = 32        ; 星屑の最大数
   ZP_DEATH_FLASH:     .RES 1        ; 死亡時ティックカウンタを記録し、?ティックの範囲でフラッシュ時間を調整
   ZP_PL_STAT_FLAG:    .RES 1        ; 7|???? ?,画面フラッシュ,自動前進,無敵|0
   ZP_STARS_OFFSET:    .RES 1
+  ZP_CMD_STACK_IDX:   .RES 1        ; ステージコマンド制御スタックのポインタ
 
 ; -------------------------------------------------------------------
 ;                           実行用ライブラリ
@@ -524,27 +533,54 @@ TICK_PL_BLT:
 ; -------------------------------------------------------------------
 .macro tick_cmd
 TICK_CMD:
+  LDX ZP_CMD_STACK_IDX; 制御スタックインデックス
   LDY #1              ; コマンド読み取り用インデックス
   LDA (ZP_CMD_PTR)    ; コマンド取得
-  CMP #$FD
-  BNE @SKP_LOOP
+  CMP #CMD_EXT::LOOP_START
+  BNE @SKP_LOOP_START
   ; ---------------------------------------------------------------
-  ;   ループ
-@LOOP:
+  ;   ループ開始
+@LOOP_START:
+  ; アドレスのpush
+  LDA ZP_CMD_PTR
+  STA CMD_STACK,X
+  INX
+  LDA ZP_CMD_PTR+1
+  STA CMD_STACK,X
+  INX
+  ; ループ回数のpush
   LDA (ZP_CMD_PTR),Y  ; 回数
-  DEC
-  STA (ZP_CMD_PTR),Y
-  BEQ @PLUS_4
-  INY
-  LDA (ZP_CMD_PTR),Y
-  TAX
-  INY
-  LDA (ZP_CMD_PTR),Y
-  STX ZP_CMD_PTR
+  STA CMD_STACK,X
+  INX
+  ; スタックインデックスの更新とコマンドポインタの更新
+  STX ZP_CMD_STACK_IDX
+  BRA @PLUS_2
+@SKP_LOOP_START:
+  CMP #CMD_EXT::LOOP_END
+  BNE @SKP_LOOP_END
+  ; ---------------------------------------------------------------
+  ;   ループ終焉
+@LOOP_END:
+  ; ループ回数のデクリメント
+  DEC CMD_STACK,X
+  BEQ @LOOP_EXIT
+  ; ループ:スタック上の戻りアドレスを参照して戻る
+  LDA CMD_STACK-2,X
   STA ZP_CMD_PTR+1
+  LDA CMD_STACK-3,X
+  STA ZP_CMD_PTR
   BRA @END_TICK_CMD
-@SKP_LOOP:
-  CMP #$FE
+  ; 脱出:
+@LOOP_EXIT:
+  ; スタックフレームの破棄
+  DEX
+  DEX
+  DEX
+  STX ZP_CMD_STACK_IDX
+  ; コマンドポインタを進める
+  BRA @PLUS_2
+@SKP_LOOP_END:
+  CMP #CMD_EXT::WAIT
   BNE @SKP_WAIT
   ; ---------------------------------------------------------------
   ;   待機
@@ -557,6 +593,7 @@ TICK_CMD:
 @SKP_NEW_WAIT:
   DEC ZP_CMD_WAIT_CNT
   BNE @END_TICK_CMD
+@PLUS_2:
   CLC
   LDA ZP_CMD_PTR
   ADC #2
@@ -569,7 +606,7 @@ TICK_CMD:
   ; ---------------------------------------------------------------
   ;   終了
 @STOP:
-  CMP #$FF
+  CMP #CMD_EXT::END
   BEQ @END_TICK_CMD
   ; ---------------------------------------------------------------
   ;   敵をコードと引数からスポーン
@@ -868,33 +905,26 @@ CHAR_DAT_DMK1:
   .INCBIN "+stg/dmk1-88.bin"
 
 ; ステージコマンド
-; 特殊ステージコマンド
-.PROC STAGE_CMD
-  END         = $FF
-  WAIT        = $FE
-  LOOP_START  = $FD
-  LOOP_END    = $FC
-.ENDPROC
 
 ; 特殊ステージコマンドマクロ
 ; 待つ
 .macro wait len
-  .BYTE STAGE_CMD::WAIT,len
+  .BYTE CMD_EXT::WAIT,len
 .endmac
 
 ; 回数ループ始点
 .macro lp num
-  .BYTE STAGE_CMD::LOOP_START,num
+  .BYTE CMD_EXT::LOOP_START,num
 .endmac
 
 ; 回数ループ終焉
 .macro lpe
-  .BYTE STAGE_CMD::LOOP_END
+  .BYTE CMD_EXT::LOOP_END
 .endmac
 
 ; ステージエンド
 .macro end
-  .BYTE STAGE_CMD::END
+  .BYTE CMD_EXT::END
 .endmac
 
 STAGE_CMDS:
