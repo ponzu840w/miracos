@@ -33,6 +33,14 @@ ZANKI_MAX = 6         ; ストック可能な自機の最大数
 ZANKI_START = 3       ; 残機の初期値
 MAX_STARS = 32        ; 星屑の最大数
 
+; 特殊ステージコマンド
+.PROC CMD_EXT
+  END         = $FF
+  WAIT        = $FE
+  LOOP_START  = $FD
+  LOOP_END    = $FC
+.ENDPROC
+
 ; -------------------------------------------------------------------
 ;                               ZP領域
 ; -------------------------------------------------------------------
@@ -67,6 +75,7 @@ MAX_STARS = 32        ; 星屑の最大数
   ZP_DEATH_FLASH:     .RES 1        ; 死亡時ティックカウンタを記録し、?ティックの範囲でフラッシュ時間を調整
   ZP_PL_STAT_FLAG:    .RES 1        ; 7|???? ?,画面フラッシュ,自動前進,無敵|0
   ZP_STARS_OFFSET:    .RES 1
+  ZP_CMD_STACK_IDX:   .RES 1        ; ステージコマンド制御スタックのポインタ
 
 ; -------------------------------------------------------------------
 ;                           実行用ライブラリ
@@ -99,6 +108,8 @@ MAX_STARS = 32        ; 星屑の最大数
   ;STARS_LIST:     .RES 256
   ; プレイヤの発射した弾丸
   PLBLT_LST:     .RES 32  ; (X,Y),(X,Y),...
+  ; ステージコマンドの制御スタック
+  CMD_STACK:     .RES 8
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -522,27 +533,54 @@ TICK_PL_BLT:
 ; -------------------------------------------------------------------
 .macro tick_cmd
 TICK_CMD:
+  LDX ZP_CMD_STACK_IDX; 制御スタックインデックス
   LDY #1              ; コマンド読み取り用インデックス
   LDA (ZP_CMD_PTR)    ; コマンド取得
-  CMP #$FD
-  BNE @SKP_LOOP
+  CMP #CMD_EXT::LOOP_START
+  BNE @SKP_LOOP_START
   ; ---------------------------------------------------------------
-  ;   ループ
-@LOOP:
+  ;   ループ開始
+@LOOP_START:
+  ; アドレスのpush
+  LDA ZP_CMD_PTR
+  STA CMD_STACK,X
+  INX
+  LDA ZP_CMD_PTR+1
+  STA CMD_STACK,X
+  INX
+  ; ループ回数のpush
   LDA (ZP_CMD_PTR),Y  ; 回数
-  DEC
-  STA (ZP_CMD_PTR),Y
-  BEQ @PLUS_4
-  INY
-  LDA (ZP_CMD_PTR),Y
-  TAX
-  INY
-  LDA (ZP_CMD_PTR),Y
-  STX ZP_CMD_PTR
+  STA CMD_STACK,X
+  INX
+  ; スタックインデックスの更新とコマンドポインタの更新
+  STX ZP_CMD_STACK_IDX
+  BRA @PLUS_2
+@SKP_LOOP_START:
+  CMP #CMD_EXT::LOOP_END
+  BNE @SKP_LOOP_END
+  ; ---------------------------------------------------------------
+  ;   ループ終焉
+@LOOP_END:
+  ; ループ回数のデクリメント
+  DEC CMD_STACK,X
+  BEQ @LOOP_EXIT
+  ; ループ:スタック上の戻りアドレスを参照して戻る
+  LDA CMD_STACK-2,X
   STA ZP_CMD_PTR+1
+  LDA CMD_STACK-3,X
+  STA ZP_CMD_PTR
   BRA @END_TICK_CMD
-@SKP_LOOP:
-  CMP #$FE
+  ; 脱出:
+@LOOP_EXIT:
+  ; スタックフレームの破棄
+  DEX
+  DEX
+  DEX
+  STX ZP_CMD_STACK_IDX
+  ; コマンドポインタを進める
+  BRA @PLUS_2
+@SKP_LOOP_END:
+  CMP #CMD_EXT::WAIT
   BNE @SKP_WAIT
   ; ---------------------------------------------------------------
   ;   待機
@@ -555,6 +593,7 @@ TICK_CMD:
 @SKP_NEW_WAIT:
   DEC ZP_CMD_WAIT_CNT
   BNE @END_TICK_CMD
+@PLUS_2:
   CLC
   LDA ZP_CMD_PTR
   ADC #2
@@ -567,7 +606,7 @@ TICK_CMD:
   ; ---------------------------------------------------------------
   ;   終了
 @STOP:
-  CMP #$FF
+  CMP #CMD_EXT::END
   BEQ @END_TICK_CMD
   ; ---------------------------------------------------------------
   ;   敵をコードと引数からスポーン
@@ -852,6 +891,10 @@ MUTE_ALL:
   ;set_ymzreg #YMZ::IA_MIX,#%00111111
   RTS
 
+; -------------------------------------------------------------------
+;                             データ領域
+; -------------------------------------------------------------------
+
 CHAR_DAT_ZIKI:
   .INCBIN "+stg/ziki1-88-tate.bin"
 
@@ -861,110 +904,130 @@ CHAR_DAT_ZITAMA1:
 CHAR_DAT_DMK1:
   .INCBIN "+stg/dmk1-88.bin"
 
+; ステージコマンド
+
+; 特殊ステージコマンドマクロ
+; 待つ
+.macro wait len
+  .BYTE CMD_EXT::WAIT,len
+.endmac
+
+; 回数ループ始点
+.macro lp num
+  .BYTE CMD_EXT::LOOP_START,num
+.endmac
+
+; 回数ループ終焉
+.macro lpe
+  .BYTE CMD_EXT::LOOP_END
+.endmac
+
+; ステージエンド
+.macro end
+  .BYTE CMD_EXT::END
+.endmac
+
 STAGE_CMDS:
-  .BYTE $FE,60
+  wait 60
   ; kibis1
-  .REPEAT 5
-  .BYTE ENEM_CODE_2_KIBIS,80,TOP_MARGIN,100
-  .BYTE $FE,30
-  .ENDREP
-  .BYTE $FE,120
+  lp 5
+    .BYTE ENEM_CODE_2_KIBIS,80,TOP_MARGIN,100
+    wait 30
+  lpe
+  wait 120
   ; kibis2
-  .REPEAT 5
-  .BYTE ENEM_CODE_2_KIBIS|1,255-80,TOP_MARGIN,100
-  .BYTE $FE,30
-  .ENDREP
-  .BYTE $FE,120
+  lp 5
+    .BYTE ENEM_CODE_2_KIBIS|1,255-80,TOP_MARGIN,100
+    wait 30
+  lpe
+  wait 120
   ; 支援ナナメッタ
   .BYTE ENEM_CODE_0_NANAMETTA,30,TOP_MARGIN,24
   .BYTE ENEM_CODE_0_NANAMETTA,256-30,TOP_MARGIN,24
-  .BYTE $FE,10
+  wait 10
   ; 同時キビス
-  .REPEAT 5
-  .BYTE ENEM_CODE_2_KIBIS,95,TOP_MARGIN,100
-  .BYTE ENEM_CODE_2_KIBIS|1,255-95,TOP_MARGIN,100
-  .BYTE $FE,30
-  .ENDREP
+  lp 5
+    .BYTE ENEM_CODE_2_KIBIS,95,TOP_MARGIN,100
+    .BYTE ENEM_CODE_2_KIBIS|1,255-95,TOP_MARGIN,100
+  wait 30
+  lpe
   ; 支援ナナメッタ
-  .BYTE $FE,120
+  wait 120
   .BYTE ENEM_CODE_0_NANAMETTA,60,TOP_MARGIN,24
   .BYTE ENEM_CODE_0_NANAMETTA,40,TOP_MARGIN,24
   .BYTE ENEM_CODE_0_NANAMETTA,256-40,TOP_MARGIN,24
   .BYTE ENEM_CODE_0_NANAMETTA,256-60,TOP_MARGIN,24
-  .BYTE $FE,10
+  wait 10
   ; シンプルなヨコギリャループ
 YOKOGIRYA_SIMPLE_LOOP:
-  .REPEAT 10
-  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
-  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
-  .BYTE $FE,10
-  .ENDREP
-  ;.BYTE $FD  ; やはりリロードしないと回数がくるうのはだめだ
-  ;  .BYTE 10
-  ;  .WORD YOKOGIRYA_SIMPLE_LOOP
+  lp 10
+    .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
+    .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
+    wait 10
+  lpe
   .BYTE ENEM_CODE_2_KIBIS,80,TOP_MARGIN,2                 ; アクセントキビス
   ; 支援ナナメッタ
-  .BYTE $FE,120
+  wait 120
   .BYTE ENEM_CODE_0_NANAMETTA,128,TOP_MARGIN,24
-  .BYTE $FE,10
+  wait 10
   ; シンプルなヨコギリャループ
 YOKOGIRYA_SIMPLE_LOOP2:
-  .REPEAT 20
-  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
-  .BYTE $FE,15
-  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
-  .BYTE $FE,15
-  .ENDREP
+  lp 20
+    .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
+    wait 15
+    .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
+    wait 15
+  lpe
   ; 同時キビスつき
-  .REPEAT 5
-  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
-  .BYTE $FE,15
-  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
-  .BYTE ENEM_CODE_2_KIBIS,95,TOP_MARGIN,100
-  .BYTE ENEM_CODE_2_KIBIS|1,255-95,TOP_MARGIN,100
-  .BYTE $FE,15
-  .ENDREP
-  .REPEAT 20
-  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
-  .BYTE $FE,15
-  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
-  .BYTE $FE,15
-  .ENDREP
+  lp 5
+    .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
+    wait 15
+    .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
+    .BYTE ENEM_CODE_2_KIBIS,95,TOP_MARGIN,100
+    .BYTE ENEM_CODE_2_KIBIS|1,255-95,TOP_MARGIN,100
+    wait 15
+  lpe
+  lp 20
+    .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
+    wait 15
+    .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
+    wait 15
+  lpe
   ; 同時キビスつき
-  .REPEAT 5
-  .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
-  .BYTE $FE,15
-  .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
-  .BYTE ENEM_CODE_2_KIBIS,95,TOP_MARGIN,100
-  .BYTE ENEM_CODE_2_KIBIS|1,255-95,TOP_MARGIN,100
-  .BYTE $FE,15
-  .ENDREP
+  lp 5
+    .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
+    wait 15
+    .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
+    .BYTE ENEM_CODE_2_KIBIS,95,TOP_MARGIN,100
+    .BYTE ENEM_CODE_2_KIBIS|1,255-95,TOP_MARGIN,100
+    wait 15
+  lpe
 YOKOGIRYA_LOOP:
-  .BYTE $FE,200
+  wait 200
   .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN,3
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
   .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*3),257-3
   .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*4),3
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*5),257-3
-  .BYTE $FE,10
+  wait 10
   .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN,2
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-2
   .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*3),257-3
   .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*4),4
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*5),257-4
-  .BYTE $FE,10
+  wait 10
   .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN,4
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-4
   .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*2),3
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*3),257-3
   .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*4),2
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*5),257-2
-  .BYTE $FD
-    .BYTE 100
+  lp 100
     .WORD YOKOGIRYA_LOOP
-  .BYTE $FF
+  lpe
+  end
 
 STARS_LIST:
   ; 偶数が早く落ちるので、奇数を増やす
