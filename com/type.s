@@ -1,22 +1,21 @@
 ; -------------------------------------------------------------------
+;                            TYPEコマンド
+; -------------------------------------------------------------------
 ; テキストファイルを打ち出す
 ; -------------------------------------------------------------------
-; TCのテスト
-; -------------------------------------------------------------------
-.INCLUDE "../FXT65.inc"
-.INCLUDE "../generic.mac"
-.INCLUDE "../fs/structfs.s"
-.INCLUDE "../fscons.inc"
-.INCLUDE "../zr.inc"
+.INCLUDE "../generic.mac"     ; 汎用マクロ
 .PROC BCOS
-  .INCLUDE "../syscall.inc"  ; システムコール番号
+  .INCLUDE "../syscall.inc"   ; システムコール番号定義
 .ENDPROC
-.INCLUDE "../syscall.mac"
+.INCLUDE "../syscall.mac"     ; 簡単システムコールマクロ
+.INCLUDE "../FXT65.inc"       ; ハードウェア定義
+.INCLUDE "../fs/structfs.s"   ; ファイルシステム関連構造体定義
+.INCLUDE "../zr.inc"          ; ZPレジスタZR0..ZR5
 
 ; -------------------------------------------------------------------
-;                             変数領域
+;                             ZP変数領域
 ; -------------------------------------------------------------------
-.BSS
+.ZEROPAGE
   FD_SAV:         .RES 1  ; ファイル記述子
   FINFO_SAV:      .RES 2  ; FINFO
 
@@ -25,122 +24,84 @@
 ; -------------------------------------------------------------------
 .CODE
 START:
-  STZ TEXT+256                    ; 終端
-  ;pushAY16                       ; デバッグ情報
-  ;loadAY16 STR_FILE
-  ;syscall CON_OUT_STR
-  ;pullAY16
-  ;pushAY16
-  ;syscall CON_OUT_STR
-  ;JSR PRT_LF
-  ;pullAY16
+  ; ---------------------------------------------------------------
+  ;   初期化
+  ; ---------------------------------------------------------------
+  ;   バッファ終端設定
+  STZ BUFFER+256
+  ; ---------------------------------------------------------------
+  ;   コマンドライン引数処理
+  storeAY16 ZR0                   ; ZR0=arg
   ; nullチェック
-  storeAY16 ZR0
   TAX
   LDA (ZR0)
   BEQ NOTFOUND
   TXA
-  ; オープン
+  ; ---------------------------------------------------------------
+  ;   ファイルオープン
   syscall FS_FIND_FST             ; 検索
   BCS NOTFOUND                    ; 見つからなかったらあきらめる
   storeAY16 FINFO_SAV             ; FINFOを格納
   syscall FS_OPEN                 ; ファイルをオープン
   BCS NOTFOUND                    ; オープンできなかったらあきらめる
   STA FD_SAV                      ; ファイル記述子をセーブ
-  ;JSR PRT_BYT
-  ;JSR PRT_LF
+
+  ; ---------------------------------------------------------------
+  ;   メインループ
+  ; ---------------------------------------------------------------
 LOOP:
-  ; ロード
+  ; ---------------------------------------------------------------
+  ;   バッファへのデータロード
   LDA FD_SAV
-  STA ZR1                         ; 規約、ファイル記述子はZR1！
-  loadmem16 ZR0,TEXT              ; 書き込み先
-  loadAY16 256
-  syscall FS_READ_BYTS            ; ロード
-  BCS @CLOSE
+  STA ZR1                         ; ZR1 = FD
+  loadmem16 ZR0,BUFFER            ; ZR0 = 書き込み先
+  loadAY16 256                    ; AY  = 読み取り長さ
+  syscall FS_READ_BYTS            ; 以上設定で読み取り
+  ; ---------------------------------------------------------------
+  ;   ロード結果への対応
+  BCS @CLOSE                      ; 初手EOF -> 終了
   TAX                             ; 読み取ったバイト数
   CPY #1                          ; 256バイト読んだか？
   BEQ @SKP_EOF
-  LDA #0
-  STZ TEXT,X
+  STZ BUFFER,X                    ; バッファ中にEOF -> 終端設置
 @SKP_EOF:
-  ; 出力
-  loadAY16 TEXT
+  ; ---------------------------------------------------------------
+  ;   バッファ内容の出力
+  loadAY16 BUFFER
   syscall CON_OUT_STR
   BRA LOOP
   ; 最終バイトがあるとき
-  ; クローズ
+
+  ; ---------------------------------------------------------------
+  ;   終了処理
+  ; ---------------------------------------------------------------
 @CLOSE:
+  ; ファイルクローズ
   LDA FD_SAV
   syscall FS_CLOSE                ; クローズ
   BCS BCOS_ERROR
-  ;loadAY16 STR_EOF               ; debug EOF表示
-  ;syscall CON_OUT_STR
   RTS
 
+; ファイルがないとき
 NOTFOUND:
   loadAY16 STR_NOTFOUND
   syscall CON_OUT_STR
   RTS
 
+; カーネルエラーのとき
 BCOS_ERROR:
-  JSR PRT_LF
+  LDA #$A
+  syscall CON_OUT_CHR
   syscall ERR_GET
   syscall ERR_MES
   JMP LOOP
 
-;PRT_BYT:
-;  JSR BYT2ASC
-;  PHY
-;  JSR PRT_C_CALL
-;  PLA
-PRT_C_CALL:
-  syscall CON_OUT_CHR
-  RTS
-
-PRT_LF:
-  ; 改行
-  LDA #$A
-  JMP PRT_C_CALL
-;
-;PRT_S:
-;  ; スペース
-;  LDA #' '
-;  JMP PRT_C_CALL
-;
-;BYT2ASC:
-;  ; Aで与えられたバイト値をASCII値AYにする
-;  ; Aから先に表示すると良い
-;  PHA           ; 下位のために保存
-;  AND #$0F
-;  JSR NIB2ASC
-;  TAY
-;  PLA
-;  LSR           ; 右シフトx4で上位を下位に持ってくる
-;  LSR
-;  LSR
-;  LSR
-;  JSR NIB2ASC
-;  RTS
-;
-;NIB2ASC:
-;  ; #$0?をアスキー一文字にする
-;  ORA #$30
-;  CMP #$3A
-;  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
-;  ADC #$06
-;@SKP_ADC:
-;  RTS
-
 STR_NOTFOUND:
   .BYT "Input File Not Found.",$A,$0
-;STR_FILE:
-;  .BYT "File:",$0
-;STR_EOF:
-;  .BYT "[EOF]",$0
 
 ; -------------------------------------------------------------------
-;                             データ領域
+;                            バッファ領域
 ; -------------------------------------------------------------------
 .BSS
-TEXT:
+BUFFER:
 
