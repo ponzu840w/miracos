@@ -51,8 +51,8 @@ LOOP:
   STA ZR0
   loadAY16 COMMAND_BUF            ; バッファ指定
   syscall CON_IN_STR              ; バッファ行入力
-  loadAY16 COMMAND_BUF            ; バッファ指定
-  syscall UPPER_STR               ; 大文字変換
+  ;loadAY16 COMMAND_BUF            ; バッファ指定
+  ;syscall UPPER_STR               ; 大文字変換
 ; コマンドライン解析
   LDA COMMAND_BUF                 ; バッファ先頭を取得
   BEQ LOOP                        ; バッファ長さ0ならとりやめ
@@ -78,9 +78,11 @@ LOOP:
   ADC #>COMMAND_BUF
   PHA                             ; 上位をプッシュ
 @SEARCH_ICOM:
-  LDX #0                          ; 内部コマンド番号初期化
+  loadAY16 COMMAND_BUF
+  syscall UPPER_STR
   loadmem16 ZR0,COMMAND_BUF       ; 入力されたコマンドをZR0に
   loadmem16 ZR1,ICOMNAMES         ; 内部コマンド名称配列をZR1に
+  LDX #0                          ; 内部コマンド番号初期化
 @NEXT_ICOM:
   JSR M_EQ                        ; 両ポインタは等しいか？
   BEQ EXEC_ICOM                   ; 等しければ実行する（Xが渡る
@@ -286,10 +288,6 @@ PRT_C_CALL:
 ;@SKP_ADC:
 ;  RTS
 
-M_EQ_AY:
-  ; AYとZR0が等しいかを返す
-  STA ZR1
-  STY ZR1+1
 M_EQ:
   LDY #$FF                ; インデックスはゼロから
 @LOOP:

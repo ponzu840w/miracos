@@ -532,6 +532,8 @@ FUNC_FS_FPATH:
   STA PATH_WK-1,Y
 @RET:
   loadAY16 PATH_WK
+  JSR FUNC_UPPER_STR
+  loadAY16 PATH_WK
   CLC                           ; キャリークリアで成功を示す
   RTS
 @DELDOTS:                       ; ../を消すループ（飛び地）
