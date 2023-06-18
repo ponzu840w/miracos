@@ -1,7 +1,7 @@
 ; -------------------------------------------------------------------
-;                            TYPEコマンド
+;                           GREPコマンド
 ; -------------------------------------------------------------------
-; テキストファイルを打ち出す
+; テキストファイルを読み、パターンに一致した行のみを表示する
 ; -------------------------------------------------------------------
 .INCLUDE "../generic.mac"     ; 汎用マクロ
 .PROC BCOS
@@ -12,15 +12,16 @@
 .INCLUDE "../fs/structfs.s"   ; ファイルシステム関連構造体定義
 .INCLUDE "../zr.inc"          ; ZPレジスタZR0..ZR5
 
-FILE_BUF_SIZE = 512
-
 ; -------------------------------------------------------------------
 ;                             ZP変数領域
 ; -------------------------------------------------------------------
 .ZEROPAGE
-  FD_SAV:         .RES 1    ; ファイル記述子
-  FINFO_SAV:      .RES 2    ; FINFO
-  FILE_BUF_PTR:   .RES 2    ; ファイルバッファ上のどこかを指すポインタ
+  FD_SAV:         .RES 1  ; ファイル記述子
+  FINFO_SAV:      .RES 2  ; FINFO
+  FILE_BUF_PTR:   .RES 2  ; ファイルバッファ上のどこかを指すポインタ
+  LINE_BUF_PTR:   .RES 1
+
+FILE_BUF_SIZE = 512
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -48,12 +49,11 @@ START:
   BCS NOTFOUND                    ; オープンできなかったらあきらめる
   STA FD_SAV                      ; ファイル記述子をセーブ
 
-  ; ---------------------------------------------------------------
-  ;   メインループ
-  ; ---------------------------------------------------------------
-LOOP:
+  loadmem16 LINE_BUF_PTR,LINE_BUF
+
   ; ---------------------------------------------------------------
   ;   バッファへのデータロード
+LOAD_FILE:
   LDA FD_SAV
   STA ZR1                         ; ZR1 = FD
   loadmem16 ZR0,FILE_BUF          ; ZR0 = 書き込み先
@@ -61,7 +61,7 @@ LOOP:
   syscall FS_READ_BYTS            ; 以上設定で読み取り
   ; ---------------------------------------------------------------
   ;   ロード結果への対応
-  BCS @CLOSE                      ; 初手EOF -> 終了
+  BCS CLOSE                       ; 初手EOF -> 終了
   CLC                             ; *
   ADC #<FILE_BUF                  ; | *FILE_BUF_PTR = &FILE_BUF + len;
   STA FILE_BUF_PTR                ; |
@@ -71,25 +71,51 @@ LOOP:
   LDA #0
   STA (FILE_BUF_PTR)              ; 終端
   ; ---------------------------------------------------------------
-  ;   バッファ内容の出力
-  loadAY16 FILE_BUF
+  ;   バッファ->行バッファ
+  loadmem16 FILE_BUF_PTR,FILE_BUF
+LOAD_LINE:
+  LDA (FILE_BUF_PTR)              ; バッファから1文字取得
+  BEQ LOAD_FILE                   ; それが終端ならファイルロード
+  STA (LINE_BUF_PTR)              ; 行バッファに書き出し
+  BEQ LOAD_FILE
+  ; FILE_BUF_PTR++
+  INC FILE_BUF_PTR
+  BNE @SKP_INCFILEPTR
+  INC FILE_BUF_PTR+1
+@SKP_INCFILEPTR:
+  ; LINE_BUF_PTR++
+  INC LINE_BUF_PTR
+  BNE @SKP_INCLINEPTR
+  INC LINE_BUF_PTR+1
+@SKP_INCLINEPTR:
+  ; 改行までループ
+  CMP #$A
+  BNE LOAD_LINE
+  ; ---------------------------------------------------------------
+  ;   行バッファ終端設置
+  LDA #0
+  STA (LINE_BUF_PTR)
+  ; ---------------------------------------------------------------
+  ;   行バッファ内容の出力
+  loadAY16 LINE_BUF
   syscall CON_OUT_STR
-  BRA LOOP
-
-  ; ---------------------------------------------------------------
-  ;   終了処理
-  ; ---------------------------------------------------------------
-@CLOSE:
-  ; ファイルクローズ
-  LDA FD_SAV
-  syscall FS_CLOSE                ; クローズ
-  BCS BCOS_ERROR
-  RTS
+  loadmem16 LINE_BUF_PTR,LINE_BUF
+  BRA LOAD_LINE
 
 ; ファイルがないとき
 NOTFOUND:
   loadAY16 STR_NOTFOUND
   syscall CON_OUT_STR
+  RTS
+
+  ; ---------------------------------------------------------------
+  ;   終了処理
+  ; ---------------------------------------------------------------
+CLOSE:
+  ; ファイルクローズ
+  LDA FD_SAV
+  syscall FS_CLOSE                ; クローズ
+  BCS BCOS_ERROR
   RTS
 
 ; カーネルエラーのとき
@@ -107,5 +133,6 @@ STR_NOTFOUND:
 ;                            バッファ領域
 ; -------------------------------------------------------------------
 .BSS
-FILE_BUF:
+FILE_BUF:       .RES FILE_BUF_SIZE+1
+LINE_BUF:
 
