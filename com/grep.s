@@ -19,7 +19,7 @@
   FD_SAV:         .RES 1  ; ファイル記述子
   FINFO_SAV:      .RES 2  ; FINFO
   FILE_BUF_PTR:   .RES 2  ; ファイルバッファ上のどこかを指すポインタ
-  LINE_BUF_PTR:   .RES 1
+  LINE_BUF_PTR:   .RES 2
 
 FILE_BUF_SIZE = 512
 
@@ -31,15 +31,62 @@ START:
   ; ---------------------------------------------------------------
   ;   初期化
   ; ---------------------------------------------------------------
-  STZ FILE_BUF+FILE_BUF_SIZE      ;   バッファ終端設定
+  storeAY16 ZR0                   ; ZR0=arg
+  STZ FILE_BUF+FILE_BUF_SIZE      ; バッファ終端設定
+  loadmem16 LINE_BUF_PTR,LINE_BUF ; 行バッファポインタ初期化
+
   ; ---------------------------------------------------------------
   ;   コマンドライン引数処理
-  storeAY16 ZR0                   ; ZR0=arg
+  ; ---------------------------------------------------------------
+  ;   PATTERN文字列の取得
+  LDA #'*'
+  STA PATTERN                     ; 1文字目は*
+  LDY #255
+@LOOP:
+  INY
+  LDA (ZR0),Y
+  BEQ @NOTFOUND1                  ; ヌル文字があったら、ファイル指定がない
+  CMP #'\'
+  BNE @SKP_BSL                    ; \エスケープ
+  INY
+  LDA (ZR0),Y
+  STA PATTERN+1,Y
+  BRA @LOOP
+@SKP_BSL:
+  STA PATTERN+1,Y
+  CMP #' '
+  BNE @LOOP
+  LDA #'*'
+  STA PATTERN+1,Y
+  LDA #0
+  STA PATTERN+2,Y
+  ; debug
+  PHY
+  loadAY16 PATTERN
+  syscall CON_OUT_STR
+  PLY
+  ; ---------------------------------------------------------------
+  ;   ファイルパス文字列の取得
+  ; ZR0 <- path*
+  ; 次にスペース以外が出るまで進める
+@SPNEXT:
+  INY
+  LDA (ZR0),Y
+  CMP #' '
+  BEQ @SPNEXT
+  ; ZR0に反映する
+  TYA
+  CLC
+  ADC ZR0
+  STA ZR0
+  LDA #0
+  ADC ZR0+1
+  STA ZR0+1
   ; nullチェック
-  TAX
   LDA (ZR0)
+@NOTFOUND1:
   BEQ NOTFOUND
-  TXA
+  mem2AY16 ZR0
   ; ---------------------------------------------------------------
   ;   ファイルオープン
   syscall FS_FIND_FST             ; 検索
@@ -48,8 +95,6 @@ START:
   syscall FS_OPEN                 ; ファイルをオープン
   BCS NOTFOUND                    ; オープンできなかったらあきらめる
   STA FD_SAV                      ; ファイル記述子をセーブ
-
-  loadmem16 LINE_BUF_PTR,LINE_BUF
 
   ; ---------------------------------------------------------------
   ;   バッファへのデータロード
@@ -77,17 +122,8 @@ LOAD_LINE:
   LDA (FILE_BUF_PTR)              ; バッファから1文字取得
   BEQ LOAD_FILE                   ; それが終端ならファイルロード
   STA (LINE_BUF_PTR)              ; 行バッファに書き出し
-  BEQ LOAD_FILE
-  ; FILE_BUF_PTR++
-  INC FILE_BUF_PTR
-  BNE @SKP_INCFILEPTR
-  INC FILE_BUF_PTR+1
-@SKP_INCFILEPTR:
-  ; LINE_BUF_PTR++
-  INC LINE_BUF_PTR
-  BNE @SKP_INCLINEPTR
-  INC LINE_BUF_PTR+1
-@SKP_INCLINEPTR:
+  JSR INC_FILE_BUF_PTR            ; ファイルバッファポインタを進める
+  JSR INC_LINE_BUF_PTR            ; 行バッファポインタを進める
   ; 改行までループ
   CMP #$A
   BNE LOAD_LINE
@@ -126,13 +162,70 @@ BCOS_ERROR:
   syscall ERR_MES
   RTS
 
+PATTERNMATCH:                   ; http://www.6502.org/source/strings/patmatch.htm by Paul Guertin
+  LDX #0                        ; PATTERNのインデックス
+  loadmem16 LINE_BUF_PTR,LINE_BUF
+@NEXT:
+  LDA PATTERN,X                 ; 次のパターン文字を見る
+  CMP #'*'                      ; スターか？
+  BEQ @STAR
+  JSR INC_LINE_BUF_PTR
+  CMP #'?'                      ; ハテナか
+  BNE @REG                      ; スターでもはてなでもないので普通の文字
+  LDA (LINE_BUF_PTR)            ; ハテナなのでなんにでもマッチする（同じ文字をロードしておいて比較する）
+  BEQ @FAIL                     ; 終了ならマッチしない
+@REG:
+  CMP (LINE_BUF_PTR)            ; 文字が等しいか？
+  BEQ @EQ
+  syscall UPPER_CHR             ; 大文字ではどうか
+  CMP (LINE_BUF_PTR)            ; 文字が等しいか2
+  BNE @FAIL
+@EQ:
+  INX                           ; 合っている、続けよう
+  CMP #0                        ; これらは終端か
+  BNE @NEXT
+@FOUND:
+  RTS                           ; 成功したのでC=1を返す（SECしなくてよいのか）
+@STAR:
+  INX                           ; ZR2パターンの*をスキップ
+  CMP PATTERN,X                 ; 連続する*は一つの*に等しい
+  BEQ @STAR                     ; のでスキップする
+@STLOOP:
+  PHX
+  JSR @NEXT
+  PLX
+  BCS @FOUND                    ; マッチしたらC=1が帰る
+  JSR INC_LINE_BUF_PTR          ; マッチしなかったら*を成長させる
+  LDA (LINE_BUF_PTR)            ; 終端か
+  BNE @STLOOP
+@FAIL:
+  CLC                           ; マッチしなかったらC=0が帰る
+  RTS
+
+; LINE_BUF_PTR++
+INC_FILE_BUF_PTR:
+  INC FILE_BUF_PTR
+  BNE @SKP_INCFILEPTR
+  INC FILE_BUF_PTR+1
+@SKP_INCFILEPTR:
+  RTS
+
+; FILE_BUF_PTR++
+INC_LINE_BUF_PTR:
+  INC LINE_BUF_PTR
+  BNE @SKP_INCLINEPTR
+  INC LINE_BUF_PTR+1
+@SKP_INCLINEPTR:
+  RTS
+
 STR_NOTFOUND:
   .BYT "Input File Not Found.",$A,$0
 
 ; -------------------------------------------------------------------
-;                            バッファ領域
+;                            変数領域
 ; -------------------------------------------------------------------
 .BSS
+PATTERN:        .RES 256
 FILE_BUF:       .RES FILE_BUF_SIZE+1
 LINE_BUF:
 
