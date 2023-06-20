@@ -2,6 +2,12 @@
 ;                           GREPコマンド
 ; -------------------------------------------------------------------
 ; テキストファイルを読み、パターンに一致した行のみを表示する
+; 使い方: grep pat?e*n ./hoge.txt
+; パターンマッチ詳細:
+;   小文字パターンは大文字/小文字両方にマッチする。
+;   大文字パターンは大文字にのみマッチする。
+;   *: 0文字以上の文字列にマッチ
+;   ?: 1文字にマッチ
 ; -------------------------------------------------------------------
 .INCLUDE "../generic.mac"     ; 汎用マクロ
 .PROC BCOS
@@ -42,29 +48,26 @@ START:
   LDA #'*'
   STA PATTERN                     ; 1文字目は*
   LDY #255
+  LDX #255
 @LOOP:
   INY
+  INX
   LDA (ZR0),Y
   BEQ @NOTFOUND1                  ; ヌル文字があったら、ファイル指定がない
   CMP #'\'
   BNE @SKP_BSL                    ; \エスケープ
   INY
   LDA (ZR0),Y
-  STA PATTERN+1,Y
+  STA PATTERN+1,X
   BRA @LOOP
 @SKP_BSL:
-  STA PATTERN+1,Y
+  STA PATTERN+1,X
   CMP #' '
   BNE @LOOP
   LDA #'*'
-  STA PATTERN+1,Y
+  STA PATTERN+1,X
   LDA #0
-  STA PATTERN+2,Y
-  ; debug
-  PHY
-  loadAY16 PATTERN
-  syscall CON_OUT_STR
-  PLY
+  STA PATTERN+2,X
   ; ---------------------------------------------------------------
   ;   ファイルパス文字列の取得
   ; ZR0 <- path*
@@ -132,9 +135,14 @@ LOAD_LINE:
   LDA #0
   STA (LINE_BUF_PTR)
   ; ---------------------------------------------------------------
+  ;   行の表示の可否を判定
+  JSR PATTERNMATCH
+  BCC @NEXT
+  ; ---------------------------------------------------------------
   ;   行バッファ内容の出力
   loadAY16 LINE_BUF
   syscall CON_OUT_STR
+@NEXT:
   loadmem16 LINE_BUF_PTR,LINE_BUF
   BRA LOAD_LINE
 
@@ -164,7 +172,7 @@ BCOS_ERROR:
 
 PATTERNMATCH:                   ; http://www.6502.org/source/strings/patmatch.htm by Paul Guertin
   LDX #0                        ; PATTERNのインデックス
-  loadmem16 LINE_BUF_PTR,LINE_BUF
+  loadmem16 LINE_BUF_PTR,LINE_BUF-1
 @NEXT:
   LDA PATTERN,X                 ; 次のパターン文字を見る
   CMP #'*'                      ; スターか？
@@ -177,7 +185,9 @@ PATTERNMATCH:                   ; http://www.6502.org/source/strings/patmatch.ht
 @REG:
   CMP (LINE_BUF_PTR)            ; 文字が等しいか？
   BEQ @EQ
+  PHX
   syscall UPPER_CHR             ; 大文字ではどうか
+  PLX
   CMP (LINE_BUF_PTR)            ; 文字が等しいか2
   BNE @FAIL
 @EQ:
@@ -192,7 +202,9 @@ PATTERNMATCH:                   ; http://www.6502.org/source/strings/patmatch.ht
   BEQ @STAR                     ; のでスキップする
 @STLOOP:
   PHX
+  pushmem16 LINE_BUF_PTR
   JSR @NEXT
+  pullmem16 LINE_BUF_PTR
   PLX
   BCS @FOUND                    ; マッチしたらC=1が帰る
   JSR INC_LINE_BUF_PTR          ; マッチしなかったら*を成長させる
@@ -202,7 +214,7 @@ PATTERNMATCH:                   ; http://www.6502.org/source/strings/patmatch.ht
   CLC                           ; マッチしなかったらC=0が帰る
   RTS
 
-; LINE_BUF_PTR++
+; FILE_BUF_PTR++
 INC_FILE_BUF_PTR:
   INC FILE_BUF_PTR
   BNE @SKP_INCFILEPTR
@@ -210,7 +222,7 @@ INC_FILE_BUF_PTR:
 @SKP_INCFILEPTR:
   RTS
 
-; FILE_BUF_PTR++
+; LINE_BUF_PTR++
 INC_LINE_BUF_PTR:
   INC LINE_BUF_PTR
   BNE @SKP_INCLINEPTR
