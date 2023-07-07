@@ -20,7 +20,6 @@ td=$(mktemp -d)         # 一時ディレクトリ作成
 trap "rm -rf $td" EXIT  # スクリプト終了時に処分
 
 # コマンドアセンブル
-#cl65 -Wa -I,"./" -vm -t none -C ../conftpa.cfg -o "${td}/tmp.com" $1
 ca65 -I "./" --cpu 65c02 -o "${td}/tmp.o" $1
 ld65 -C ../conftpa.cfg -o "${td}/tmp.com" "${td}/tmp.o"
 
