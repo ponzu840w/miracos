@@ -21,7 +21,7 @@
 .include "../syscall.mac"   ; 普段使ってるマクロ
 .endproc
 
-.export _coutc,_couts       ; Cから呼び出せる関数名を宣言
+.export _coutc,_couts,_cins ; Cから呼び出せる関数名を宣言
 
 .CODE
 
@@ -46,5 +46,15 @@
   JSR BCOS::SYSCALL               ; コール
   ; --- マクロここまで ---
   rts                             ; 復帰
+.endproc
+
+; -------------------------------------------------------------------
+;                              cins
+; -------------------------------------------------------------------
+.proc _cins: near                  ; 引数: A=格納先アドレス
+  PHX
+  PLY
+  syscall CON_IN_STR
+  rts
 .endproc
 
