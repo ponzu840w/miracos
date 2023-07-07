@@ -7,6 +7,7 @@ CCP_START="0x5000"
 BCOS_START="0x5300"
 NOUSE_START="0x8000"
 SEPARATOR="---------------------------------------------------------------------------"
+clib="/usr/share/cc65/lib/supervision.lib"
 
 # --- 簡略化関数群
 # initmessageを出力する
@@ -16,8 +17,8 @@ function writeInitMessage () {
 }
 
 # 一時ディレクトリ
-tmpdir=$(mktemp -d)         # 一時ディレクトリ作成
-trap "rm -rf $tmpdir" EXIT  # スクリプト終了時に処分
+td=$(mktemp -d)         # 一時ディレクトリ作成
+trap "rm -rf $td" EXIT  # スクリプト終了時に処分
 
 version=$(git describe --abbrev=0 --tags)
 commit=$(git rev-parse HEAD | cut -c1-6 | tr -d "\n")
@@ -30,11 +31,11 @@ mkdir ./bin/MCOS -p
 # S-REC作成
 writeInitMessage t          # テストビルドであることを明示
 cl65  -Wa -D,SRECBUILD=1 -vm -t none \
-      -C ./confcos.cfg -o ${tmpdir}/bcos.sys ./bcos.s # SRECビルドモードで再ビルド
-objcopy -I binary -O srec --adjust-vma=$BCOS_START ${tmpdir}/bcos.sys ${tmpdir}/bcos.srec
-objcopy -I binary -O srec --adjust-vma=$CCP_START ./bin/MCOS/CCP.SYS ${tmpdir}/ccp.srec
-objcopy -I binary -O srec --adjust-vma=$SYSCALLTABLE_START ./bin/MCOS/SYSCALL.SYS ${tmpdir}/syscall.srec
-cat ${tmpdir}/bcos.srec ${tmpdir}/ccp.srec | awk '/S1/' | cat - ${tmpdir}/syscall.srec | clip.exe # クリップボードに合成
+      -C ./confcos.cfg -o ${td}/bcos.sys ./bcos.s # SRECビルドモードで再ビルド
+objcopy -I binary -O srec --adjust-vma=$BCOS_START ${td}/bcos.sys ${td}/bcos.srec
+objcopy -I binary -O srec --adjust-vma=$CCP_START ./bin/MCOS/CCP.SYS ${td}/ccp.srec
+objcopy -I binary -O srec --adjust-vma=$SYSCALLTABLE_START ./bin/MCOS/SYSCALL.SYS ${td}/syscall.srec
+cat ${td}/bcos.srec ${td}/ccp.srec | awk '/S1/' | cat - ${td}/syscall.srec | clip.exe # クリップボードに合成
 
 # リリースBCOSアセンブル
 writeInitMessage r        # リリースビルド
@@ -42,10 +43,14 @@ cl65  -g -Wl -Ln,./listing/symbol-bcos.s \
       -l ./listing/list-bcos.s -m ./listing/map-bcos.s -vm -t none \
       -C ./confcos.cfg -o ./bin/BCOS.SYS ./bcos.s
 
+# C言語共通関数の準備
+ca65 --cpu 65c02 -o "${td}/bcosfunc.o" ./cc/bcosfunc.s   # CMOS命令ありでbcosfunc.sをアセンブル
+ca65 --cpu 65c02 -o "${td}/crt0.o" ./cc/crt0.s           # CMOS命令ありでcrt0.sをアセンブル
+
 # コマンドアセンブル
 rm ./bin/MCOS/COM/* -fr                 # 古いバイナリを廃棄
 # ディレクトリが優先されるようにソートしつつソースのリストを作成
-com_srcs=$(find ./com/*.s;find ./com/test/*.s])
+com_srcs=$(find ./com/*.[sc];find ./com/test/*.[sc])
 #echo "$com_srcs"
 predir=""                               # 表示をすっきりさせるためのディレクトリ移動ディテクタ
 for comsrc in $com_srcs;                # com内の.sファイルすべてに対して
@@ -64,16 +69,32 @@ do
   mkdir ./listing/${dn} -p
   mkdir ./bin/MCOS/${dn^^} -p
   # アセンブル/コンパイル 本番
-  ca65  -g -I "./com" \
-        --cpu 65c02 \
-        -l ./listing/${dn}/l-${bn}.s \
-        -o "${tmpdir}/tmp.o" \
-        $comsrc
-  ld65  -vm -C ./conftpa.cfg \
-        -m ./listing/${dn}/${bn}.map \
-        -Ln ./listing/${dn}/s-${bn}.s \
-        -o $out \
-        "${tmpdir}/tmp.o"
+  # コンパイル
+  if [ "${ex##*.}" = "c" ]; then
+    cc65 -t none -O --cpu 65c02 -o "${td}/src.s" $comsrc
+    ca65  -g -I "./com" \
+          --cpu 65c02 \
+          -l ./listing/${dn}/l-${bn}.s \
+          -o "${td}/tmp.o" \
+          "${td}/src.s"
+    ld65  -vm -C ./cc/conftpa_c.cfg \
+          -m ./listing/${dn}/${bn}.map \
+          -Ln ./listing/${dn}/s-${bn}.s \
+          -o $out \
+          ${td}/tmp.o ${td}/crt0.o ${td}/bcosfunc.o $clib
+  # アセンブル
+  else
+    ca65  -g -I "./com" \
+          --cpu 65c02 \
+          -l ./listing/${dn}/l-${bn}.s \
+          -o "${td}/tmp.o" \
+          $comsrc
+    ld65  -vm -C ./conftpa.cfg \
+          -m ./listing/${dn}/${bn}.map \
+          -Ln ./listing/${dn}/s-${bn}.s \
+          -o $out \
+          "${td}/tmp.o"
+  fi
   # 概要表示
   cat ./listing/${dn}/${bn}.map |
     awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 " 0x"$2 " 0x"$3 " 0x"$4}' |
@@ -97,7 +118,7 @@ find ./com/ -name "*.o" | xargs rm -f
 
 # ----------------- ビルド結果の表示 ------------------------
 # awkコマンドの共通部分
-cat - << EOS > ${tmpdir}/awkcom
+cat - << EOS > ${td}/awkcom
   END{
     area=strtonum(end)-strtonum(start)
     use=size/area
@@ -118,29 +139,29 @@ segmentlist=$(cat listing/map-bcos.s | awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 
 
 # ゼロページ
 echo $SEPARATOR
-cat - << EOS > ${tmpdir}/awkcom_zp
+cat - << EOS > ${td}/awkcom_zp
   BEGIN{printf("[System-ZP]\n")}
   /ZEROPAGE/ { line("ZP", \$2, \$3, \$4) }
 EOS
-echo "$segmentlist"| awk -v start=$ZP_START -v end=$ZP_END -f ${tmpdir}/awkcom -f ${tmpdir}/awkcom_zp
+echo "$segmentlist"| awk -v start=$ZP_START -v end=$ZP_END -f ${td}/awkcom -f ${td}/awkcom_zp
 
 # CCP
 echo $SEPARATOR
-cat - << EOS > ${tmpdir}/awkcom_ccp
+cat - << EOS > ${td}/awkcom_ccp
   BEGIN{printf("[CCP.SYS]\n")}
   /^CODE/ { line("CODE", \$2, \$3, \$4) }
   /^BSS/ { line("VAR", \$2, \$3, \$4) }
 EOS
-echo "$segmentlist"| awk -v start=$CCP_START -v end=$BCOS_START -f ${tmpdir}/awkcom -f ${tmpdir}/awkcom_ccp
+echo "$segmentlist"| awk -v start=$CCP_START -v end=$BCOS_START -f ${td}/awkcom -f ${td}/awkcom_ccp
 
 # BCOS
 echo $SEPARATOR
-cat - << EOS > ${tmpdir}/awkcom_bcos
+cat - << EOS > ${td}/awkcom_bcos
   BEGIN{printf("[BCOS.SYS]\n")}
   /COSCODE/ { line("CODE", \$2, \$3, \$4) }
   /COSLIB/  { line("LIB", \$2, \$3, \$4) }
   /COSVAR/  { line("VAR", \$2, \$3, \$4) }
   /COSBF100/{ line("BUF", \$2, \$3, \$4) }
 EOS
-echo "$segmentlist" | awk -v start=$BCOS_START -v end=$NOUSE_START -f ${tmpdir}/awkcom -f ${tmpdir}/awkcom_bcos
+echo "$segmentlist" | awk -v start=$BCOS_START -v end=$NOUSE_START -f ${td}/awkcom -f ${td}/awkcom_bcos
 
