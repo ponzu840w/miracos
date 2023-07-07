@@ -29,7 +29,8 @@ mkdir ./bin/MCOS -p
 
 # S-REC作成
 writeInitMessage t          # テストビルドであることを明示
-cl65 -Wa -D,SRECBUILD=1 -vm -t none -C ./confcos.cfg -o ${tmpdir}/bcos.sys ./bcos.s # SRECビルドモードで再ビルド
+cl65  -Wa -D,SRECBUILD=1 -vm -t none \
+      -C ./confcos.cfg -o ${tmpdir}/bcos.sys ./bcos.s # SRECビルドモードで再ビルド
 objcopy -I binary -O srec --adjust-vma=$BCOS_START ${tmpdir}/bcos.sys ${tmpdir}/bcos.srec
 objcopy -I binary -O srec --adjust-vma=$CCP_START ./bin/MCOS/CCP.SYS ${tmpdir}/ccp.srec
 objcopy -I binary -O srec --adjust-vma=$SYSCALLTABLE_START ./bin/MCOS/SYSCALL.SYS ${tmpdir}/syscall.srec
@@ -37,29 +38,43 @@ cat ${tmpdir}/bcos.srec ${tmpdir}/ccp.srec | awk '/S1/' | cat - ${tmpdir}/syscal
 
 # リリースBCOSアセンブル
 writeInitMessage r        # リリースビルド
-cl65 -g -Wl -Ln,./listing/symbol-bcos.s  -l ./listing/list-bcos.s -m ./listing/map-bcos.s -vm -t none -C ./confcos.cfg -o ./bin/BCOS.SYS ./bcos.s
+cl65  -g -Wl -Ln,./listing/symbol-bcos.s \
+      -l ./listing/list-bcos.s -m ./listing/map-bcos.s -vm -t none \
+      -C ./confcos.cfg -o ./bin/BCOS.SYS ./bcos.s
 
 # コマンドアセンブル
 rm ./bin/MCOS/COM/* -fr                 # 古いバイナリを廃棄
 # ディレクトリが優先されるようにソートしつつソースのリストを作成
-#com_srcs=$(find ./com/* | awk '/\.s$/{"dirname "$0""|getline var;printf("%s %s\n",var,$0)}' | sort | awk '{print $2}')
-com_srcs=$(find ./com/*.s;find ./com/test/*.s)
+com_srcs=$(find ./com/*.s;find ./com/test/*.s])
 #echo "$com_srcs"
 predir=""                               # 表示をすっきりさせるためのディレクトリ移動ディテクタ
 for comsrc in $com_srcs;                # com内の.sファイルすべてに対して
 do
   nam=$(echo $comsrc | cut -c 3-)       # ./を無視
   dn=$(dirname $nam)                    # com/ あるいはcom/testなどディレクトリ部
-  bn=$(basename $nam .s)                # ファイル名を抽出
+  bn=$(basename $nam)                   # ファイル名を抽出
+  ex=${bn##*.}                          # 拡張子を抽出
+  bn=${bn%.*}                           # 拡張子を覗いたファイル名を抽出
   out="./bin/MCOS/"${dn^^}/${bn^^}.COM  # 出力ファイルは大文字に
-  #echo $nam $dn $bn $out
-  if [[ "$predir" != "$dn" ]]; then
+  #echo $nam $dn $bn $ex $out
+  if [[ "$predir" != "$dn" ]]; then     # ディレクトリが変わったら表示
     echo ${dn^^}
     predir=$dn
   fi
   mkdir ./listing/${dn} -p
   mkdir ./bin/MCOS/${dn^^} -p
-  cl65 -g -Wl -Ln,./listing/${dn}/s-${bn}.s -l ./listing/${dn}/l-${bn}.s -Wa -I,"./com/" -m ./listing/${dn}/${bn}.map -vm -t none -C ./conftpa.cfg -o $out $comsrc
+  # アセンブル/コンパイル 本番
+  ca65  -g -I "./com" \
+        --cpu 65c02 \
+        -l ./listing/${dn}/l-${bn}.s \
+        -o "${tmpdir}/tmp.o" \
+        $comsrc
+  ld65  -vm -C ./conftpa.cfg \
+        -m ./listing/${dn}/${bn}.map \
+        -Ln ./listing/${dn}/s-${bn}.s \
+        -o $out \
+        "${tmpdir}/tmp.o"
+  # 概要表示
   cat ./listing/${dn}/${bn}.map |
     awk 'BEGIN{RS=""}/Seg/' | awk '{print $1 " 0x"$2 " 0x"$3 " 0x"$4}' |
     awk -v name=${bn^^}.COM -v tpa=$TPA_START -v ccp=$CCP_START '
