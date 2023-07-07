@@ -16,12 +16,18 @@ trap "rm -rf $td" EXIT  # スクリプト終了時に処分
 
 if [ "${1##*.}" = "c" ]; then
   # C言語コンパイル
+  # アセンブラで定義された関数があればアセンブルする
+  dn=$(dirname $1)                    # com/ あるいはcom/testなどディレクトリ部
+  bn=$(basename $1)                   # ファイル名を抽出
+  bn=${bn%.*}                         # 拡張子を覗いたファイル名を抽出
+  find "${dn}/+${bn}/asmfunc.s" -exec \
+    ca65 --cpu 65c02 -o "${td}/asmfunc.o" {} \;
   cc65 -t none -O --cpu 65c02 -o "${td}/src.s" $1
   ca65 --cpu 65c02 -o "${td}/bcosfunc.o" ../cc/bcosfunc.s   # CMOS命令ありでbcosfunc.sをアセンブル
   ca65 --cpu 65c02 -o "${td}/crt0.o" ../cc/crt0.s           # CMOS命令ありでcrt0.sをアセンブル
   ca65 --cpu 65c02 -I "./" -o "${td}/tmp.o" "${td}/src.s"
   ld65 -vm -C ../cc/conftpa_c.cfg -o "${td}/tmp.com" \
-       ${td}/tmp.o ${td}/crt0.o ${td}/bcosfunc.o $clib
+       ${td}/tmp.o ${td}/crt0.o ${td}/bcosfunc.o ${td}/asmfunc.o $clib
 else
   # アセンブル
   ca65 -I "./" --cpu 65c02 -o "${td}/tmp.o" $1
