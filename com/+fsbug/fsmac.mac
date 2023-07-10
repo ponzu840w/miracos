@@ -1,0 +1,36 @@
+; ファイルシステム関連（SD、SPI）のマクロ
+; どうせスコープ貫通する
+.macro cs0high
+  LDA VIA::PORTB
+  ORA #VIA::SPI_CS0
+  STA VIA::PORTB
+.endmac
+
+.macro cs0low
+  LDA VIA::PORTB
+  AND #<~(VIA::SPI_CS0)
+  STA VIA::PORTB
+.endmac
+
+.macro spi_rdbyt
+  .local @LOOP
+  ; --- AにSPIで受信したデータを格納
+  ; 高速化マクロ
+@LOOP:
+  LDA VIA::IFR
+  AND #%00000100      ; シフトレジスタ割り込みを確認
+  BEQ @LOOP
+  LDA VIA::SR
+.endmac
+
+.macro rdpage
+  ; 高速化マクロ
+.local @RDLOOP
+  LDY #0
+@RDLOOP:
+  spi_rdbyt
+  STA (ZP_SDSEEK_VEC16),Y
+  INY
+  BNE @RDLOOP
+.endmac
+
