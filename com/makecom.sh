@@ -21,7 +21,7 @@ if [ "${1##*.}" = "c" ]; then
   bn=$(basename $1)                   # ファイル名を抽出
   bn=${bn%.*}                         # 拡張子を覗いたファイル名を抽出
   find "${dn}/+${bn}/asmfunc.s" -exec \
-    ca65 --cpu 65c02 -o "${td}/asmfunc.o" {} \;
+    ca65 --cpu 65c02 -I "./" -o "${td}/asmfunc.o" {} \;
   cc65 -t none -O --cpu 65c02 -o "${td}/src.s" $1
   ca65 --cpu 65c02 -o "${td}/bcosfunc.o" ../cc/bcosfunc.s   # CMOS命令ありでbcosfunc.sをアセンブル
   ca65 --cpu 65c02 -o "${td}/crt0.o" ../cc/crt0.s           # CMOS命令ありでcrt0.sをアセンブル
