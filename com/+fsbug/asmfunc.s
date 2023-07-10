@@ -16,10 +16,11 @@
   SECBF512:       .RES 512  ; SDカード用セクタバッファ
 
 .IMPORT popa, popax
-
+.IMPORTZP sreg
 .EXPORT _read_sec
 
 .CODE
+
 .PROC ERR
   .INCLUDE "../errorcode.inc"
 REPORT:
@@ -79,7 +80,6 @@ FUNC_UPPER_STR:
   .ENDPROC
 
 .PROC _read_sec
-  ;JSR popax
   ;JSR SD::RDSEC
   RTS
 .ENDPROC
