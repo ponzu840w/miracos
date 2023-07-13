@@ -44,8 +44,10 @@ cl65  -g -Wl -Ln,./listing/symbol-bcos.s \
       -C ./confcos.cfg -o ./bin/BCOS.SYS ./bcos.s
 
 # C言語共通関数の準備
-ca65 --cpu 65c02 -o "${td}/bcosfunc.o" ./cc/bcosfunc.s   # CMOS命令ありでbcosfunc.sをアセンブル
-ca65 --cpu 65c02 -o "${td}/crt0.o" ./cc/crt0.s           # CMOS命令ありでcrt0.sをアセンブル
+cc65 -t none -O --cpu 65c02 -o "${td}/stdio.s" ./cc/fxt65_stdio.c
+ca65 --cpu 65c02 -o "${td}/stdio.o" "${td}/stdio.s"
+ca65 --cpu 65c02 -o "${td}/bcosfunc.o" ./cc/bcosfunc.s
+ca65 --cpu 65c02 -o "${td}/crt0.o" ./cc/crt0.s
 
 # コマンドアセンブル
 rm ./bin/MCOS/COM/* -fr                 # 古いバイナリを廃棄
@@ -72,6 +74,8 @@ do
   # コンパイル
   if [ "${ex##*.}" = "c" ]; then
     cc65 -t none -O --cpu 65c02 -o "${td}/src.s" $comsrc
+    find "${dn}/+${bn}/asmfunc.s" 2>/dev/null |
+      xargs --no-run-if-empty ca65 --cpu 65c02 -I "./${dn}" -o "${td}/asmfunc.o"
     ca65  -g -I "./com" \
           --cpu 65c02 \
           -l ./listing/${dn}/l-${bn}.s \
@@ -81,7 +85,7 @@ do
           -m ./listing/${dn}/${bn}.map \
           -Ln ./listing/${dn}/s-${bn}.s \
           -o $out \
-          ${td}/tmp.o ${td}/crt0.o ${td}/bcosfunc.o $clib
+          ${td}/*.o $clib
   # アセンブル
   else
     ca65  -g -I "./com" \

@@ -1,6 +1,5 @@
 // https://daeudaeu.com/othello/
 #include <stdio.h>
-#include <stdarg.h>
 
 /* 盤のサイズ */
 #define SIZE (8)
