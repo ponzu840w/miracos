@@ -20,14 +20,18 @@ if [ "${1##*.}" = "c" ]; then
   dn=$(dirname $1)                    # com/ あるいはcom/testなどディレクトリ部
   bn=$(basename $1)                   # ファイル名を抽出
   bn=${bn%.*}                         # 拡張子を覗いたファイル名を抽出
-  find "${dn}/+${bn}/asmfunc.s" -exec \
-    ca65 --cpu 65c02 -I "./" -o "${td}/asmfunc.o" {} \;
+  find "${dn}/+${bn}/asmfunc.s" 2>/dev/null |
+    xargs --no-run-if-empty ca65 --cpu 65c02 -I "./" -o "${td}/asmfunc.o"
   cc65 -t none -O --cpu 65c02 -o "${td}/src.s" $1
+  cc65 -t none -O --cpu 65c02 -o "${td}/stdio.s" ../cc/fxt65_stdio.c
   ca65 --cpu 65c02 -o "${td}/bcosfunc.o" ../cc/bcosfunc.s   # CMOS命令ありでbcosfunc.sをアセンブル
   ca65 --cpu 65c02 -o "${td}/crt0.o" ../cc/crt0.s           # CMOS命令ありでcrt0.sをアセンブル
+  ca65 --cpu 65c02 -o "${td}/stdio.o" "${td}/stdio.s"
   ca65 --cpu 65c02 -I "./" -o "${td}/tmp.o" "${td}/src.s"
   ld65 -vm -C ../cc/conftpa_c.cfg -o "${td}/tmp.com" \
-       ${td}/tmp.o ${td}/crt0.o ${td}/bcosfunc.o ${td}/asmfunc.o $clib
+       ${td}/*.o $clib
+       #${td}/tmp.o ${td}/crt0.o ${td}/bcosfunc.o $clib
+       #${td}/tmp.o ${td}/crt0.o ${td}/bcosfunc.o ${td}/asmfunc.o $clib
 else
   # アセンブル
   ca65 -I "./" --cpu 65c02 -o "${td}/tmp.o" $1

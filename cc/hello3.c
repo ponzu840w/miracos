@@ -2,6 +2,7 @@
  * 自作printf
  */
 #include <stdio.h>
+/*
 #include <stdarg.h>
 
 extern void couts(const char *str);
@@ -16,6 +17,7 @@ int printf(const char* format, ...){
   couts(_printf_buffer);
   return len;
 }
+*/
 
 int main(){
   int i;
