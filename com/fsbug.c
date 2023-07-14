@@ -1,5 +1,14 @@
 #include <stdio.h>
 
+// アセンブラ関数とか
+
+// アセンブラ変数とか
+extern unsigned char sector_buffer_512[512]; // セクタバッファ
+extern void* sdseek;   // セクタ読み書きのポインタ
+extern void* sdcmdprm; // コマンドパラメータ4バイトを指す
+#pragma zpsym("sdseek");
+#pragma zpsym("sdcmdprm");
+
 unsigned char putnum_buf[11];
 
 // $0123-4567形式で表示
@@ -17,6 +26,8 @@ int main(void){
     printf(">$");
     scanf("%lx",&sector);
     printf(" read_sec:%s\n",put32(sector));
+    sdseek=sector_buffer_512;
+    sdcmdprm=&sector;
   }
   return 0;
 }

@@ -10,14 +10,19 @@
   .INCLUDE "./+fsbug/varfs2.s"
 
 .ZEROPAGE
-  .INCLUDE "../fs/zpfs.s"
+  .INCLUDE "./+fsbug/zpfs.s"
+
 
 .DATA
+  _sector_buffer_512:
   SECBF512:       .RES 512  ; SDカード用セクタバッファ
 
 .IMPORT popa, popax
 .IMPORTZP sreg
+
 .EXPORT _read_sec
+.EXPORT _sector_buffer_512
+.EXPORTZP _sdcmdprm,_sdseek
 
 .CODE
 
