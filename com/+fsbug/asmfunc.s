@@ -3,6 +3,10 @@
 .INCLUDE "../fscons.inc"
 .INCLUDE "../zr.inc"
 .INCLUDE "./+fsbug/structfs.s"
+.PROC BCOS
+  .INCLUDE "../syscall.inc"  ; システムコール番号
+.ENDPROC
+.INCLUDE "../syscall.mac"
 
 ; OS側変数領域
 .BSS
@@ -73,6 +77,26 @@ FUNC_UPPER_STR:
   BEQ @LOOP
   BRA @SKIPLOOP
 
+FUNC_CON_OUT_CHR:
+  PHA
+  PHX
+  PHY
+  syscall CON_OUT_CHR
+  PLY
+  PLX
+  PLA
+  RTS
+
+FUNC_CON_OUT_STR:
+  PHA
+  PHX
+  PHY
+  syscall CON_OUT_STR
+  PLY
+  PLX
+  PLA
+  RTS
+
   .INCLUDE "./+fsbug/fsmac.mac"
   .PROC SPI
     .INCLUDE "./+fsbug/spi.s"
@@ -85,7 +109,9 @@ FUNC_UPPER_STR:
   .ENDPROC
 
 .PROC _read_sec
-  ;JSR SD::RDSEC
+  LDA #$81
+  STA SDCMD_CRC
+  JSR SD::RDSEC
   RTS
 .ENDPROC
 
