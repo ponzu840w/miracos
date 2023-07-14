@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 // アセンブラ関数とか
 
@@ -19,15 +20,28 @@ char* put32(unsigned long toput){
 
 int main(void){
   unsigned long sector;
+  unsigned char line[64];
   printf("File System Debugger.\n");
 
   // 読み込み対象セクタ指定
   while(1){
-    printf(">$");
-    scanf("%lx",&sector);
-    printf(" read_sec:%s\n",put32(sector));
-    sdseek=sector_buffer_512;
-    sdcmdprm=&sector;
+    printf("fs>");
+    scanf("%s",line);
+    if(strcmp(line,"help")==0){
+      printf("help   - Show this message.\n");
+      printf("status - Show status.\n");
+      printf("sector - Set current sector.\n");
+      printf("read   - Read current sector.\n");
+    }else if(strcmp(line,"sector")==0){
+      printf("sec32>$");
+      scanf("%lx",&sector);
+      sdcmdprm=&sector;
+      printf(" sector:%s\n",put32(sector));
+    }else if(strcmp(line,"status")==0){
+      printf(" sector:%s\n",put32(sector));
+    }else if(strcmp(line,"read")==0){
+      sdseek=sector_buffer_512;
+    }
   }
   return 0;
 }
