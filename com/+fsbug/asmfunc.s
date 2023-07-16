@@ -27,7 +27,7 @@ SECBF512:       .RES 512  ; SDカード用セクタバッファ
 .IMPORT popa, popax
 .IMPORTZP sreg
 
-.EXPORT _read_sec,_dump,_setGCONoff,_restoreGCON
+.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON
 .EXPORT _sector_buffer_512
 .EXPORTZP _sdcmdprm,_sdseek
 
@@ -116,7 +116,7 @@ FUNC_UPPER_STR:
     .INCLUDE "./+fsbug/fs.s"
   .ENDPROC
 
-.PROC _read_sec
+.PROC _read_sec_raw
   LDA #$81
   STA SDCMD_CRC
   JSR SD::RDSEC
