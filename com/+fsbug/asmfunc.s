@@ -18,6 +18,7 @@ BASE: .RES 2
   .INCLUDE "./+fsbug/zpfs.s"
 SETTING: .RES 1
 ZP_CONCFG_ADDR16:         .RES 2  ; 取得した設定値のアドレス
+ZP_CONCFG_SAV:            .RES 1
 
 .DATA
   _sector_buffer_512:
@@ -26,15 +27,34 @@ SECBF512:       .RES 512  ; SDカード用セクタバッファ
 .IMPORT popa, popax
 .IMPORTZP sreg
 
-.EXPORT _read_sec,_dump
+.EXPORT _read_sec,_dump,_setGCONoff,_restoreGCON
 .EXPORT _sector_buffer_512
 .EXPORTZP _sdcmdprm,_sdseek
 
+.PROC CONDEV
+  ; ZP_CON_DEV_CFGでのコンソールデバイス
+  UART_IN   = %00000001
+  UART_OUT  = %00000010
+  PS2       = %00000100
+  GCON      = %00001000
+.ENDPROC
+
 .CODE
 
-.PROC INIT
+.PROC _setGCONoff
+  LDY #BCOS::BHY_GET_ADDR_condevcfg   ; コンソールデバイス設定のアドレスを要求
   syscall GET_ADDR                    ; アドレス要求
   storeAY16 ZP_CONCFG_ADDR16          ; アドレス保存
+  LDA (ZP_CONCFG_ADDR16)
+  STA ZP_CONCFG_SAV
+  AND #%11110111
+  STA (ZP_CONCFG_ADDR16)
+  RTS
+.ENDPROC
+
+.PROC _restoreGCON
+  LDA ZP_CONCFG_SAV
+  STA (ZP_CONCFG_ADDR16)
   RTS
 .ENDPROC
 

@@ -4,6 +4,8 @@
 // アセンブラ関数とか
 extern unsigned char read_sec();
 extern void dump(char wide, unsigned int from, unsigned int to, unsigned int base);
+extern void setGCONoff();
+extern void restoreGCON();
 
 // アセンブラ変数とか
 //extern unsigned char sector_buffer_512[512]; // セクタバッファ
@@ -57,7 +59,9 @@ int main(void){
       if(err!=0)
         printf("[ERR]:%d\n",err);
       // セクタバッファを表示
+      setGCONoff();
       dump(0, SECTOR_BUFFER, SECTOR_BUFFER+0x1FF, 0);
+      restoreGCON();
 
     }else if(strcmp(line,"test")==0){
       // お試し
