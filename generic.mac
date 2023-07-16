@@ -38,6 +38,12 @@
   STY dst+1
 .endmac
 
+; AXをメモリに格納する
+.macro storeAX16 dst
+  STA dst
+  STX dst+1
+.endmac
+
 .macro mem2mem16 dst,src
   LDA src
   STA dst
