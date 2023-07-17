@@ -162,8 +162,12 @@ int main(void){
 
     }else if(strcmp(tok,"sec")==0){
       // 読み込み対象セクタ指定
-      tok=strtok(NULL," ");
-      sec_cursor=strtol(tok,NULL,16);
+      if((tok=strtok(NULL," "))==NULL){
+        printf("sec32>$");
+        scanf("%lX",&sec_cursor);
+      }else{
+        sec_cursor=strtol(tok,NULL,16);
+      }
       sdcmdprm=&sec_cursor;
       printf(" sec_cursor:%s\n",put32(sec_cursor));
 
