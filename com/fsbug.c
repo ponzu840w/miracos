@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // 構造体とか
@@ -33,6 +34,7 @@ extern unsigned char read_sec_raw();
 extern void dump(char wide, unsigned int from, unsigned int to, unsigned int base);
 extern void setGCONoff();
 extern void restoreGCON();
+extern void cins(const char *str);
 
 // アセンブラ変数とか
 extern void* sdseek;   // セクタ読み書きのポインタ
@@ -135,6 +137,7 @@ void showDir(unsigned long sec){
 int main(void){
   unsigned long sec_cursor=0;
   unsigned char line[64];
+  unsigned char* tok;
 
   unsigned long fatlen=(dwk_p->DATSTART-dwk_p->FATSTART)/2;
   unsigned long fat2startsec=dwk_p->FATSTART+fatlen;
@@ -143,25 +146,28 @@ int main(void){
 
   while(1){
     printf("fs>");
-    scanf("%s",line);
+    cins(line);
+    printf("\n");
+    tok=strtok(line," ");
 
-    if(strcmp(line,"help")==0){
+    if(strcmp(tok,"help")==0){
       // つかいかた
       printf("help   - Show this message.\n");
-      printf("status - Show status.\n");
-      printf("sec    - Set current sector.\n");
-      printf("read   - Read current sector.\n");
-      printf("dir    - Read current sector as dir.\n");
+      printf("stat   - Show status.\n");
+      printf("sec    - Set current sec.\n");
+      printf("read   - Read the sector.\n");
+      printf("dir    - Read the sector as dir.\n");
       printf("root   - Read root dir.\n");
+      printf("clus   - Calc Clus to Sec\n");
 
-    }else if(strcmp(line,"sec")==0){
+    }else if(strcmp(tok,"sec")==0){
       // 読み込み対象セクタ指定
-      printf("sec32>$");
-      scanf("%lX",&sec_cursor);
+      tok=strtok(NULL," ");
+      sec_cursor=strtol(tok,NULL,16);
       sdcmdprm=&sec_cursor;
       printf(" sec_cursor:%s\n",put32(sec_cursor));
 
-    }else if(strcmp(line,"status")==0){
+    }else if(strcmp(tok,"stat")==0){
       // 状態表示
       printf(" sec_cursor:%s\n",put32(sec_cursor));
 
@@ -177,7 +183,7 @@ int main(void){
       printf("  Start of Data(S):%s\n",put32(dwk_p->DATSTART));
       printf("    RootClus   (C):%s\n",put32(dwk_p->BPB_ROOTCLUS));
 
-    }else if(strcmp(line,"read")==0){
+    }else if(strcmp(tok,"read")==0){
       // セクタ読み取り
       unsigned int err;
       if(err=read_sec(sec_cursor)!=0)
@@ -187,19 +193,23 @@ int main(void){
       dump(0, SECTOR_BUFFER, SECTOR_BUFFER+0x1FF, 0);
       restoreGCON();
 
-    }else if(strcmp(line,"dir")==0){
+    }else if(strcmp(tok,"dir")==0){
       setGCONoff();
       showDir(sec_cursor);
       restoreGCON();
 
-    }else if(strcmp(line,"root")==0){
+    }else if(strcmp(tok,"root")==0){
       setGCONoff();
       showDir(dwk_p->DATSTART);
       restoreGCON();
 
-    }else if(strcmp(line,"test")==0){
-      // お試し
+    }else if(strcmp(tok,"clus")==0){
+      tok=strtok(NULL," ");
     }
+
+    //}else if(strcmp(tok,"test")==0){
+    //  // お試し
+    //}
   }
   return 0;
 }
