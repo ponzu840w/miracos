@@ -12,6 +12,53 @@ BTS_CMDPRM_ZERO:  ; 00 00 00 00
 BTS_CMD41PRM:  ; 40 00 00 00
   .BYTE $00,$00,$00,$40
 
+DPAC_START_TOK=$FE
+
+WRSEC:
+  ; --- SDCMD_BF+1+2+3+4を引数としてCMD24を実行し、1セクタを書き込む
+  ; --- 内容はZP_SDSEEK_VEC16の示す場所にあるべき
+  JSR WRINIT
+  BEQ SENDSEC
+  LDA #1  ; EC1:WRINITError
+  RTS
+SENDSEC:
+  ; 512バイト書き出し
+  JSR SENDPAGE
+  INC ZP_SDSEEK_VEC16+1
+  JSR SENDPAGE
+  ; CRC送信
+  LDA SDCMD_CRC
+  JSR SPI::WRBYT
+  LDA SDCMD_CRC
+  JSR SPI::WRBYT
+  ; データレスポンスチェック
+  JSR SPI::SETIN
+  LDX #8
+@RETRY:
+  JSR SPI::RDBYT ; なぜか、直前に送ったCRCが帰ってきてしまう
+  BIT #%00010000 ; eq---レスポンス
+  BEQ @RETURN    ; bit7が0ならレス始まり
+  DEX
+  BNE @RETRY
+@RETURN:
+  ; ビジー脱出
+  JSR SPI::RDBYT
+  INC
+  BNE @RETURN
+  ; コマンド終了
+  cs0high
+  LDA #0  ; 成功コード
+  RTS
+
+SENDPAGE:
+  LDY #0
+@LOOP:
+  LDA (ZP_SDSEEK_VEC16),Y
+  JSR SPI::WRBYT
+  INY
+  BNE @LOOP
+  RTS
+
 RDSEC:
   ; --- SDCMD_BF+1+2+3+4を引数としてCMD17を実行し、1セクタを読み取る
   ; --- 結果はZP_SDSEEK_VEC16の示す場所に保存される
@@ -122,6 +169,34 @@ RDPAGE:
   rdpage
   RTS
 
+WRINIT:
+  ; 成功:A=0
+  ; 失敗:A=エラーコード
+  ; ---------------------------------------------------------------
+  ;   CMD24の送信とR1の受信
+  ; CMD24
+  LDA #24|SD_STBITS
+  JSR SENDCMD
+  CMP #$00
+  BEQ @RDSUCCESS
+  ;CMP #$04           ; この例が多い
+  JSR DELAY
+  BEQ WRINIT
+  ;BRK
+  ;NOP
+  LDA #$01            ; EC1:CMD17Error
+  RTS
+@RDSUCCESS:
+  ; ---------------------------------------------------------------
+  ;   データパケットのヘッダ送信
+  cs0low
+  JSR SPI::DUMMYCLK   ; ダミークロック1バイト
+  JSR SPI::SETOUT
+  LDA #DPAC_START_TOK
+  JSR SPI::WRBYT
+  LDA #0              ; 成功コード
+  RTS
+
 RDINIT:
   ; 成功:A=0
   ; 失敗:A=エラーコード
@@ -152,7 +227,7 @@ RDINIT:
   ;RTS              ; 2ループはめんどくさいので
   BRA @WAIT_DAT
 @TOKEN:
-  CMP #$FE
+  CMP #DPAC_START_TOK
   BEQ @RDGOTDAT
   LDA #$02        ; EC2:TokenError
   RTS

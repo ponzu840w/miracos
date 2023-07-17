@@ -31,6 +31,7 @@ const unsigned int SECTOR_BUFFER=0x300;
 
 // アセンブラ関数とか
 extern unsigned char read_sec_raw();
+extern unsigned char write_sec_raw();
 extern void dump(char wide, unsigned int from, unsigned int to, unsigned int base);
 extern void setGCONoff();
 extern void restoreGCON();
@@ -89,6 +90,13 @@ int read_sec(unsigned long sec){
   sdcmdprm=&sec;
   sdseek=(void*)SECTOR_BUFFER;
   return read_sec_raw();
+}
+
+// セクタライト
+int write_sec(unsigned long sec){
+  sdcmdprm=&sec;
+  sdseek=(void*)SECTOR_BUFFER;
+  return write_sec_raw();
 }
 
 // ディレクトリ表示
@@ -217,11 +225,17 @@ int main(void){
       }
       sec_cursor=Clus2Sec(clus);
       printf(" sec_cursor:%s\n",put32(sec_cursor));
-    }
 
-    //}else if(strcmp(tok,"test")==0){
-    //  // お試し
-    //}
+    }else if(strcmp(tok,"test")==0){
+      // お試し
+      unsigned int i=0;
+      unsigned char* ptr;
+      ptr=(unsigned char*)SECTOR_BUFFER;
+      for(;i<512;i++){
+        ptr[i]=(unsigned char)i;
+      }
+      write_sec(sec_cursor);
+    }
   }
   return 0;
 }
