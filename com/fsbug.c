@@ -208,7 +208,15 @@ int main(void){
       restoreGCON();
 
     }else if(strcmp(tok,"clus")==0){
-      tok=strtok(NULL," ");
+      unsigned long clus;
+      if((tok=strtok(NULL," "))==NULL){
+        printf("clus32>$");
+        scanf("%lX",&clus);
+      }else{
+        clus=strtol(tok,NULL,16);
+      }
+      sec_cursor=Clus2Sec(clus);
+      printf(" sec_cursor:%s\n",put32(sec_cursor));
     }
 
     //}else if(strcmp(tok,"test")==0){
