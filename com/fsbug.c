@@ -40,6 +40,7 @@ extern void* sdcmdprm; // コマンドパラメータ4バイトを指す
 #pragma zpsym("sdseek");
 #pragma zpsym("sdcmdprm");
 
+// グローバル変数とか
 unsigned char putnum_buf[11];
 unsigned char filename_buf[15];
 dinfo_t* dwk_p=(dinfo_t*)0x514;
@@ -57,8 +58,8 @@ unsigned long Clus2Sec(unsigned long clus){
 
 // SFN形式のファイル名を.形式に変換
 char* SFN_to_dot(unsigned char* name_ptr) {
-  char name[12], ext[4];
-  int i, j;
+  unsigned char name[12], ext[4];
+  unsigned int i;
 
   // Extract the filename and pad with '\0' as necessary
   for(i = 0; i < 8 && name_ptr[i] != ' '; i++) {
@@ -67,10 +68,10 @@ char* SFN_to_dot(unsigned char* name_ptr) {
   name[i] = '\0';
 
   // Extract the extension and pad with '\0' as necessary
-  for(j = 0; j < 3 && name_ptr[i+j+1] != ' '; j++) {
-    ext[j] = name_ptr[i+j+1];
+  for(i = 8; i < 8+3 && name_ptr[i] != ' '; i++) {
+    ext[i-8] = name_ptr[i];
   }
-  ext[j] = '\0';
+  ext[i-8] = '\0';
 
   // Print the filename.extension
   if(ext[0]=='\0'){
@@ -86,6 +87,49 @@ int read_sec(unsigned long sec){
   sdcmdprm=&sec;
   sdseek=(void*)SECTOR_BUFFER;
   return read_sec_raw();
+}
+
+// ディレクトリ表示
+void showDir(unsigned long sec){
+  unsigned char i;
+  unsigned int index=0,page=0;
+  unsigned char b=1;
+  // セクタループ
+  do{
+    dirent_t* dir_p=(void*)SECTOR_BUFFER;
+    read_sec(sec+page);
+    // エントリループ
+    for(i=0;i<512/32;i++){
+      printf("[%03X]",index);
+      switch(dir_p[i].Name[0]){
+      case 0x0:   // 終わり
+        b=0;
+        break;
+      case 0xE5:  // 消された
+        printf("<Deleted>\n");
+        break;
+      default:    // 有効なエントリ
+        if(dir_p[i].Attr==0x0F){
+          printf("<LFN>\n");
+        }else{
+          unsigned long fstclus = (dir_p[i].FstClusHI*0x100000000)+dir_p[i].FstClusLO;
+          if(dir_p[i].Attr==0x10){
+            printf("<Dir>\n");
+          }else{
+            printf("<File>\n");
+          }
+          printf("      Name   :%s\n",SFN_to_dot(dir_p[i].Name));
+          printf("      FstClus:%s\n",put32(fstclus));
+          printf("         =Sec:%s\n",put32(Clus2Sec(fstclus)));
+          printf("      Size   :%s\n",put32(dir_p[i].FileSize));
+        }
+      }
+      if(!b)break;
+      index++;
+    }
+    page++;
+  }while(b);
+  printf("<NULL>\n");
 }
 
 int main(void){
@@ -107,6 +151,7 @@ int main(void){
       printf("status - Show status.\n");
       printf("sec    - Set current sector.\n");
       printf("read   - Read current sector.\n");
+      printf("dir    - Read current sector as dir.\n");
       printf("root   - Read root dir.\n");
 
     }else if(strcmp(line,"sec")==0){
@@ -142,44 +187,18 @@ int main(void){
       dump(0, SECTOR_BUFFER, SECTOR_BUFFER+0x1FF, 0);
       restoreGCON();
 
+    }else if(strcmp(line,"dir")==0){
+      setGCONoff();
+      showDir(sec_cursor);
+      restoreGCON();
+
+    }else if(strcmp(line,"root")==0){
+      setGCONoff();
+      showDir(dwk_p->DATSTART);
+      restoreGCON();
+
     }else if(strcmp(line,"test")==0){
       // お試し
-      unsigned char i;
-      unsigned int index=0,page=0;
-      unsigned char b=1;
-      do{
-        dirent_t* dir_p=(void*)SECTOR_BUFFER;
-        read_sec(dwk_p->DATSTART+page);
-        for(i=0;i<512/32;i++){
-          printf("[%02X]",index);
-          switch(dir_p[i].Name[0]){
-          case 0x0:
-            b=0;
-            break;
-          case 0xE5:
-            printf("<Deleted>\n");
-            break;
-          default:
-            if(dir_p[i].Attr==0x0F){
-              printf("<LFN>\n");
-            }else{
-              unsigned long fstclus = (dir_p[i].FstClusHI*0x100000000)+dir_p[i].FstClusLO;
-              if(dir_p[i].Attr==0x10){
-                printf("<Dir>\n");
-              }else{
-                printf("<File>\n");
-              }
-              printf("      Name   :%s\n",SFN_to_dot(dir_p[i].Name));
-              printf("      FstClus:%s\n",put32(fstclus));
-              printf("         =Sec:%s\n",put32(Clus2Sec(fstclus)));
-              printf("      Size   :%s\n",put32(dir_p[i].FileSize));
-            }
-          }
-          if(!b)break;
-          index++;
-        }
-        page++;
-      }while(b);
     }
   }
   return 0;
