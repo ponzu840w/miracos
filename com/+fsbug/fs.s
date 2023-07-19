@@ -550,7 +550,7 @@ FUNC_FS_FPATH:
 ; BCOS 5                  ファイルオープン
 ; -------------------------------------------------------------------
 ; ドライブパスまたはFINFOポインタからファイル記述子をオープンして返す
-; input:AY=ptr
+; input:AY=(path or FINFO)ptr
 ; output:A=FD, X=ERR
 ; -------------------------------------------------------------------
 FUNC_FS_OPEN:
@@ -558,7 +558,30 @@ FUNC_FS_OPEN:
   STY ZR2+1
   LDA (ZR2)                 ; 先頭バイトを取得
   CMP #$FF                  ; FINFOシグネチャ
-  BEQ @FINFO
+  BEQ FINFO2FD
+@PATH:
+  JSR PATH2FINFO            ; パスからファイルのFINFOを開く
+  BCC @SKP_PATHERR          ; エラーハンドル
+  RTS
+@SKP_PATHERR:
+FINFO2FD:
+  ; 開かれているFINFOからFDを作成して帰る
+  JSR FD_OPEN
+  BCC X0RTS                 ; エラーハンドル
+  LDA #ERR::FAILED_OPEN
+ERR_REPORT:
+  JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
+
+; -------------------------------------------------------------------
+;                            ファイル作成
+; -------------------------------------------------------------------
+; ドライブパスからファイルを作成してオープンする
+; input:AY=path ptr
+; output:A=FD, X=ERR
+; -------------------------------------------------------------------
+FUNC_FS_MAKEF:
+  STA ZR2
+  STY ZR2+1
 @PATH:
   JSR P2F_PATH2DIRINFO      ; パスからディレクトリのFINFOを開く
   BCC @SKP_DIRPATHERR       ; エラーハンドル
@@ -566,17 +589,15 @@ FUNC_FS_OPEN:
 @SKP_DIRPATHERR:
   ; ディレクトリは開けた状態
   JSR P2F_CHECKNEXT         ; 最終要素は開けるかな？
-  BCC @FINFO
+  BCC @EXIST
   ; ディレクトリは開けたが、最終要素が開けない
   ; = ファイル作成の季節
   LDA #$FF
   SEC
   RTS
-@FINFO:
-  JSR FD_OPEN
-  BCC X0RTS                 ; エラーハンドル
-  LDA #ERR::FAILED_OPEN
-  JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
+@EXIST:
+  LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ
+  BRA ERR_REPORT
 
 ; -------------------------------------------------------------------
 ;                         リアルセクタ作成

@@ -419,7 +419,7 @@ PATH2FINFO_ZR2:
 P2F_PATH2DIRINFO:
   ; フルパスから最終要素直前のディレクトリのFINFOをゲットする
   ; A:/HOGE/FUGA のHOGEのFINFO
-  ; input:AY=PATH
+  ; input:ZR2=PATH
   ; output:AY=ZR2=最終要素の先頭
   ; ZR0,2使用
   LDY #1
