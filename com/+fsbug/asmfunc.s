@@ -16,20 +16,22 @@ BASE: .RES 2
 
 .ZEROPAGE
   .INCLUDE "./+fsbug/zpfs.s"
-SETTING: .RES 1
-ZP_CONCFG_ADDR16:         .RES 2  ; 取得した設定値のアドレス
-ZP_CONCFG_SAV:            .RES 1
+SETTING:              .RES 1
+ZP_CONCFG_ADDR16:     .RES 2  ; 取得した設定値のアドレス
+ZP_CONCFG_SAV:        .RES 1
+LAST_ERROR:           .RES 1
 
 .DATA
-  _sector_buffer_512:
-SECBF512:       .RES 512  ; SDカード用セクタバッファ
+;  _sector_buffer_512:
+;SECBF512:       .RES 512  ; SDカード用セクタバッファ
 
 .IMPORT popa, popax
 .IMPORTZP sreg
 
-.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw
-.EXPORT _sector_buffer_512
+.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_open
+;.EXPORT _sector_buffer_512
 .EXPORTZP _sdcmdprm,_sdseek
+.CONSTRUCTOR INIT
 
 .PROC CONDEV
   ; ZP_CON_DEV_CFGでのコンソールデバイス
@@ -39,12 +41,12 @@ SECBF512:       .RES 512  ; SDカード用セクタバッファ
   GCON      = %00001000
 .ENDPROC
 
+SECBF512=$300
+DRV0=$514
+
 .CODE
 
 .PROC _setGCONoff
-  LDY #BCOS::BHY_GET_ADDR_condevcfg   ; コンソールデバイス設定のアドレスを要求
-  syscall GET_ADDR                    ; アドレス要求
-  storeAY16 ZP_CONCFG_ADDR16          ; アドレス保存
   LDA (ZP_CONCFG_ADDR16)
   STA ZP_CONCFG_SAV
   AND #%11110111
@@ -61,10 +63,11 @@ SECBF512:       .RES 512  ; SDカード用セクタバッファ
 .PROC ERR
   .INCLUDE "../errorcode.inc"
 REPORT:
-  BRK
-  NOP
+  STA LAST_ERROR
+  SEC
   RTS
 .ENDPROC
+
 ; -------------------------------------------------------------------
 ; BCOS 15                大文字小文字変換
 ; -------------------------------------------------------------------
@@ -116,17 +119,56 @@ FUNC_UPPER_STR:
     .INCLUDE "./+fsbug/fs.s"
   .ENDPROC
 
-.PROC _read_sec_raw
-  LDA #$81
+; コンストラクタ
+.SEGMENT "ONCE"
+INIT:
+  ; CONDEV
+  LDY #BCOS::BHY_GET_ADDR_condevcfg   ; コンソールデバイス設定のアドレスを要求
+  syscall GET_ADDR                    ; アドレス要求
+  storeAY16 ZP_CONCFG_ADDR16          ; アドレス保存
+  ; CRC
+  LDA #$91
   STA SDCMD_CRC
+  ; FS
+  JSR FS::INIT
+  RTS
+
+.CODE
+.PROC _read_sec_raw
   JSR SD::RDSEC
   RTS
 .ENDPROC
 
 .PROC _write_sec_raw
-  LDA #$91
-  STA SDCMD_CRC
   JSR SD::WRSEC
+  RTS
+.ENDPROC
+
+;.PROC _path2finfo
+;  ; ニンジャをすべて殺す
+;  PHX
+;  PLY
+;  JSR FS::PATH2FINFO
+;  LDA ZR2
+;  LDX ZR2+1
+;  RTS
+;.ENDPROC
+
+.PROC _open
+  PHX
+  PLY
+  JSR FS::FUNC_FS_OPEN
+  BCC EXIST
+  CMP #$FF
+  BEQ TOMAKE
+ERROR:
+  LDA #2
+  RTS
+TOMAKE:
+  LDA #1
+  RTS
+EXIST:
+  LDA #0
   RTS
 .ENDPROC
 

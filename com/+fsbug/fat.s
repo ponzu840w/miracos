@@ -402,12 +402,26 @@ DIR_NEXTMATCH_NEXT_ZR2:         ; 今のポイントを無視して次を探す�
 
 PATH2FINFO:
   ; フルパスからFINFOをゲットする
+  ; A:/HOGE/FUGA のFUGAのFINFO
   ; input:AY=PATH
-  ; output:AY=FINFO, ZR2=最終要素の先頭
+  ; output:AY=ZR2=最終要素の先頭
   ; ZR0,2使用
   STA ZR2
   STY ZR2+1             ; パス先頭を格納
 PATH2FINFO_ZR2:
+  JSR P2F_PATH2DIRINFO
+  BCS @ERR
+  JSR P2F_CHECKNEXT
+  loadAY16 FINFO_WK
+@ERR:
+  RTS
+
+P2F_PATH2DIRINFO:
+  ; フルパスから最終要素直前のディレクトリのFINFOをゲットする
+  ; A:/HOGE/FUGA のHOGEのFINFO
+  ; input:AY=PATH
+  ; output:AY=ZR2=最終要素の先頭
+  ; ZR0,2使用
   LDY #1
   LDA (ZR2),Y           ; 二文字目
   CMP #':'              ; ドライブ文字があること判別
@@ -424,20 +438,29 @@ PATH2FINFO_ZR2:
   ; ディレクトリをたどる旅
 @LOOP:
   mem2AY16 ZR2
-  JSR PATH_SLASHNEXT_GETNULL    ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1 NOTE:AYが次のよう先頭を指すBP
+  JSR PATH_SLASHNEXT_GETNULL  ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1 NOTE:AYが次のよう先頭を指すBP
   storeAY16 ZR2
-  BCS @LAST             ; パス要素がまだあるなら続行
-  JSR @NEXT             ; 非最終要素
+  BCS @LAST             ; 最終要素であれば探索せずいったん帰って指示を仰ぐ
+  JSR P2F_CHECKNEXT     ; 非最終要素なら探索
   BCC @LOOP             ; 見つからないエラーがなければ次の要素へ
   RTS                   ; 見つからなければC=1を保持して戻る
-@LAST:                  ; 最終要素 ; NOTE:ZR2を読むと、LASTが本当にLASTか見えるBP
-  JSR @NEXT
-  BCS @ERREND           ; 最終要素が見つからなかったらC=1を保持して戻る
-  loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
-  CLC                   ; 成功コード
-@ERREND:
+@LAST:
+  CLC                   ; TODO:PATH_SLASHNEXTのキャリーエラーを逆転させればこれを省ける
   RTS
-@NEXT:
+
+;@LAST:                  ; 最終要素 ; NOTE:ZR2を読むと、LASTが本当にLASTか見えるBP
+;  JSR @NEXT
+;  BCS @ERREND           ; 最終要素が見つからなかったらC=1を保持して戻る
+;  loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
+;  CLC                   ; 成功コード
+;@ERREND:
+;  RTS
+
+P2F_CHECKNEXT:
+  ; PATH2FINFOにおいて、次の要素を開く
+  ; input:AY=要素名
+  ; output:<FINFOが開かれる>
+  ; C=1 ERR
   JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得 NOTE:ヒットしたが開かれる前のFINFOを見るBP
   CMP #$FF              ; 見つからない場合
   BNE @SKP_E2

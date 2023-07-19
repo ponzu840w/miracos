@@ -36,6 +36,9 @@ extern void dump(char wide, unsigned int from, unsigned int to, unsigned int bas
 extern void setGCONoff();
 extern void restoreGCON();
 extern void cins(const char *str);
+//extern unsigned char* path2finfo(unsigned char* path);
+extern unsigned char open(unsigned char* path);
+
 
 // アセンブラ変数とか
 extern void* sdseek;   // セクタ読み書きのポインタ
@@ -226,8 +229,7 @@ int main(void){
       sec_cursor=Clus2Sec(clus);
       printf(" sec_cursor:%s\n",put32(sec_cursor));
 
-    }else if(strcmp(tok,"test")==0){
-      // お試し
+    }else if(strcmp(tok,"write")==0){
       unsigned int i=0;
       unsigned char* ptr;
       ptr=(unsigned char*)SECTOR_BUFFER;
@@ -235,6 +237,29 @@ int main(void){
         ptr[i]=(unsigned char)i;
       }
       write_sec(sec_cursor);
+
+    }else if(strcmp(tok,"test")==0){
+      // お試し
+      if((tok=strtok(NULL," "))==NULL){
+        printf("path>");
+        cins(line);
+        tok=line;
+        printf("\n");
+      }
+      printf("path:%s\n",tok);
+      switch(open(tok)){
+      case 0:
+        printf("File exist.\n");
+        break;
+      case 1:
+        printf("Dir exist, but file not exist.\n");
+        break;
+      case 2:
+        printf("Dir not exist.\n");
+        break;
+      default:
+        printf("exeption.\n");
+      }
     }
   }
   return 0;

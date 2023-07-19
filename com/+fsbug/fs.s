@@ -560,10 +560,18 @@ FUNC_FS_OPEN:
   CMP #$FF                  ; FINFOシグネチャ
   BEQ @FINFO
 @PATH:
-  JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
-  BCC @SKP_PATHERR          ; エラーハンドル
+  JSR P2F_PATH2DIRINFO      ; パスからディレクトリのFINFOを開く
+  BCC @SKP_DIRPATHERR       ; エラーハンドル
   RTS
-@SKP_PATHERR:
+@SKP_DIRPATHERR:
+  ; ディレクトリは開けた状態
+  JSR P2F_CHECKNEXT         ; 最終要素は開けるかな？
+  BCC @FINFO
+  ; ディレクトリは開けたが、最終要素が開けない
+  ; = ファイル作成の季節
+  LDA #$FF
+  SEC
+  RTS
 @FINFO:
   JSR FD_OPEN
   BCC X0RTS                 ; エラーハンドル

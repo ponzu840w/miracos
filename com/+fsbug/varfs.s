@@ -3,7 +3,7 @@
 ; --------------------
 
 ; $0514
-DRV0:               .TAG DINFO  ; ROMからの引継ぎ
+;DRV0:               .TAG DINFO  ; ROMからの引継ぎ
 
 RAW_SFN:            .RES 11     ; 11文字
 DOT_SFN:            .RES 13     ; .とEOTを含んで13文字
