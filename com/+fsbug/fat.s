@@ -448,14 +448,6 @@ P2F_PATH2DIRINFO:
   CLC                   ; TODO:PATH_SLASHNEXTのキャリーエラーを逆転させればこれを省ける
   RTS
 
-;@LAST:                  ; 最終要素 ; NOTE:ZR2を読むと、LASTが本当にLASTか見えるBP
-;  JSR @NEXT
-;  BCS @ERREND           ; 最終要素が見つからなかったらC=1を保持して戻る
-;  loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
-;  CLC                   ; 成功コード
-;@ERREND:
-;  RTS
-
 P2F_CHECKNEXT:
   ; PATH2FINFOにおいて、次の要素を開く
   ; input:AY=要素名
@@ -465,7 +457,7 @@ P2F_CHECKNEXT:
   CMP #$FF              ; 見つからない場合
   BNE @SKP_E2
   LDA #ERR::FILE_NOT_FOUND
-  JMP ERR::REPORT       ; ERR:指定されてファイルが見つからなかった
+  JMP ERR::REPORT       ; ERR:指定されたファイルが見つからなかった
 @SKP_E2:
   JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く NOTE:開かれた内容を覗くBP
   CLC                   ; コールされた時の成功を知るC=0

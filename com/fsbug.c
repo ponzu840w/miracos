@@ -37,7 +37,7 @@ extern void setGCONoff();
 extern void restoreGCON();
 extern void cins(const char *str);
 //extern unsigned char* path2finfo(unsigned char* path);
-extern unsigned char open(unsigned char* path);
+extern unsigned char* makef(unsigned char* path);
 
 
 // アセンブラ変数とか
@@ -247,19 +247,13 @@ int main(void){
         printf("\n");
       }
       printf("path:%s\n",tok);
-      switch(open(tok)){
-      case 0:
-        printf("File exist.\n");
-        break;
-      case 1:
-        printf("Dir exist, but file not exist.\n");
-        break;
-      case 2:
-        printf("Dir not exist.\n");
-        break;
-      default:
-        printf("exeption.\n");
-      }
+      printf("lets make:%s\n",makef(tok));
+      printf("buff:\n");
+      // セクタバッファを表示
+      setGCONoff();
+      dump(0, SECTOR_BUFFER, SECTOR_BUFFER+0x1FF, 0);
+      restoreGCON();
+
     }
   }
   return 0;

@@ -28,7 +28,7 @@ LAST_ERROR:           .RES 1
 .IMPORT popa, popax
 .IMPORTZP sreg
 
-.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_open
+.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef
 ;.EXPORT _sector_buffer_512
 .EXPORTZP _sdcmdprm,_sdseek
 .CONSTRUCTOR INIT
@@ -154,21 +154,16 @@ INIT:
 ;  RTS
 ;.ENDPROC
 
-.PROC _open
+.PROC _makef
   PHX
   PLY
   JSR FS::FUNC_FS_MAKEF
-  BCC EXIST
-  CMP #$FF
-  BEQ TOMAKE
-ERROR:
-  LDA #2
-  RTS
-TOMAKE:
-  LDA #1
-  RTS
-EXIST:
-  LDA #0
+  BCC SKP
+  BRK
+  NOP
+SKP:
+  PHY
+  PLX
   RTS
 .ENDPROC
 
