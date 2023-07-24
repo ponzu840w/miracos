@@ -128,6 +128,24 @@ LOAD_DWK:
   INY
   CPY #.SIZEOF(DINFO)      ; DINFOのサイズ分コピーしたら終了
   BNE @LOOP                ; ロード結果を示すBP
+  ; TODO:通常ドライブ以外なら以下は不要な処理
+  ; FAT2を算出
+  ; unsigned long fatlen=(dwk_p->DATSTART-dwk_p->FATSTART)/2;
+  ; unsigned long fat2startsec=dwk_p->FATSTART+fatlen;
+  ; dst=FATSTART2
+  loadreg16 DWK_FATSTART2
+  JSR AX_DST
+  ; *dst=DATSTART
+  loadreg16 (DWK+DINFO::DATSTART)
+  JSR L_LD_AXS
+  ; *dst=*dst-FATSTART
+  loadreg16 (DWK+DINFO::FATSTART)
+  JSR L_SB_AXS
+  ; *dst=*dst/2
+  JSR L_DIV2
+  ; *dst=*dst+FATSTART
+  loadreg16 (DWK+DINFO::FATSTART)
+  JSR L_ADD_AXS
   RTS
 
 RDSEC:
@@ -297,10 +315,6 @@ NEXTSEC:
   CMP DWK+DINFO::BPB_SECPERCLUS ; クラスタ内最終セクタか
   BNE @SKP_NEXTCLUS             ; まだならFATチェーン読み取りキャンセル
   ; 次のクラスタの先頭セクタを開く
-    ; bp
-    ;loadreg16 FWK+FCTRL::CUR_CLUS
-    ;BRK
-    ;NOP
   LDA FWK+FCTRL::CUR_CLUS       ; 現在クラスタ番号{N}->FAT論理セクタ
   ASL                           ; x4/512 : /128 : >>7 最下位バイトからはMSBしか採れない
   ; 0
@@ -318,17 +332,9 @@ NEXTSEC:
   ; 3
   STZ FWK_REAL_SEC+3
   ROL FWK_REAL_SEC+3
-    ; bp
-    ;loadreg16 FWK_REAL_SEC
-    ;BRK
-    ;NOP
   ; FATSTART加算
   loadreg16 (DWK+DINFO::FATSTART)
   JSR L_ADD_AXS
-    ; bp
-    ;loadreg16 FWK_REAL_SEC
-    ;BRK
-    ;NOP
   pushmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ退避
   ; FATロード
   JSR RDSEC
@@ -339,7 +345,7 @@ NEXTSEC:
   ASL                             ; <<2
   ASL
   BCC @SKP_INCPAGE                ; C=0 上部 $03
-  INC ZP_LSRC0_VEC16+1           ; C=1 下部 $04
+  INC ZP_LSRC0_VEC16+1            ; C=1 下部 $04
 @SKP_INCPAGE:
   STA ZP_LSRC0_VEC16
   ; 現在クラスタにFATからコピー
@@ -348,10 +354,6 @@ NEXTSEC:
   JSR L_LD
   JSR CLUS_REOPEN                 ; 更新された現在クラスタをもとにFWK再展開
   pullmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ復帰
-    ;bp
-    ;loadreg16 FWK+FCTRL::CUR_CLUS
-    ;BRK
-    ;NOP
   RTS
 @SKP_NEXTCLUS:
   ; リアルセクタ番号を更新
@@ -500,4 +502,65 @@ PATH_SLASHNEXT:
   PLY
   CLC
   RTS
+
+GET_EMPTY_CLUS:
+  ; FAT2を探索して空クラスタを発見する
+  @ZR2_SP=ZR2
+  @ZR34_NEWCLUS=ZR3
+  ; SPを控える
+  TSX
+  STX @ZR2_SP
+  ; クラスタ番号カウンタをリセット
+  LDA #2
+  STA @ZR34_NEWCLUS
+  STZ @ZR34_NEWCLUS+1
+  STZ @ZR34_NEWCLUS+2
+  STZ @ZR34_NEWCLUS+3
+  ; FAT2の頭を開く
+  mem2mem16 FWK_REAL_SEC,DWK_FATSTART2
+  JSR RDSEC
+  ; ZP_SDSEEK_VEC16は最初のクラスタを指している…
+  ; 0,1番クラスタはスキップ
+  LDY #2*4
+@LOOP:
+  JSR @SEARCH_PAGE
+  INC ZP_SDSEEK_VEC16+1
+  JSR @SEARCH_PAGE
+@NEXT_SEC:
+  ; 次セクタ
+  loadreg16 (FWK_REAL_SEC)
+  JSR AX_DST
+  LDA #4
+  JSR L_ADD_BYT ; use:ZR0
+  LDY #0
+  JSR RDSEC
+  BRA @LOOP
+
+@SEARCH_PAGE:
+  ; ゼロ=空クラスタ検出
+  LDA (ZP_SDSEEK_VEC16),Y
+  INY
+  ORA (ZP_SDSEEK_VEC16),Y
+  INY
+  ORA (ZP_SDSEEK_VEC16),Y
+  INY
+  ORA (ZP_SDSEEK_VEC16),Y
+  BNE @NEXT_ENT                       ; 非ゼロなら次
+  ; 空クラスタ検出
+  ;   一段深いサブルーチンになっているのでスタック復帰
+  LDX @ZR2_SP
+  TXS
+  RTS
+@NEXT_ENT:
+  ; 次エントリ
+  INY
+  BNE @SEARCH_PAGE
+  ; ページを読み終わったら帰る
+  RTS
+
+WRITE_CLUS:
+  ; FAT2の着目箇所にクラスタ番号を書き込み、FAT1にも同様に書き込む
+
+ALLOC_CLUS:
+  ; 新規クラスタを割り当てる
 

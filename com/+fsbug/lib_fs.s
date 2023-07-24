@@ -96,21 +96,60 @@ L_X2:
   PLP
   RTS
 
+L_DIV2:
+  ; 32bitを1/2にシフト
+  ; 今のところFAT2を求めるときにだけ使用
+  LDY #3
+  CLC
+  PHP
+@LOOP:
+  PLP
+  LDA (ZP_LDST0_VEC16),Y
+  ROR
+  STA (ZP_LDST0_VEC16),Y
+  DEY
+  PHP
+  CPY #$FF
+  BNE @LOOP
+  PLP
+  RTS
+
 L_ADD_AXS:
   JSR AX_SRC
 L_ADD:
   ; 32bit値同士を加算
+  ; use:ZR0
   CLC
   LDY #0
   PHP
 @LOOP:
   PLP
-  LDA (ZP_LSRC0_VEC16),Y
-  ADC (ZP_LDST0_VEC16),Y
+  LDA (ZP_LDST0_VEC16),Y
+  ADC (ZP_LSRC0_VEC16),Y
   PHP
   STA (ZP_LDST0_VEC16),Y
   INY
   CPY #4
+  BNE @LOOP
+  PLP
+  RTS
+
+L_SB_AXS:
+  JSR AX_SRC
+L_SB:
+  ; 32bit値同士を減算
+  ; dst=dst-src
+  SEC
+  LDY #0
+  PHP
+@LOOP:
+  PLP
+  LDA (ZP_LDST0_VEC16),Y
+  SBC (ZP_LSRC0_VEC16),Y
+  PHP
+  STA (ZP_LDST0_VEC16),Y
+  INY
+  CPY #$4
   BNE @LOOP
   PLP
   RTS
@@ -163,6 +202,7 @@ S_ADD_BYT:
 
 L_SB_BYT:
   ; 32bit値から8bit値（アキュムレータ）を減算
+  ; use:ZR0
   SEC
 @C:
   STA ZR0
