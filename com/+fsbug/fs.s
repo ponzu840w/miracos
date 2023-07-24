@@ -592,8 +592,11 @@ FUNC_FS_MAKEF:
   BCC @EXIST
   ; ディレクトリは開けたが、最終要素が開けない
   ; = ファイル作成の季節
-  mem2AY16 ZR2
-  CLC
+  ;mem2AY16 ZR2
+  ;CLC
+  JSR GET_EMPTY_CLUS
+  BRK
+  NOP
   RTS
 @EXIST:
   LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ

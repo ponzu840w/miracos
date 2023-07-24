@@ -530,7 +530,7 @@ GET_EMPTY_CLUS:
   ; 次セクタ
   loadreg16 (FWK_REAL_SEC)
   JSR AX_DST
-  LDA #4
+  LDA #1
   JSR L_ADD_BYT ; use:ZR0
   LDY #0
   JSR RDSEC
