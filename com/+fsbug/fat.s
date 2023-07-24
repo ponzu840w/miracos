@@ -553,6 +553,12 @@ GET_EMPTY_CLUS:
   RTS
 @NEXT_ENT:
   ; 次エントリ
+  PHY
+  loadreg16 (@ZR34_NEWCLUS)
+  JSR AX_DST
+  LDA #1
+  JSR L_ADD_BYT ; use:ZR0
+  PLY
   INY
   BNE @SEARCH_PAGE
   ; ページを読み終わったら帰る

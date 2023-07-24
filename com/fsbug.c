@@ -50,6 +50,8 @@ extern void* sdcmdprm; // コマンドパラメータ4バイトを指す
 unsigned char putnum_buf[11];
 unsigned char filename_buf[15];
 dinfo_t* dwk_p=(dinfo_t*)0x514;
+unsigned long fatlen;
+unsigned long fat2startsec;
 
 // $0123-4567形式で表示
 char* put32(unsigned long toput){
@@ -145,13 +147,25 @@ void showDir(unsigned long sec){
   printf("<NULL>\n");
 }
 
+void showFAT(unsigned char fatnum, unsigned long clus){
+  unsigned long sec;
+  unsigned long* entry_ptr;
+  if(fatnum==1)sec=dwk_p->FATSTART;
+  else sec=fat2startsec;
+  sec=sec+(clus/128);
+  entry_ptr=(void*)SECTOR_BUFFER;
+  entry_ptr+=clus%128;
+  read_sec(sec);
+  printf("[%lx]%lx\n",clus,*entry_ptr);
+}
+
 int main(void){
   unsigned long sec_cursor=0;
   unsigned char line[64];
   unsigned char* tok;
 
-  unsigned long fatlen=(dwk_p->DATSTART-dwk_p->FATSTART)/2;
-  unsigned long fat2startsec=dwk_p->FATSTART+fatlen;
+  fatlen=(dwk_p->DATSTART-dwk_p->FATSTART)/2;
+  fat2startsec=dwk_p->FATSTART+fatlen;
 
   printf("File System Debugger.\n");
 
@@ -170,6 +184,7 @@ int main(void){
       printf("dir    - Read the sector as dir.\n");
       printf("root   - Read root dir.\n");
       printf("clus   - Calc Clus to Sec\n");
+      printf("fat    - show FAT\n");
 
     }else if(strcmp(tok,"sec")==0){
       // 読み込み対象セクタ指定
@@ -237,6 +252,19 @@ int main(void){
         ptr[i]=(unsigned char)i;
       }
       write_sec(sec_cursor);
+
+    }else if(strcmp(tok,"fat1")==0 || strcmp(tok,"fat2")==0){
+      unsigned long clus;
+      unsigned char fatnum;
+      if(strcmp(tok,"fat1")==0)fatnum=1;
+      else fatnum=2;
+      if((tok=strtok(NULL," "))==NULL){
+        printf("clus32>$");
+        scanf("%lX",&clus);
+      }else{
+        clus=strtol(tok,NULL,16);
+      }
+      showFAT(fatnum,clus);
 
     }else if(strcmp(tok,"test")==0){
       // お試し
