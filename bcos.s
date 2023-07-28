@@ -210,8 +210,7 @@ FUNC_RESET:
   AND #%11110001                  ; 321がCA2
   ORA #%00000010                  ; 001＝独立した負の割り込みエッジ入力
   STA VIA::PCR
-  LDA VIA::IER                    ; 割り込み許可
-  ORA #%10000001                  ; bit 0はCA2
+  LDA #(VIA::IER_SET|VIA::IFR_CA2) ; CA2割込みを有効に
   STA VIA::IER
   CLI                             ; --- 割込みに関連する初期化終わり
   ; --- PS/2キーボードの初期化処理  タイムアウト付き
