@@ -566,6 +566,18 @@ GET_EMPTY_CLUS:
 
 WRITE_CLUS:
   ; FAT2の着目箇所にクラスタ番号を書き込み、FAT1にも同様に書き込む
+  ; GET_EMPTY_CLUSにより(ZP_SDSEEK_VEC16),YはFAT2該当エントリの最後のバイトを指す
+  ; $0FFF_FFFFを置く
+  LDA #$0F
+  STA (ZP_SDSEEK_VEC16),Y
+  LDA #$FF
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
+  RTS
 
 ALLOC_CLUS:
   ; 新規クラスタを割り当てる

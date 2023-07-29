@@ -594,7 +594,10 @@ FUNC_FS_MAKEF:
   ; = ファイル作成の季節
   ;mem2AY16 ZR2
   ;CLC
-  JSR GET_EMPTY_CLUS
+  JSR GET_EMPTY_CLUS        ; 新規クラスタを発見
+  BRK
+  NOP
+  JSR WRITE_CLUS            ; FAT登録
   BRK
   NOP
   RTS
