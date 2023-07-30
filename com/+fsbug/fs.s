@@ -556,6 +556,7 @@ FUNC_FS_FPATH:
 FUNC_FS_MAKEF:
   STA ZR2
   STY ZR2+1
+  JSR FUNC_UPPER_STR        ; 大文字にしておく
 @PATH:
   JSR P2F_PATH2DIRINFO      ; パスからディレクトリのFINFOを開く
   BCC @SKP_DIRPATHERR       ; エラーハンドル
