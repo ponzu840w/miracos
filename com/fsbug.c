@@ -185,6 +185,8 @@ int main(void){
       printf("root   - Read root dir.\n");
       printf("clus   - Calc Clus to Sec\n");
       printf("fat    - show FAT\n");
+      printf("makef  - make new file.\n");
+      printf("exit   - exit this tool.\n");
 
     }else if(strcmp(tok,"sec")==0){
       // 読み込み対象セクタ指定
@@ -266,8 +268,8 @@ int main(void){
       }
       showFAT(fatnum,clus);
 
-    }else if(strcmp(tok,"test")==0){
-      // お試し
+    }else if(strcmp(tok,"makef")==0){
+      // ファイル作成
       if((tok=strtok(NULL," "))==NULL){
         printf("path>");
         cins(line);
@@ -275,13 +277,11 @@ int main(void){
         printf("\n");
       }
       printf("path:%s\n",tok);
-      printf("lets make:%s\n",makef(tok));
-      printf("buff:\n");
-      // セクタバッファを表示
-      setGCONoff();
-      dump(0, SECTOR_BUFFER, SECTOR_BUFFER+0x1FF, 0);
-      restoreGCON();
+      makef(tok);
 
+    }else if(strcmp(tok,"exit")==0){
+      printf("bye\n");
+      exit(0);
     }
   }
   return 0;

@@ -221,46 +221,41 @@ L_SB_BYT:
   PLP
   RTS
 
-M_SFN_DOT2RAW_WS:
-  ; 専用ワークエリアを使う
-  ; 文字列操作系はSRC固定のほうが多そう？
-  loadreg16 DOT_SFN
-M_SFN_DOT2RAW_AXS:
-  JSR AX_SRC
-  loadreg16 RAW_SFN
-M_SFN_DOT2RAW_AXD:
-  JSR AX_DST
 M_SFN_DOT2RAW:
   ; ドット入り形式のSFNを生形式に変換する
-  STZ ZR0   ; SRC
-  STZ ZR0+1 ; DST
-@NAMELOOP:
-  ; 固定8ループ DST
-  LDY ZR0
-  LDA (ZP_LSRC0_VEC16),Y
-  CMP #'.'
-  BEQ @SPACE
-  ; 次のソース
-  INC ZR0
-  BRA @STORE
-  ; スペースをロード
-@SPACE:
+  ; TODO:fat.s DIR_WRENTでしか使わないため最適化
+@ZR0L_SRC=ZR0
+@ZR0H_DST=ZR0+1
+  ; スペースで埋める
   LDA #' '
-@STORE:
-  LDY ZR0+1
+  LDY #10
+@FILL_LOOP:
   STA (ZP_LDST0_VEC16),Y
-  INC ZR0+1
-  CPY #7
-  BNE @CKEXEND
-@NAMEEND:
-  ; 拡張子
-  INC ZR0     ; ソースを一つ進める
-@CKEXEND:
-  CPY #12
-  BNE @NAMELOOP
-  ; 結果のポインタを返す
-  LDA ZP_LDST0_VEC16
-  LDX ZP_LDST0_VEC16+1
+  DEY
+  BNE @FILL_LOOP
+  STA (ZP_LDST0_VEC16),Y
+  ; メインループ
+  STZ @ZR0L_SRC
+  STZ @ZR0H_DST
+@LOOP:
+  ; 読み取り
+  LDY @ZR0L_SRC
+  LDA (ZP_LSRC0_VEC16),Y
+  BEQ @EXT
+  INC @ZR0L_SRC ; 次のCMPに影響を与えない
+  CMP #'.'
+  BNE @SKP_DOT
+  ; .処理
+  LDA #8
+  STA @ZR0H_DST
+  BRA @LOOP
+@SKP_DOT:
+  ; 格納
+  LDY @ZR0H_DST
+  STA (ZP_LDST0_VEC16),Y
+  INC @ZR0H_DST
+  BRA @LOOP
+@EXT:
   RTS
 
 M_SFN_RAW2DOT_WS:
@@ -323,6 +318,7 @@ M_CP_AYS:
   ; 文字列をコピーする
   STA ZR0
   STY ZR0+1
+M_CP:
   LDY #$FF
 @LOOP:
   INY

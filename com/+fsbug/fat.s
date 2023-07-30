@@ -133,7 +133,7 @@ LOAD_DWK:
   ; unsigned long fatlen=(dwk_p->DATSTART-dwk_p->FATSTART)/2;
   ; unsigned long fat2startsec=dwk_p->FATSTART+fatlen;
   ; dst=FATSTART2
-  loadreg16 DWK_FATSTART2
+  loadreg16 DWK_FATLEN
   JSR AX_DST
   ; *dst=DATSTART
   loadreg16 (DWK+DINFO::DATSTART)
@@ -143,6 +143,11 @@ LOAD_DWK:
   JSR L_SB_AXS
   ; *dst=*dst/2
   JSR L_DIV2
+  ; DWK_FATSTART2=DWK_FATLEN
+  loadreg16 DWK_FATSTART2
+  JSR AX_DST
+  loadreg16 DWK_FATLEN
+  JSR L_LD_AXS
   ; *dst=*dst+FATSTART
   loadreg16 (DWK+DINFO::FATSTART)
   JSR L_ADD_AXS
@@ -577,8 +582,92 @@ WRITE_CLUS:
   STA (ZP_SDSEEK_VEC16),Y
   DEY
   STA (ZP_SDSEEK_VEC16),Y
+  ; FAT2に書き込む
+  LDA #>SECBF512
+  STA ZP_SDSEEK_VEC16+1
+  STZ ZP_SDSEEK_VEC16
+  JSR SD::WRSEC
+  SEC                                         ; C=1 ERR
+  BNE @ERR
+@SKP_FAT2ERR:
+  ; FAT1に書き込む
+  DEC ZP_SDSEEK_VEC16+1
+  loadreg16 FWK_REAL_SEC
+  JSR AX_DST
+  loadreg16 DWK_FATLEN
+  JSR L_SB_AXS
+  loadreg16 FWK_REAL_SEC
+  JSR SD::WRSEC
+  SEC                                         ; C=1 ERR
+  BNE @ERR
+  CLC                                         ; C=0 OK
+@ERR:
   RTS
 
 ALLOC_CLUS:
   ; 新規クラスタを割り当てる
+
+DIR_WRENT:
+  ; ディレクトリエントリを書き込む
+  ; 要求: 該当セクタがバッファに展開されている、REALSECも正しい
+  ;       ZP_SDSEEK_VEC16がエントリ先頭を指している
+  ; 名前
+  mem2AX16 ZP_SDSEEK_VEC16
+  JSR AX_DST
+  loadreg16 FINFO_WK+FINFO::NAME
+  JSR AX_SRC
+  JSR M_SFN_DOT2RAW
+  ; 属性
+  LDA FINFO_WK+FINFO::ATTR
+  LDY #OFS_DIR_ATTR
+  STA (ZP_SDSEEK_VEC16),Y
+  ; サポートしない情報 NTRes(1)CrtTimeTenth(1)CrtTime(2)CrtDate(2)LstAccDate(2)=8bytes
+  LDA #0
+@LOOP:
+  INY
+  STA (ZP_SDSEEK_VEC16),Y
+  CPY #OFS_DIR_FSTCLUSHI-1
+  BNE @LOOP
+  ; 先頭クラスタ 上位
+  INY
+  LDA FINFO_WK+FINFO::HEAD+2
+  STA (ZP_SDSEEK_VEC16),Y
+  INY
+  LDA FINFO_WK+FINFO::HEAD+3
+  STA (ZP_SDSEEK_VEC16),Y
+  ; 更新日時
+  LDX FINFO::WRTIME
+@LOOP2:
+  INY
+  LDA FINFO_WK,X
+  STA (ZP_SDSEEK_VEC16),Y
+  INX
+  CPY #OFS_DIR_FSTCLUSLO-1
+  BNE @LOOP2
+  ; 先頭クラスタ 下位
+  INY
+  LDA FINFO_WK+FINFO::HEAD
+  STA (ZP_SDSEEK_VEC16),Y
+  INY
+  LDA FINFO_WK+FINFO::HEAD+1
+  STA (ZP_SDSEEK_VEC16),Y
+  ; サイズ
+  LDX FINFO::SIZ
+@LOOP3:
+  INY
+  LDA FINFO_WK,X
+  STA (ZP_SDSEEK_VEC16),Y
+  INX
+  CPY #OFS_DIR_FILESIZE+3
+  BNE @LOOP3
+  ; ライトバック
+  LDA #>SECBF512
+  STA ZP_SDSEEK_VEC16+1
+  STZ ZP_SDSEEK_VEC16
+  JSR SD::WRSEC
+  SEC                                         ; C=1 ERR
+  BNE @ERR
+  CLC                                         ; C=0 OK
+@ERR:
+  RTS
 

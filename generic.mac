@@ -56,6 +56,11 @@
   LDY src+1
 .endmac
 
+.macro mem2AX16 src
+  LDA src
+  LDX src+1
+.endmac
+
 .macro pushAY16
   PHA
   PHY

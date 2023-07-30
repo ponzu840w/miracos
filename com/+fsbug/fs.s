@@ -547,6 +547,58 @@ FUNC_FS_FPATH:
   BRA @DELDOTS_LOOP
 
 ; -------------------------------------------------------------------
+;                            ファイル作成
+; -------------------------------------------------------------------
+; ドライブパスからファイルを作成してオープンする
+; input:AY=path ptr
+; output:A=FD, X=ERR
+; -------------------------------------------------------------------
+FUNC_FS_MAKEF:
+  STA ZR2
+  STY ZR2+1
+@PATH:
+  JSR P2F_PATH2DIRINFO      ; パスからディレクトリのFINFOを開く
+  BCC @SKP_DIRPATHERR       ; エラーハンドル
+  RTS
+@SKP_DIRPATHERR:
+  ; ディレクトリは開けた状態
+  JSR P2F_CHECKNEXT         ; 最終要素は開けるかな？
+  BCC @EXIST
+  ; ディレクトリは開けたが、最終要素が開けない
+  ; = ファイル作成の季節
+  ; FWK_REAL_SECとZP_SDSEEK_VEC16をスタックにプッシュ
+  pushmem16 ZP_SDSEEK_VEC16
+  pushmem16 FWK_REAL_SEC
+  pushmem16 FWK_REAL_SEC+2
+  ; FINFOに新規ファイル名を設定する
+  loadmem16 ZR1,FINFO_WK+FINFO::NAME
+  mem2mem16 ZR0,ZR2
+  JSR M_CP
+  ; FINFOをゼロリセットする
+  LDA #0
+  TAX
+@FILLLOOP:
+  STA FINFO_WK+FINFO::ATTR,X
+  INX
+  CPX FINFO::DRV_NUM-FINFO::ATTR
+  BNE @FILLLOOP
+  ; FINFOに割り当てクラスタを設定する
+  JSR GET_EMPTY_CLUS        ; 新規クラスタを発見 ZR34に
+  JSR WRITE_CLUS            ; FAT登録
+  mem2mem16 FINFO_WK+FINFO::HEAD,ZR3
+  mem2mem16 FINFO_WK+FINFO::HEAD+2,ZR4
+  ; ディレクトリエントリの書き込み先をスタックから回復
+  pullmem16 FWK_REAL_SEC+2
+  pullmem16 FWK_REAL_SEC
+  JSR RDSEC
+  pullmem16 ZP_SDSEEK_VEC16
+  JSR DIR_WRENT
+  RTS
+@EXIST:
+  LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ
+  BRA ERR_REPORT
+
+; -------------------------------------------------------------------
 ; BCOS 5                  ファイルオープン
 ; -------------------------------------------------------------------
 ; ドライブパスまたはFINFOポインタからファイル記述子をオープンして返す
@@ -571,39 +623,6 @@ FINFO2FD:
   LDA #ERR::FAILED_OPEN
 ERR_REPORT:
   JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
-
-; -------------------------------------------------------------------
-;                            ファイル作成
-; -------------------------------------------------------------------
-; ドライブパスからファイルを作成してオープンする
-; input:AY=path ptr
-; output:A=FD, X=ERR
-; -------------------------------------------------------------------
-FUNC_FS_MAKEF:
-  STA ZR2
-  STY ZR2+1
-@PATH:
-  JSR P2F_PATH2DIRINFO      ; パスからディレクトリのFINFOを開く
-  BCC @SKP_DIRPATHERR       ; エラーハンドル
-  RTS
-@SKP_DIRPATHERR:
-  ; ディレクトリは開けた状態
-  JSR P2F_CHECKNEXT         ; 最終要素は開けるかな？
-  BCC @EXIST
-  ; ディレクトリは開けたが、最終要素が開けない
-  ; = ファイル作成の季節
-  ;mem2AY16 ZR2
-  ;CLC
-  JSR GET_EMPTY_CLUS        ; 新規クラスタを発見
-  BRK
-  NOP
-  JSR WRITE_CLUS            ; FAT登録
-  BRK
-  NOP
-  RTS
-@EXIST:
-  LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ
-  BRA ERR_REPORT
 
 ; -------------------------------------------------------------------
 ;                         リアルセクタ作成

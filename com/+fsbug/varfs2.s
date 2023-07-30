@@ -4,4 +4,5 @@ PATH_WK:            .RES 64
 ; ふたつめのFATのセクタ番号
 ; 高速化のために保持 計算で求める
 DWK_FATSTART2:      .RES 4
+DWK_FATLEN:         .RES 4
 
