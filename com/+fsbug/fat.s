@@ -312,6 +312,9 @@ DIR_GETENT:
 
 NEXTSEC:
   ; ファイル構造体を更新し、次のセクタを開く
+  ;  output: C=1:EOC 単にエラーとするか新規クラスタを割り当てるかはあなた次第
+  ;               状態:CUR_SECは更新されている
+  ;                    REAL_SECとセクタバッファ、参照ベクタLSRC0はEOCを示すFAT領域を開いている
   loadreg16 (FWK_REAL_SEC)
   JSR AX_DST                    ; リアルセクタをDSTに
   ; クラスタ内セクタ番号の更新
@@ -340,7 +343,7 @@ NEXTSEC:
   ; FATSTART加算
   loadreg16 (DWK+DINFO::FATSTART)
   JSR L_ADD_AXS
-  pushmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ退避
+  pushmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ退避 高速読み取り時に必要
   ; FATロード
   JSR RDSEC
   ; 参照ベクタ作成
@@ -354,11 +357,25 @@ NEXTSEC:
 @SKP_INCPAGE:
   STA ZP_LSRC0_VEC16
   ; 現在クラスタにFATからコピー
-  loadreg16 (FWK+FCTRL::CUR_CLUS)
-  JSR AX_DST
-  JSR L_LD
+  ;  NOTE:開いたけどそこまでタイミングクリティカルじゃない？
+  LDY #3
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  CMP #$0F
+  BEQ @MIGHT_EOC                  ; EOCかもしれない
+@NOT_EOC:
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
   JSR CLUS_REOPEN                 ; 更新された現在クラスタをもとにFWK再展開
   pullmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ復帰
+  CLC
   RTS
 @SKP_NEXTCLUS:
   ; リアルセクタ番号を更新
@@ -366,18 +383,57 @@ NEXTSEC:
   ;JSR AX_DST
   LDA #1
   JSR L_ADD_BYT
+  CLC
   RTS
 
-FINFO2SIZ:
+@MIGHT_EOC:
+  ; 上位バイトを見たところEOCの可能性あり
+  LDA (ZP_LSRC0_VEC16),Y    ; $0F[??]_????
+  DEY
+  AND (ZP_LSRC0_VEC16),Y    ; $0F??_[??]??
+  DEY
+  INC                       ; $FF++==0
+  BNE @NOT_EOC1             ; 中位2バイトをみたらEOCじゃなかった
+  LDA (ZP_LSRC0_VEC16),Y    ; $0F??_??[??]
+  ORA #%111
+  INC                       ; $FF++==0
+  BNE @NOT_EOC1             ; 最下位バイトを見たらEOCじゃなかった（そんなことある？）
+  ; EOC確定
+  PLA                       ; 控えてあったZP_SDSEEK_VEC16の破棄
+  PLA
+  SEC
+  RTS
+@NOT_EOC1:
+  LDY #2
+  BRA @NOT_EOC
+
+INTOPEN_FILE_SIZ:
   ; FINFO構造体に展開されたサイズをFCTRL構造体にコピー
+  ; NOTE: FD_OPENでしか呼ばれないので開いてもいいかも
   loadreg16 FWK+FCTRL::SIZ        ; デスティネーションをサイズに
   JSR AX_DST
   loadreg16 FINFO_WK+FINFO::SIZ   ; ソースをFINFOのサイズにしてロード
   JSR L_LD_AXS
-  loadreg16 FWK+FCTRL::SEEK_PTR   ; デスティネーションをシークポインタに
+  RTS
+
+INTOPEN_FILE_DIR_RSEC:
+  JSR FINFO_WK_OPEN_DIRENT        ; FINFOの親をFWKに
+  ; fwk::rsec<=realsec
+  loadreg16 FWK+FCTRL::DIR_RSEC
   JSR AX_DST
-  loadreg16 SD::BTS_CMDPRM_ZERO   ; ソースを$00000000にしてロード
+  loadreg16 FWK_REAL_SEC
   JSR L_LD_AXS
+  ; 最高位バイトの上位4bitが空なのでエントリ座標を仕込む
+  LDA FINFO_WK+FINFO::DIR_ENT
+  ORA FWK+FCTRL::DIR_RSEC+3
+  STA FWK+FCTRL::DIR_RSEC+3
+  RTS
+
+INTOPEN_FILE_CLEAR_SEEK:
+  STZ FWK+FCTRL::SEEK_PTR
+  STZ FWK+FCTRL::SEEK_PTR+1
+  STZ FWK+FCTRL::SEEK_PTR+2
+  STZ FWK+FCTRL::SEEK_PTR+3
   RTS
 
 DIR_NEXTMATCH:

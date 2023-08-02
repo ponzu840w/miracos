@@ -123,23 +123,41 @@ FUNC_FS_READ_BYTS:
   @ZR34_TMP32         = ZR3       ; 32bit計算用、読まれたバイト長が求まった時点で破棄
   @ZR3_BFPTR          = ZR3       ; 書き込み先のアドレス
   @ZR4_ITR            = ZR4       ; イテレータ
+  @ZR4H_RWFLAG        = ZR4+1     ; bit0 0=R 1=W
   ; ---------------------------------------------------------------
   ;   引数の格納
+  RMB0 @ZR4H_RWFLAG               ; READにセット
   storeAY16 @ZR2_LENGTH
   LDA ZR1
   PHA                             ; fdをプッシュ
   pushmem16 ZR0                   ; 書き込み先アドレス退避
   LDA ZR1
   ; ---------------------------------------------------------------
-  ;   LENGTHの算出
-  ;   ファイルの残りより多く要求されていた場合、ファイルの残りにする
+  ;   LENGTHの処理
+  ;   READ:   ファイルの残りより多く要求されていた場合、ファイルの残りにする
+  ;   WRITE:  ファイルの残りより多く書くつもりの場合、ファイルサイズを拡張する
   JSR LOAD_FWK_MAKEREALSEC        ; AのfdからFCTRL構造体をロード、リアルセクタ作成
   LDA FWK+FCTRL::SIZ
   long_long_sub   @ZR34_TMP32, FWK+FCTRL::SIZ, FWK+FCTRL::SEEK_PTR   ; tmp=siz-seek
   long_short_cmp  @ZR34_TMP32, @ZR2_LENGTH                           ; tmp<=>length @ZR34_TMP32の破棄
   BEQ @SKP_PARTIAL_LENGTH
   BCS @SKP_PARTIAL_LENGTH         ; 要求lengthがファイルの残りより小さければそのままで問題なし
-  ; lengthをファイルの残りに変更
+  ; siz-seek<length
+  BBR0 @ZR4H_RWFLAG,@OVER_LEN_READ
+@OVER_LEN_WRITE:
+  ; WRITE:sizを更新
+  ;
+  ;   newsiz=seek+len
+  loadreg16 FWK+FCTRL::SIZ        ; * siz=seek+len
+  JSR AX_DST                      ; |
+  loadreg16 FWK+FCTRL::SEEK_PTR   ; |
+  JSR L_LD_AXS                    ; |
+  STZ ZR3                         ; |
+  STZ ZR3+1                       ; |
+  loadreg16 @ZR2_LENGTH           ; |
+  JSR L_ADD_AXS                   ; |
+@OVER_LEN_READ:
+  ; READ:lengthをファイルの残りに変更
   mem2mem16 @ZR2_LENGTH,@ZR34_TMP32
 @SKP_PARTIAL_LENGTH:
   ; lengthが0になったら強制終了
@@ -147,8 +165,8 @@ FUNC_FS_READ_BYTS:
   ORA @ZR2_LENGTH+1
   BNE @SKP_EOF
   ; length=0
-  PLX                             ; fd回収
-  PLX                             ; fd回収
+  PLX                             ; ユーザバッファアドレス回収
+  PLX
   PLX                             ; fd回収
   SEC
   RTS
@@ -174,27 +192,14 @@ FUNC_FS_READ_BYTS:
 @NOT_SECALIGN:
   ; SEEKがセクタアライメントされていなかった
   ; ---------------------------------------------------------------
-  ;   バイト単位リード
+  ;   バイト単位リード -- 実はREADと共用で、データの移動方向とクラスタ追加の可否だけが違う
 @READ_BY_BYT:
   ; 読み取り長さの上位をイテレータに
   LDA @ZR2_LENGTH+1
   STA @ZR4_ITR
-  ; debug
-    BRA @RTRY_first2
-@RTRY2:
-    ;BRK
-    ;NOP
-    @RTRY_first2:
-  JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る…1ならたぶんCMD17失敗
-  BCS @RTRY2                      ; CMD17失敗をリトライで対応 TODO:大変アドホック！なんとかしろ
+  JSR RDSEC_F
   ; SDSEEKの初期位置をシークポインタから計算
-  LDA FWK+FCTRL::SEEK_PTR+1       ; 第1バイト
-  LSR                             ; bit 0 をキャリーに
-  BCC @SKP_INCPAGE                ; C=0 上部 $03 ？ 逆では
-  INC ZP_SDSEEK_VEC16+1           ; C=1 下部 $04
-@SKP_INCPAGE:
-  LDA FWK+FCTRL::SEEK_PTR         ; 第0バイト
-  STA ZP_SDSEEK_VEC16
+  JSR FCTRL2SEEK
   ; 1文字ずつ、固定バッファロード->指定バッファに移送
   LDX @ZR2_LENGTH                 ; ページ端数部分を初回ループカウンタに
   BEQ @SKP_INC_ITR                ; 下位がゼロでないとき、
@@ -202,8 +207,15 @@ FUNC_FS_READ_BYTS:
 @SKP_INC_ITR:
   LDY #0                          ; BFPTRインデックス
 @LOOP_BYT:
+  BBS0 @ZR4H_RWFLAG,@WRITE_BYTE   ; RW分岐
+@READ_BYTE:
   LDA (ZP_SDSEEK_VEC16)           ; 固定バッファからデータをロード
   STA (@ZR3_BFPTR),Y              ; 指定バッファにデータをストア
+  BRA @SKP_WRITE_BYTE
+@WRITE_BYTE:
+  LDA (@ZR3_BFPTR),Y              ; 指定バッファからデータをロード
+  STA (ZP_SDSEEK_VEC16)           ; 固定バッファにデータをストア
+@SKP_WRITE_BYTE:
   ; BFPTRの更新
   INY                             ; Yインクリメント
   BNE @SKP_BF_NEXT_PAGE           ; Yが0に戻った=BFPTRのページ跨ぎ発生
@@ -225,14 +237,10 @@ FUNC_FS_READ_BYTS:
   PHX
   PHY
   JSR NEXTSEC                     ; 次のセクタに移行
-  ; debug
-    BRA @RTRY_first
-@RTRY:
-    ;BRK
-    ;NOP
-    @RTRY_first:
-  JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る…1ならたぶんCMD17失敗
-  BCS @RTRY                       ; CMD17失敗をリトライで対応 TODO:大変アドホック！なんとかしろ
+;  BCC @SKP_EOC
+;  JMP RW_EOC
+;@SKP_EOC:
+  JSR RDSEC_F
   PLY
   PLX
   BRA @SKP_INC_SDSEEK
@@ -281,6 +289,23 @@ FUNC_FS_READ_BYTS:
   ;mem2mem16 ZR0,ZP_SDSEEK_VEC16
   ;loadAY16 FWK                    ; 実験用にFCTRLを開放
   RTS
+RW_BY_BYT=@READ_BY_BYT
+
+FCTRL2SEEK:
+  ; SDSEEKの初期位置をシークポインタから計算
+  LDA FWK+FCTRL::SEEK_PTR+1       ; 第1バイト
+  LSR                             ; bit 0 をキャリーに
+  BCC @SKP_INCPAGE                ; C=0 上部 $03 ？ 逆では
+  INC ZP_SDSEEK_VEC16+1           ; C=1 下部 $04
+@SKP_INCPAGE:
+  LDA FWK+FCTRL::SEEK_PTR         ; 第0バイト
+  STA ZP_SDSEEK_VEC16
+  RTS
+
+RDSEC_F:
+  JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る…1ならたぶんCMD17失敗
+  BCS RDSEC_F                     ; CMD17失敗をリトライで対応 TODO:大変アドホック！なんとかしろ
+  RTS
 
 ; -------------------------------------------------------------------
 ; BCOS 9                   ファイル検索                エラーハンドル
@@ -316,19 +341,9 @@ FUNC_FS_FIND_NXT:
   STA FINFO_WK,Y
   DEY
   BPL @DLFWK_LOOP                     ; FINFOコピー終了
-  loadreg16 FINFO_WK+FINFO::DIR_CLUS
-  JSR HEAD2FWK                        ; FINFOの親ディレクトリの現在クラスタをFWKに展開、ただしSEC=0
-                                      ;   先頭扱いでコールしているが先頭クラスタは覚えていない
-  LDA FINFO_WK+FINFO::DIR_SEC         ; クラスタ内セクタ番号を取得
-  STA FWK+FCTRL::CUR_SEC              ; 現在セクタ反映
-  JSR FLASH_REALSEC
+  JSR FINFO_WK_OPEN_DIRENT
   JSR RDSEC                           ; セクタ読み取り
-  LDA FINFO_WK+FINFO::DIR_ENT
-  ASL                                 ; 左に転がしてSDSEEK下位を復元、C=後半フラグ
-  STA ZP_SDSEEK_VEC16
-  LDA #>SECBF512                      ; 前半のSDSEEK
-  ADC #0                              ; C=1つまり後半であれば+1する
-  STA ZP_SDSEEK_VEC16+1               ; SDSEEK上位を復元
+  JSR FINFO_WK_SEEK_DIRENT
   JSR DIR_NEXTMATCH_NEXT_ZR2
   CMP #$FF                            ; もう無いか？
   CLC
@@ -336,6 +351,26 @@ FUNC_FS_FIND_NXT:
   SEC
 @SUCS:
   loadAY16 FINFO_WK
+  RTS
+
+FINFO_WK_OPEN_DIRENT:
+  ; FINFOのもつ親ディレクトリのクラスタ番号・クラスタ内セクタ番号からFWK・REALSECを展開する
+  loadreg16 FINFO_WK+FINFO::DIR_CLUS
+  JSR HEAD2FWK                        ; FINFOの親ディレクトリの現在クラスタをFWKに展開、ただしSEC=0
+                                      ;   先頭扱いでコールしているが先頭クラスタは覚えていない
+  LDA FINFO_WK+FINFO::DIR_SEC         ; クラスタ内セクタ番号を取得
+  STA FWK+FCTRL::CUR_SEC              ; 現在セクタ反映
+  JSR FLASH_REALSEC
+  RTS
+
+FINFO_WK_SEEK_DIRENT:
+  ; FINFOのもつ親ディレクトリのセクタ内エントリ番号からセクタバッファ内のポインタを作る
+  LDA FINFO_WK+FINFO::DIR_ENT
+  ASL                                 ; 左に転がしてSDSEEK下位を復元、C=後半フラグ
+  STA ZP_SDSEEK_VEC16
+  LDA #>SECBF512                      ; 前半のSDSEEK
+  ADC #0                              ; C=1つまり後半であれば+1する
+  STA ZP_SDSEEK_VEC16+1               ; SDSEEK上位を復元
   RTS
 
 FLASH_REALSEC:
@@ -654,8 +689,10 @@ FD_OPEN:
   SEC                       ; ディレクトリを開こうとしたエラー
   RTS
 @SKP_DIRERR:                ; 以下、ディレクトリではない
+  JSR INTOPEN_FILE_DIR_RSEC ; 破壊的なので先にFINFOから親ディレクトリ情報をコピー
   JSR INTOPEN_FILE          ; FINFOからファイルを開く
-  JSR FINFO2SIZ             ; サイズ情報も展開
+  JSR INTOPEN_FILE_SIZ      ; サイズ情報も展開
+  JSR INTOPEN_FILE_CLEAR_SEEK ; シーク位置をリセット
   JSR GET_NEXTFD            ; ファイル記述子を取得
   PHA
   JSR FCTRL_ALLOC           ; ファイル記述子に実際の構造体を割り当て
@@ -721,4 +758,37 @@ FD2FCTRL:
   DEY
   LDA (ZR0),Y
   RTS
+
+; -------------------------------------------------------------------
+;                         ファイル書き込み
+; -------------------------------------------------------------------
+; input :ZR1=fd, AY=len, ZR0=bfptr
+; output:AY=actual_len、C=EOF
+; -------------------------------------------------------------------
+FUNC_FS_WRITE:
+  ; ---------------------------------------------------------------
+  ;   サブルーチンローカル変数の定義
+  @ZR2_LENGTH         = ZR2       ; 読みたいバイト長=>読まれたバイト長
+  @ZR3_BFPTR          = ZR3       ; ユーザバッファのアドレス
+  @ZR4_ITR            = ZR4       ; イテレータ
+  @ZR4H_RWFLAG        = ZR4+1     ; bit0 0=R 1=W
+  ; ---------------------------------------------------------------
+  ;   引数の格納
+  storeAY16 @ZR2_LENGTH           ; 書き込み長さ
+  mem2mem16 @ZR3_BFPTR,ZR0        ; ユーザバッファ
+  SMB0 @ZR4H_RWFLAG
+  LDA ZR1
+  JSR LOAD_FWK_MAKEREALSEC        ; AのfdからFCTRL構造体をロード、リアルセクタ作成
+  JMP RW_BY_BYT
+
+;RW_EOC:
+;  ; バイト単位R/WでNEXTSECしたらEOCだった
+;  @ZR4H_RWFLAG        = ZR4+1     ; bit0 0=R 1=W
+;  ; READなら、本来はEOCにはならないはずだ。
+;  BBS0 @ZR4H_RWFLAG,@SKP_ERR
+;  SEC
+;  RTS
+;@SKP_ERR:
+;  ; ---------------------------------------------------------------
+;  ;   クラスタチェーンの延長
 
