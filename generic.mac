@@ -71,6 +71,16 @@
   PLA
 .endmac
 
+.macro pushAX16
+  PHA
+  PHX
+.endmac
+
+.macro pullAX16
+  PLX
+  PLA
+.endmac
+
 .macro pushmem16 src
   LDA src
   PHA

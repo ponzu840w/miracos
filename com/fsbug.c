@@ -64,7 +64,8 @@ extern void restoreGCON();
 extern void cins(const char *str);
 //extern unsigned char* path2finfo(unsigned char* path);
 extern unsigned char* makef(unsigned char* path);
-extern unsigned char* open(unsigned char* path);
+extern unsigned char open(unsigned char* path);
+extern unsigned int read(unsigned char fd, unsigned char *buf, unsigned int count);
 
 // アセンブラ変数とか
 extern void* sdseek;   // セクタ読み書きのポインタ
@@ -226,6 +227,7 @@ void showFINFO(){
 
 int main(void){
   unsigned long sec_cursor=0;
+  unsigned char fd;
   unsigned char line[64];
   unsigned char* tok;
 
@@ -267,6 +269,7 @@ int main(void){
     }else if(strcmp(tok,"stat")==0){
       // 状態表示
       printf(" sec_cursor:%s\n",put32(sec_cursor));
+      printf(" fd        :%d\n",fd);
 
       printf("\n[Master Boot Record]\n");
       printf(" [Partition 1 Info]\n");
@@ -346,15 +349,18 @@ int main(void){
     }else if(strcmp(tok,"open")==0){
       // ファイルオープン
       tok=inputpath(line,tok);
-      open(tok);
+      fd=open(tok);
+      printf("fd=%d\n",fd);
 
     }else if(strcmp(tok,"exit")==0){
       printf("bye\n");
       exit(0);
 
     }else if(strcmp(tok,"test")==0){
-      printf("fwk=%04x\n",(unsigned int)&fwk);
-      printf("finfo=%04x\n",(unsigned int)&finfo_wk);
+      unsigned int len=read(fd,line,3);
+      line[3]='\0';
+      printf("read>[%s]\n",line);
+
     }
   }
   return 0;

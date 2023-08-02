@@ -436,6 +436,27 @@ INTOPEN_FILE_CLEAR_SEEK:
   STZ FWK+FCTRL::SEEK_PTR+3
   RTS
 
+INTOPEN_PDIR:
+  ; 親ディレクトリを開く
+  ;   セクタ
+  loadreg16 FWK_REAL_SEC
+  JSR AX_DST
+  loadreg16 FWK+FCTRL::DIR_RSEC
+  JSR L_LD_AXS
+  LDA FWK+FCTRL::DIR_RSEC+3
+  PHA
+  AND #%00001111
+  STA FWK+FCTRL::DIR_RSEC+3
+  JSR RDSEC                 ; セクタを開く
+  ;   セクタ内シーク
+  PLA
+  AND #%11110000
+  ASL
+  JSR SEEK_DIRENT
+  ;   FINFOに格納
+  JSR DIR_GETENT
+  RTS
+
 DIR_NEXTMATCH:
   ; 次のマッチするエントリを拾ってくる（FINFO_WKを構築する）
   ; ZP_SDSEEK_VEC16が32bitにアライメントされる
@@ -517,16 +538,12 @@ P2F_CHECKNEXT:
   ; output:<FINFOが開かれる>
   ; C=1 ERR
   JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得 NOTE:ヒットしたが開かれる前のFINFOを見るBP
-  brk
-  nop
   CMP #$FF              ; 見つからない場合
   BNE @SKP_E2
   LDA #ERR::FILE_NOT_FOUND
   JMP ERR::REPORT       ; ERR:指定されたファイルが見つからなかった
 @SKP_E2:
   JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く NOTE:開かれた内容を覗くBP
-  brk
-  nop
   CLC                   ; コールされた時の成功を知るC=0
   RTS
 

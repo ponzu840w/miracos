@@ -123,10 +123,11 @@ FUNC_FS_READ_BYTS:
   @ZR34_TMP32         = ZR3       ; 32bit計算用、読まれたバイト長が求まった時点で破棄
   @ZR3_BFPTR          = ZR3       ; 書き込み先のアドレス
   @ZR4_ITR            = ZR4       ; イテレータ
-  @ZR4H_RWFLAG        = ZR4+1     ; bit0 0=R 1=W
+  @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
   ; ---------------------------------------------------------------
   ;   引数の格納
-  RMB0 @ZR4H_RWFLAG               ; READにセット
+  RMB0 @ZR5L_RWFLAG               ; READにセット
+@WRITE_ENTRY:
   storeAY16 @ZR2_LENGTH
   LDA ZR1
   PHA                             ; fdをプッシュ
@@ -143,11 +144,18 @@ FUNC_FS_READ_BYTS:
   BEQ @SKP_PARTIAL_LENGTH
   BCS @SKP_PARTIAL_LENGTH         ; 要求lengthがファイルの残りより小さければそのままで問題なし
   ; siz-seek<length
-  BBR0 @ZR4H_RWFLAG,@OVER_LEN_READ
+  BBR0 @ZR5L_RWFLAG,@OVER_LEN_READ
 @OVER_LEN_WRITE:
-  ; WRITE:sizを更新
-  ;
-  ;   newsiz=seek+len
+  ; ---------------------------------------------------------------
+  ;   WRITE:sizを更新
+  ; ディレクトリを開く
+  JSR INTOPEN_PDIR
+  PLX                             ; ユーザバッファアドレス回収
+  PLX
+  PLX                             ; fd回収
+  SEC
+  RTS
+  ; newsiz=seek+len
   loadreg16 FWK+FCTRL::SIZ        ; * siz=seek+len
   JSR AX_DST                      ; |
   loadreg16 FWK+FCTRL::SEEK_PTR   ; |
@@ -157,7 +165,8 @@ FUNC_FS_READ_BYTS:
   loadreg16 @ZR2_LENGTH           ; |
   JSR L_ADD_AXS                   ; |
 @OVER_LEN_READ:
-  ; READ:lengthをファイルの残りに変更
+  ; ---------------------------------------------------------------
+  ;   READ:lengthをファイルの残りに変更
   mem2mem16 @ZR2_LENGTH,@ZR34_TMP32
 @SKP_PARTIAL_LENGTH:
   ; lengthが0になったら強制終了
@@ -207,7 +216,7 @@ FUNC_FS_READ_BYTS:
 @SKP_INC_ITR:
   LDY #0                          ; BFPTRインデックス
 @LOOP_BYT:
-  BBS0 @ZR4H_RWFLAG,@WRITE_BYTE   ; RW分岐
+  BBS0 @ZR5L_RWFLAG,@WRITE_BYTE   ; RW分岐
 @READ_BYTE:
   LDA (ZP_SDSEEK_VEC16)           ; 固定バッファからデータをロード
   STA (@ZR3_BFPTR),Y              ; 指定バッファにデータをストア
@@ -289,7 +298,7 @@ FUNC_FS_READ_BYTS:
   ;mem2mem16 ZR0,ZP_SDSEEK_VEC16
   ;loadAY16 FWK                    ; 実験用にFCTRLを開放
   RTS
-RW_BY_BYT=@READ_BY_BYT
+WRITE_ENTRY=@WRITE_ENTRY
 
 FCTRL2SEEK:
   ; SDSEEKの初期位置をシークポインタから計算
@@ -366,6 +375,7 @@ FINFO_WK_OPEN_DIRENT:
 FINFO_WK_SEEK_DIRENT:
   ; FINFOのもつ親ディレクトリのセクタ内エントリ番号からセクタバッファ内のポインタを作る
   LDA FINFO_WK+FINFO::DIR_ENT
+SEEK_DIRENT:
   ASL                                 ; 左に転がしてSDSEEK下位を復元、C=後半フラグ
   STA ZP_SDSEEK_VEC16
   LDA #>SECBF512                      ; 前半のSDSEEK
@@ -768,27 +778,9 @@ FD2FCTRL:
 FUNC_FS_WRITE:
   ; ---------------------------------------------------------------
   ;   サブルーチンローカル変数の定義
-  @ZR2_LENGTH         = ZR2       ; 読みたいバイト長=>読まれたバイト長
-  @ZR3_BFPTR          = ZR3       ; ユーザバッファのアドレス
-  @ZR4_ITR            = ZR4       ; イテレータ
-  @ZR4H_RWFLAG        = ZR4+1     ; bit0 0=R 1=W
+  @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
+  SMB0 @ZR5L_RWFLAG
   ; ---------------------------------------------------------------
-  ;   引数の格納
-  storeAY16 @ZR2_LENGTH           ; 書き込み長さ
-  mem2mem16 @ZR3_BFPTR,ZR0        ; ユーザバッファ
-  SMB0 @ZR4H_RWFLAG
-  LDA ZR1
-  JSR LOAD_FWK_MAKEREALSEC        ; AのfdからFCTRL構造体をロード、リアルセクタ作成
-  JMP RW_BY_BYT
-
-;RW_EOC:
-;  ; バイト単位R/WでNEXTSECしたらEOCだった
-;  @ZR4H_RWFLAG        = ZR4+1     ; bit0 0=R 1=W
-;  ; READなら、本来はEOCにはならないはずだ。
-;  BBS0 @ZR4H_RWFLAG,@SKP_ERR
-;  SEC
-;  RTS
-;@SKP_ERR:
-;  ; ---------------------------------------------------------------
-;  ;   クラスタチェーンの延長
+  ;   READを流用
+  JMP WRITE_ENTRY
 
