@@ -24,12 +24,15 @@ LAST_ERROR:           .RES 1
 .DATA
 ;  _sector_buffer_512:
 ;SECBF512:       .RES 512  ; SDカード用セクタバッファ
+_finfo_wk=FINFO_WK
+_fwk=FWK
+_fwk_real_sec=FWK_REAL_SEC
 
 .IMPORT popa, popax
 .IMPORTZP sreg
 
-.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef
-;.EXPORT _sector_buffer_512
+.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open
+.EXPORT _finfo_wk,_fwk
 .EXPORTZP _sdcmdprm,_sdseek
 .CONSTRUCTOR INIT
 
@@ -158,6 +161,17 @@ INIT:
   PHX
   PLY
   JSR FS::FUNC_FS_MAKEF
+  RTS
+.ENDPROC
+
+.PROC _open
+  PHX
+  PLY
+  JSR FS::FUNC_FS_OPEN
+  BCC @END
+  syscall ERR_GET
+  syscall ERR_MES
+@END:
   RTS
 .ENDPROC
 

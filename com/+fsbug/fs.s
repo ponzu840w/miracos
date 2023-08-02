@@ -648,7 +648,7 @@ FUNC_FS_OPEN:
   CMP #$FF                  ; FINFOシグネチャ
   BEQ FINFO2FD
 @PATH:
-  JSR PATH2FINFO            ; パスからファイルのFINFOを開く
+  JSR PATH2FINFO_ZR2        ; パスからファイルのFINFOを開く
   BCC @SKP_PATHERR          ; エラーハンドル
   RTS
 @SKP_PATHERR:

@@ -26,6 +26,32 @@ typedef struct{
   unsigned long FileSize;       // ファイルサイズ
 } dirent_t;
 
+typedef struct{
+  unsigned char Drv_Num;  // ドライブ番号
+  unsigned long Head;     // 先頭クラスタ
+  unsigned long Cur_Clus; // 現在クラスタ
+  unsigned char Cur_Sec;  // クラスタ内セクタ
+  unsigned long Siz;      // サイズ
+  unsigned long Seek_Ptr; // シーケンシャルアクセス用ポインタ
+  unsigned long Dir_RSec; // ディレクトリエントリの実セクタ
+} fctrl_t;
+
+typedef struct{
+  // FIB、ファイル詳細情報を取得し、検索などに利用
+  unsigned char Sig;                // $FFシグネチャ、フルパス指定と区別
+  unsigned char Name[13];           // 8.3ヌル終端
+  unsigned char Attr;               // 属性
+  unsigned int  WrTime;             // 最終更新時刻
+  unsigned int  WrDate;             // 最終更新日時
+  unsigned long Head;               // 先頭クラスタ番号
+  unsigned long Siz;                // ファイルサイズ
+  // 次を検索するためのデータ
+  unsigned char Drv_Num;            // ドライブ番号
+  unsigned long Dir_Clus;           // 親ディレクトリ現在クラスタ  親の先頭クラスタはどうでもいい？
+  unsigned char Dir_Sec;            // 親ディレクトリ現在クラスタ内セクタ
+  unsigned char Dir_Ent;            // セクタ内エントリ番号（SDSEEKの下位を右に1シフトしてMSBが後半フラグ
+} finfo_t;
+
 // 定数とか
 const unsigned int SECTOR_BUFFER=0x300;
 
@@ -38,13 +64,15 @@ extern void restoreGCON();
 extern void cins(const char *str);
 //extern unsigned char* path2finfo(unsigned char* path);
 extern unsigned char* makef(unsigned char* path);
-
+extern unsigned char* open(unsigned char* path);
 
 // アセンブラ変数とか
 extern void* sdseek;   // セクタ読み書きのポインタ
 extern void* sdcmdprm; // コマンドパラメータ4バイトを指す
 #pragma zpsym("sdseek");
 #pragma zpsym("sdcmdprm");
+extern fctrl_t fwk;
+extern finfo_t finfo_wk;
 
 // グローバル変数とか
 unsigned char putnum_buf[11];
@@ -52,6 +80,18 @@ unsigned char filename_buf[15];
 dinfo_t* dwk_p=(dinfo_t*)0x514;
 unsigned long fatlen;
 unsigned long fat2startsec;
+
+// パス入力を強制する
+char* inputpath(unsigned char* l, unsigned char* t){
+  if((t=strtok(NULL," "))==NULL){
+    printf("path>");
+    cins(l);
+    t=l;
+    printf("\n");
+  }
+  printf("path:%s\n",t);
+  return t;
+}
 
 // $0123-4567形式で表示
 char* put32(unsigned long toput){
@@ -159,6 +199,31 @@ void showFAT(unsigned char fatnum, unsigned long clus){
   printf("[%lx]%lx\n",clus,*entry_ptr);
 }
 
+// FWK表示
+void showFWK(){
+  printf("Drive Number: $%02x\n",fwk.Drv_Num);
+  printf("Head    Clus: %s\n",put32(fwk.Head));
+  printf("Current Clus: %s\n",put32(fwk.Cur_Clus));
+  printf("Current Sec : $%02x\n",fwk.Cur_Sec);
+  printf("        Size: %s\n",put32(fwk.Siz));
+  printf("Seek Pointer: %s\n",put32(fwk.Seek_Ptr));
+  printf("     Dir Sec: %s\n",put32(fwk.Dir_RSec));
+}
+
+// FINFO_WK表示
+void showFINFO(){
+  printf("Name: %s\n",finfo_wk.Name);
+  printf("Attr: %02x\n",finfo_wk.Attr);
+  // 時間省いた
+  printf("Head: %s\n",put32(finfo_wk.Head));
+  printf("Size: %s\n",put32(finfo_wk.Siz));
+  printf("Dir:\n");
+  printf("  DrvNum: $%02x\n",finfo_wk.Drv_Num);
+  printf("    Clus: %s\n",put32(finfo_wk.Dir_Clus));
+  printf("     Sec: $%02x\n",finfo_wk.Dir_Sec);
+  printf("     Ent: $%02x\n",finfo_wk.Dir_Ent);
+}
+
 int main(void){
   unsigned long sec_cursor=0;
   unsigned char line[64];
@@ -215,6 +280,11 @@ int main(void){
       printf("  Start of Data(S):%s\n",put32(dwk_p->DATSTART));
       printf("    RootClus   (C):%s\n",put32(dwk_p->BPB_ROOTCLUS));
 
+      printf("\nFWK:\n");
+      showFWK();
+      printf("\nFINFO_WK:\n");
+      showFINFO();
+
     }else if(strcmp(tok,"read")==0){
       // セクタ読み取り
       unsigned int err;
@@ -270,18 +340,21 @@ int main(void){
 
     }else if(strcmp(tok,"makef")==0){
       // ファイル作成
-      if((tok=strtok(NULL," "))==NULL){
-        printf("path>");
-        cins(line);
-        tok=line;
-        printf("\n");
-      }
-      printf("path:%s\n",tok);
+      tok=inputpath(line,tok);
       makef(tok);
+
+    }else if(strcmp(tok,"open")==0){
+      // ファイルオープン
+      tok=inputpath(line,tok);
+      open(tok);
 
     }else if(strcmp(tok,"exit")==0){
       printf("bye\n");
       exit(0);
+
+    }else if(strcmp(tok,"test")==0){
+      printf("fwk=%04x\n",(unsigned int)&fwk);
+      printf("finfo=%04x\n",(unsigned int)&finfo_wk);
     }
   }
   return 0;

@@ -517,12 +517,16 @@ P2F_CHECKNEXT:
   ; output:<FINFOが開かれる>
   ; C=1 ERR
   JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得 NOTE:ヒットしたが開かれる前のFINFOを見るBP
+  brk
+  nop
   CMP #$FF              ; 見つからない場合
   BNE @SKP_E2
   LDA #ERR::FILE_NOT_FOUND
   JMP ERR::REPORT       ; ERR:指定されたファイルが見つからなかった
 @SKP_E2:
   JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く NOTE:開かれた内容を覗くBP
+  brk
+  nop
   CLC                   ; コールされた時の成功を知るC=0
   RTS
 
