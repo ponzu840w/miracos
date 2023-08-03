@@ -646,7 +646,8 @@ FUNC_FS_MAKEF:
   JSR RDSEC
   pullmem16 ZP_SDSEEK_VEC16
   JSR DIR_WRENT
-  RTS
+  ; ファイルをオープンする
+  BRA FINFO2FD
 @EXIST:
   LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ
   BRA ERR_REPORT
