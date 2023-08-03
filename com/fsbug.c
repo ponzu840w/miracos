@@ -66,6 +66,7 @@ extern void cins(const char *str);
 extern unsigned char* makef(unsigned char* path);
 extern unsigned char open(unsigned char* path);
 extern unsigned int read(unsigned char fd, unsigned char *buf, unsigned int count);
+extern unsigned int write(unsigned char fd, unsigned char *buf, unsigned int count);
 
 // アセンブラ変数とか
 extern void* sdseek;   // セクタ読み書きのポインタ
@@ -356,10 +357,14 @@ int main(void){
       printf("bye\n");
       exit(0);
 
-    }else if(strcmp(tok,"test")==0){
+    }else if(strcmp(tok,"r")==0){
       unsigned int len=read(fd,line,3);
       line[3]='\0';
       printf("read>[%s]\n",line);
+
+    }else if(strcmp(tok,"w")==0){
+      unsigned int len=write(fd,"hoge",4);
+      printf("write>[%d]\n",len);
 
     }
   }

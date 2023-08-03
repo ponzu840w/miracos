@@ -31,7 +31,7 @@ _fwk_real_sec=FWK_REAL_SEC
 .IMPORT popa, popax
 .IMPORTZP sreg
 
-.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open,_read
+.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open,_read,_write
 .EXPORT _finfo_wk,_fwk
 .EXPORTZP _sdcmdprm,_sdseek
 .CONSTRUCTOR INIT
@@ -184,6 +184,22 @@ INIT:
   STA ZR1
   pullAY16
   JSR FS::FUNC_FS_READ_BYTS
+  BCC @END
+  syscall ERR_GET
+  syscall ERR_MES
+@END:
+  RTS
+.ENDPROC
+
+; unsigned int write(unsigned char fd, unsigned char *buf, unsigned int count);
+.PROC _write
+  pushAX16
+  JSR popax
+  storeAX16 ZR0
+  JSR popa
+  STA ZR1
+  pullAY16
+  JSR FS::FUNC_FS_WRITE
   BCC @END
   syscall ERR_GET
   syscall ERR_MES

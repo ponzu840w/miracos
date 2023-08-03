@@ -150,13 +150,8 @@ FUNC_FS_READ_BYTS:
   ;   WRITE:sizを更新
   ; ディレクトリを開く
   JSR INTOPEN_PDIR
-  PLX                             ; ユーザバッファアドレス回収
-  PLX
-  PLX                             ; fd回収
-  SEC
-  RTS
-  ; newsiz=seek+len
-  loadreg16 FWK+FCTRL::SIZ        ; * siz=seek+len
+  ; FINFO newsiz=seek+len
+  loadreg16 FINFO_WK+FINFO::SIZ   ; * siz=seek+len
   JSR AX_DST                      ; |
   loadreg16 FWK+FCTRL::SEEK_PTR   ; |
   JSR L_LD_AXS                    ; |
@@ -164,6 +159,15 @@ FUNC_FS_READ_BYTS:
   STZ ZR3+1                       ; |
   loadreg16 @ZR2_LENGTH           ; |
   JSR L_ADD_AXS                   ; |
+  ; FINFOをディスクに書き込み
+  JSR DIR_WRENT
+  ; FINFO->FWK
+  JSR INTOPEN_FILE_SIZ
+  PLX                             ; ユーザバッファアドレス回収
+  PLX
+  PLX                             ; fd回収
+  SEC
+  RTS
 @OVER_LEN_READ:
   ; ---------------------------------------------------------------
   ;   READ:lengthをファイルの残りに変更
