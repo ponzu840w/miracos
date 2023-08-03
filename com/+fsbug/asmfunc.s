@@ -362,8 +362,15 @@ FUNC_CON_OUT_CHR:
   RTS
 
 FUNC_CON_OUT_STR:
+  STA AAAA
+  pushmem16 ZR5
+  LDA AAAA
   syscall CON_OUT_STR
+  pullmem16 ZR5
   RTS
+
+AAAA:
+.RES 1
 
 ; -------------------------------------------------------------------
 ;                          汎用関数群

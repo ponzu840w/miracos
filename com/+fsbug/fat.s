@@ -659,24 +659,16 @@ WRITE_CLUS:
   DEY
   STA (ZP_SDSEEK_VEC16),Y
   ; FAT2に書き込む
-  LDA #>SECBF512
-  STA ZP_SDSEEK_VEC16+1
-  STZ ZP_SDSEEK_VEC16
-  JSR SD::WRSEC
-  SEC                                         ; C=1 ERR
-  BNE @ERR
+  JSR WRSEC
+  BCS @ERR                    ; C=1 ERR
 @SKP_FAT2ERR:
   ; FAT1に書き込む
-  DEC ZP_SDSEEK_VEC16+1
-  loadreg16 FWK_REAL_SEC
-  JSR AX_DST
-  loadreg16 DWK_FATLEN
-  JSR L_SB_AXS
-  loadreg16 FWK_REAL_SEC
-  JSR SD::WRSEC
-  SEC                                         ; C=1 ERR
-  BNE @ERR
-  CLC                                         ; C=0 OK
+  DEC ZP_SDSEEK_VEC16+1       ; * fat1=fat2-fatlen
+  loadreg16 FWK_REAL_SEC      ; |
+  JSR AX_DST                  ; |
+  loadreg16 DWK_FATLEN        ; |
+  JSR L_SB_AXS                ; |
+  JSR WRSEC
 @ERR:
   RTS
 
@@ -729,8 +721,6 @@ DIR_WRENT:
   STA (ZP_SDSEEK_VEC16),Y
   ; サイズ
   LDX #FINFO::SIZ
-  BRK
-  NOP
 @LOOP3:
   INY
   LDA FINFO_WK,X
@@ -739,14 +729,24 @@ DIR_WRENT:
   CPY #OFS_DIR_FILESIZE+3
   BNE @LOOP3
   ; ライトバック
-  BRK
-  NOP
+  JSR WRSEC
+  SEC                                         ; C=1 ERR
+  BNE @ERR
+  CLC                                         ; C=0 OK
+@ERR:
+  RTS
+
+WRSEC:
+  ; セクタバッファをFWK_REAL_SECに書き出す
   LDA #>SECBF512
   STA ZP_SDSEEK_VEC16+1
   STZ ZP_SDSEEK_VEC16
+  loadmem16 ZP_SDCMDPRM_VEC16,(FWK_REAL_SEC)
   JSR SD::WRSEC
   SEC                                         ; C=1 ERR
   BNE @ERR
+@SKP_E:
+  DEC ZP_SDSEEK_VEC16+1
   CLC                                         ; C=0 OK
 @ERR:
   RTS

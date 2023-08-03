@@ -1,7 +1,6 @@
-;DEBUGBUILD = 1
+DEBUGBUILD = 1
 ; SDカードドライバのSDカード固有部分
 .INCLUDE "../FXT65.inc"
-DEBUGBUILD=1
 
 ; SDコマンド用固定引数
 ; 共通部分を重ねて圧縮している

@@ -145,9 +145,9 @@ FUNC_FS_READ_BYTS:
   BCS @SKP_PARTIAL_LENGTH         ; 要求lengthがファイルの残りより小さければそのままで問題なし
   ; siz-seek<length
   BBR0 @ZR5L_RWFLAG,@OVER_LEN_READ
-@OVER_LEN_WRITE:
   ; ---------------------------------------------------------------
   ;   WRITE:sizを更新
+@OVER_LEN_WRITE:
   ; ディレクトリを開く
   JSR INTOPEN_PDIR
   ; FINFO newsiz=seek+len
@@ -162,15 +162,12 @@ FUNC_FS_READ_BYTS:
   ; FINFOをディスクに書き込み
   JSR DIR_WRENT
   ; FINFO->FWK
+  JSR INTOPEN_FILE
   JSR INTOPEN_FILE_SIZ
-  PLX                             ; ユーザバッファアドレス回収
-  PLX
-  PLX                             ; fd回収
-  SEC
-  RTS
-@OVER_LEN_READ:
+  BRA @SKP_PARTIAL_LENGTH
   ; ---------------------------------------------------------------
   ;   READ:lengthをファイルの残りに変更
+@OVER_LEN_READ:
   mem2mem16 @ZR2_LENGTH,@ZR34_TMP32
 @SKP_PARTIAL_LENGTH:
   ; lengthが0になったら強制終了
@@ -221,13 +218,16 @@ FUNC_FS_READ_BYTS:
   LDY #0                          ; BFPTRインデックス
 @LOOP_BYT:
   BBS0 @ZR5L_RWFLAG,@WRITE_BYTE   ; RW分岐
+  ; --- R ---
 @READ_BYTE:
   LDA (ZP_SDSEEK_VEC16)           ; 固定バッファからデータをロード
   STA (@ZR3_BFPTR),Y              ; 指定バッファにデータをストア
   BRA @SKP_WRITE_BYTE
+  ; --- W ---
 @WRITE_BYTE:
   LDA (@ZR3_BFPTR),Y              ; 指定バッファからデータをロード
   STA (ZP_SDSEEK_VEC16)           ; 固定バッファにデータをストア
+  ; --- 共通 ---
 @SKP_WRITE_BYTE:
   ; BFPTRの更新
   INY                             ; Yインクリメント
@@ -239,16 +239,16 @@ FUNC_FS_READ_BYTS:
   ; SDSEEKの更新
   INC ZP_SDSEEK_VEC16             ; 下位インクリメント
   BNE @SKP_SDSEEK_NEXT_PAGE       ; 下位のインクリメントがゼロに=SDSEEKのページ跨ぎ
-  ;BNE @LOOP_BYT                   ; 下位のインクリメントがゼロに=SDSEEKのページ跨ぎ
   ; SDSEEKのページを進める
   LDA ZP_SDSEEK_VEC16+1           ; 上位
   CMP #>SECBF512
-  BEQ @SKP_SDSEEK_LOOP            ; 固定バッファの前半分だったらINCのみ
+  BEQ @INC_SDSEEK_PAGE            ; 固定バッファの前半分だったら上位インクリメント
   ; SDSEEKのページを巻き戻し、次のセクタをロード
-  LDA #>(SECBF512)                ; ページを先頭に
-  STA ZP_SDSEEK_VEC16+1           ; 上位更新
   PHX
   PHY
+  BBR0 @ZR5L_RWFLAG,@SKP_WRSEC    ; RW分岐
+  JSR WRSEC
+@SKP_WRSEC:
   JSR NEXTSEC                     ; 次のセクタに移行
 ;  BCC @SKP_EOC
 ;  JMP RW_EOC
@@ -257,20 +257,22 @@ FUNC_FS_READ_BYTS:
   PLY
   PLX
   BRA @SKP_INC_SDSEEK
-  ;BRA @LOOP_BYT
-  ; - SDSEEKのページ巻き戻し終了
-@SKP_SDSEEK_LOOP:                 ; <-ページ巻き戻しが不要
+@INC_SDSEEK_PAGE:                 ; <-ページ巻き戻しが不要
   INC ZP_SDSEEK_VEC16+1           ; 上位インクリメント
 @SKP_INC_SDSEEK:                  ; <-ページ巻き戻し終了（特別やることがないので実際には直接LOOP_BYTへ）
 @SKP_SDSEEK_NEXT_PAGE:            ; <-SDSEEKページ跨ぎなし（特別やることがないので実際には直接LOOP_BYTへ）
   ; 残りチェック
   DEX
-  BNE @SKP_NOKORI
+  BNE @LOOP_BYT                   ; まだ文字があるので次へ
   ; 残りページ数チェック
   DEC @ZR4_ITR                    ; 読み取り長さ上位イテレータ
-  BEQ @END                        ; イテレータが0ならもう読むべきものはない
-@SKP_NOKORI:
-  BRA @LOOP_BYT                   ; 次の文字へ
+  BNE @LOOP_BYT                   ; イテレータが1以上ならまだやることがある
+  ; おわり
+  BBR0 @ZR5L_RWFLAG,@END
+  BRK
+  NOP
+  JSR WRSEC
+  BRA @END
   ; ---------------------------------------------------------------
   ;   セクタ単位リード
 @READ_BY_SEC:
