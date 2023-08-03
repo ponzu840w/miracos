@@ -184,6 +184,7 @@ FUNC_FS_READ_BYTS:
   pullmem16 @ZR3_BFPTR            ; 書き込み先アドレスをスタックから復帰
   ; ---------------------------------------------------------------
   ;   モード分岐
+  BBS0 @ZR5L_RWFLAG,@READ_BY_BYT  ; WRITEならバイトモード強制
   ; SEEKはセクタアライメントされているか？
   LDA FWK+FCTRL::SEEK_PTR
   BNE @NOT_SECALIGN
