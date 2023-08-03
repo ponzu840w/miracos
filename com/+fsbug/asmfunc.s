@@ -1,3 +1,4 @@
+DEBUGBUILD = 1
 .INCLUDE "../FXT65.inc"
 .INCLUDE "../generic.mac"
 .INCLUDE "../fscons.inc"

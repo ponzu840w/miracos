@@ -18,6 +18,7 @@
   CUR_SEC           .RES 1  ; クラスタ内セクタ
   SIZ               .RES 4  ; サイズ
   SEEK_PTR          .RES 4  ; シーケンシャルアクセス用ポインタ
+  DIR_RSEC          .RES 4  ; ディレクトリエントリの実セクタ
 .ENDSTRUCT
 
 .STRUCT FINFO

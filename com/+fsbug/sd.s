@@ -1,4 +1,3 @@
-DEBUGBUILD = 1
 ; SDカードドライバのSDカード固有部分
 .INCLUDE "../FXT65.inc"
 

@@ -128,6 +128,29 @@ LOAD_DWK:
   INY
   CPY #.SIZEOF(DINFO)      ; DINFOのサイズ分コピーしたら終了
   BNE @LOOP                ; ロード結果を示すBP
+  ; TODO:通常ドライブ以外なら以下は不要な処理
+  ; FAT2を算出
+  ; unsigned long fatlen=(dwk_p->DATSTART-dwk_p->FATSTART)/2;
+  ; unsigned long fat2startsec=dwk_p->FATSTART+fatlen;
+  ; dst=FATSTART2
+  loadreg16 DWK_FATLEN
+  JSR AX_DST
+  ; *dst=DATSTART
+  loadreg16 (DWK+DINFO::DATSTART)
+  JSR L_LD_AXS
+  ; *dst=*dst-FATSTART
+  loadreg16 (DWK+DINFO::FATSTART)
+  JSR L_SB_AXS
+  ; *dst=*dst/2
+  JSR L_DIV2
+  ; DWK_FATSTART2=DWK_FATLEN
+  loadreg16 DWK_FATSTART2
+  JSR AX_DST
+  loadreg16 DWK_FATLEN
+  JSR L_LD_AXS
+  ; *dst=*dst+FATSTART
+  loadreg16 (DWK+DINFO::FATSTART)
+  JSR L_ADD_AXS
   RTS
 
 RDSEC:
@@ -289,6 +312,9 @@ DIR_GETENT:
 
 NEXTSEC:
   ; ファイル構造体を更新し、次のセクタを開く
+  ;  output: C=1:EOC 単にエラーとするか新規クラスタを割り当てるかはあなた次第
+  ;               状態:CUR_SECは更新されている
+  ;                    REAL_SECとセクタバッファ、参照ベクタLSRC0はEOCを示すFAT領域を開いている
   loadreg16 (FWK_REAL_SEC)
   JSR AX_DST                    ; リアルセクタをDSTに
   ; クラスタ内セクタ番号の更新
@@ -297,10 +323,6 @@ NEXTSEC:
   CMP DWK+DINFO::BPB_SECPERCLUS ; クラスタ内最終セクタか
   BNE @SKP_NEXTCLUS             ; まだならFATチェーン読み取りキャンセル
   ; 次のクラスタの先頭セクタを開く
-    ; bp
-    ;loadreg16 FWK+FCTRL::CUR_CLUS
-    ;BRK
-    ;NOP
   LDA FWK+FCTRL::CUR_CLUS       ; 現在クラスタ番号{N}->FAT論理セクタ
   ASL                           ; x4/512 : /128 : >>7 最下位バイトからはMSBしか採れない
   ; 0
@@ -318,18 +340,10 @@ NEXTSEC:
   ; 3
   STZ FWK_REAL_SEC+3
   ROL FWK_REAL_SEC+3
-    ; bp
-    ;loadreg16 FWK_REAL_SEC
-    ;BRK
-    ;NOP
   ; FATSTART加算
   loadreg16 (DWK+DINFO::FATSTART)
   JSR L_ADD_AXS
-    ; bp
-    ;loadreg16 FWK_REAL_SEC
-    ;BRK
-    ;NOP
-  pushmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ退避
+  pushmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ退避 高速読み取り時に必要
   ; FATロード
   JSR RDSEC
   ; 参照ベクタ作成
@@ -339,19 +353,29 @@ NEXTSEC:
   ASL                             ; <<2
   ASL
   BCC @SKP_INCPAGE                ; C=0 上部 $03
-  INC ZP_LSRC0_VEC16+1           ; C=1 下部 $04
+  INC ZP_LSRC0_VEC16+1            ; C=1 下部 $04
 @SKP_INCPAGE:
   STA ZP_LSRC0_VEC16
   ; 現在クラスタにFATからコピー
-  loadreg16 (FWK+FCTRL::CUR_CLUS)
-  JSR AX_DST
-  JSR L_LD
+  ;  NOTE:開いたけどそこまでタイミングクリティカルじゃない？
+  LDY #3
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  CMP #$0F
+  BEQ @MIGHT_EOC                  ; EOCかもしれない
+@NOT_EOC:
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
   JSR CLUS_REOPEN                 ; 更新された現在クラスタをもとにFWK再展開
   pullmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ復帰
-    ;bp
-    ;loadreg16 FWK+FCTRL::CUR_CLUS
-    ;BRK
-    ;NOP
+  CLC
   RTS
 @SKP_NEXTCLUS:
   ; リアルセクタ番号を更新
@@ -359,18 +383,77 @@ NEXTSEC:
   ;JSR AX_DST
   LDA #1
   JSR L_ADD_BYT
+  CLC
   RTS
 
-FINFO2SIZ:
+@MIGHT_EOC:
+  ; 上位バイトを見たところEOCの可能性あり
+  LDA (ZP_LSRC0_VEC16),Y    ; $0F[??]_????
+  DEY
+  AND (ZP_LSRC0_VEC16),Y    ; $0F??_[??]??
+  DEY
+  INC                       ; $FF++==0
+  BNE @NOT_EOC1             ; 中位2バイトをみたらEOCじゃなかった
+  LDA (ZP_LSRC0_VEC16),Y    ; $0F??_??[??]
+  ORA #%111
+  INC                       ; $FF++==0
+  BNE @NOT_EOC1             ; 最下位バイトを見たらEOCじゃなかった（そんなことある？）
+  ; EOC確定
+  PLA                       ; 控えてあったZP_SDSEEK_VEC16の破棄
+  PLA
+  SEC
+  RTS
+@NOT_EOC1:
+  LDY #2
+  BRA @NOT_EOC
+
+INTOPEN_FILE_SIZ:
   ; FINFO構造体に展開されたサイズをFCTRL構造体にコピー
+  ; NOTE: FD_OPENでしか呼ばれないので開いてもいいかも
   loadreg16 FWK+FCTRL::SIZ        ; デスティネーションをサイズに
   JSR AX_DST
   loadreg16 FINFO_WK+FINFO::SIZ   ; ソースをFINFOのサイズにしてロード
   JSR L_LD_AXS
-  loadreg16 FWK+FCTRL::SEEK_PTR   ; デスティネーションをシークポインタに
+  RTS
+
+INTOPEN_FILE_DIR_RSEC:
+  JSR FINFO_WK_OPEN_DIRENT        ; FINFOの親をFWKに
+  ; fwk::rsec<=realsec
+  loadreg16 FWK+FCTRL::DIR_RSEC
   JSR AX_DST
-  loadreg16 SD::BTS_CMDPRM_ZERO   ; ソースを$00000000にしてロード
+  loadreg16 FWK_REAL_SEC
   JSR L_LD_AXS
+  ; 最高位バイトの上位4bitが空なのでエントリ座標を仕込む
+  LDA FINFO_WK+FINFO::DIR_ENT
+  ORA FWK+FCTRL::DIR_RSEC+3
+  STA FWK+FCTRL::DIR_RSEC+3
+  RTS
+
+INTOPEN_FILE_CLEAR_SEEK:
+  STZ FWK+FCTRL::SEEK_PTR
+  STZ FWK+FCTRL::SEEK_PTR+1
+  STZ FWK+FCTRL::SEEK_PTR+2
+  STZ FWK+FCTRL::SEEK_PTR+3
+  RTS
+
+INTOPEN_PDIR:
+  ; 親ディレクトリを開く
+  ;   セクタ
+  loadreg16 FWK_REAL_SEC
+  JSR AX_DST
+  loadreg16 FWK+FCTRL::DIR_RSEC
+  JSR L_LD_AXS
+  LDA FWK+FCTRL::DIR_RSEC+3
+  PHA
+  AND #%00001111
+  STA FWK_REAL_SEC+3
+  JSR RDSEC                 ; セクタを開く
+  ;   セクタ内シーク
+  PLA
+  AND #%11110000
+  JSR SEEK_DIRENT
+  ;   FINFOに格納
+  JSR DIR_GETENT
   RTS
 
 DIR_NEXTMATCH:
@@ -402,12 +485,26 @@ DIR_NEXTMATCH_NEXT_ZR2:         ; 今のポイントを無視して次を探す�
 
 PATH2FINFO:
   ; フルパスからFINFOをゲットする
+  ; A:/HOGE/FUGA のFUGAのFINFO
   ; input:AY=PATH
-  ; output:AY=FINFO, ZR2=最終要素の先頭
+  ; output:AY=ZR2=最終要素の先頭
   ; ZR0,2使用
   STA ZR2
   STY ZR2+1             ; パス先頭を格納
 PATH2FINFO_ZR2:
+  JSR P2F_PATH2DIRINFO
+  BCS @ERR
+  JSR P2F_CHECKNEXT
+  loadAY16 FINFO_WK
+@ERR:
+  RTS
+
+P2F_PATH2DIRINFO:
+  ; フルパスから最終要素直前のディレクトリのFINFOをゲットする
+  ; A:/HOGE/FUGA のHOGEのFINFO
+  ; input:ZR2=PATH
+  ; output:AY=ZR2=最終要素の先頭
+  ; ZR0,2使用
   LDY #1
   LDA (ZR2),Y           ; 二文字目
   CMP #':'              ; ドライブ文字があること判別
@@ -424,25 +521,26 @@ PATH2FINFO_ZR2:
   ; ディレクトリをたどる旅
 @LOOP:
   mem2AY16 ZR2
-  JSR PATH_SLASHNEXT_GETNULL    ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1 NOTE:AYが次のよう先頭を指すBP
+  JSR PATH_SLASHNEXT_GETNULL  ; 次の（初回ならルート直下の）要素先頭、最終要素でC=1 NOTE:AYが次のよう先頭を指すBP
   storeAY16 ZR2
-  BCS @LAST             ; パス要素がまだあるなら続行
-  JSR @NEXT             ; 非最終要素
+  BCS @LAST             ; 最終要素であれば探索せずいったん帰って指示を仰ぐ
+  JSR P2F_CHECKNEXT     ; 非最終要素なら探索
   BCC @LOOP             ; 見つからないエラーがなければ次の要素へ
   RTS                   ; 見つからなければC=1を保持して戻る
-@LAST:                  ; 最終要素 ; NOTE:ZR2を読むと、LASTが本当にLASTか見えるBP
-  JSR @NEXT
-  BCS @ERREND           ; 最終要素が見つからなかったらC=1を保持して戻る
-  loadAY16 FINFO_WK     ; パス要素がもうないのでFINFOを返す
-  CLC                   ; 成功コード
-@ERREND:
+@LAST:
+  CLC                   ; TODO:PATH_SLASHNEXTのキャリーエラーを逆転させればこれを省ける
   RTS
-@NEXT:
+
+P2F_CHECKNEXT:
+  ; PATH2FINFOにおいて、次の要素を開く
+  ; input:AY=要素名
+  ; output:<FINFOが開かれる>
+  ; C=1 ERR
   JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得 NOTE:ヒットしたが開かれる前のFINFOを見るBP
   CMP #$FF              ; 見つからない場合
   BNE @SKP_E2
   LDA #ERR::FILE_NOT_FOUND
-  JMP ERR::REPORT       ; ERR:指定されてファイルが見つからなかった
+  JMP ERR::REPORT       ; ERR:指定されたファイルが見つからなかった
 @SKP_E2:
   JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く NOTE:開かれた内容を覗くBP
   CLC                   ; コールされた時の成功を知るC=0
@@ -484,5 +582,172 @@ PATH_SLASHNEXT:
   PHX
   PLY
   CLC
+  RTS
+
+GET_EMPTY_CLUS:
+  ; FAT2を探索して空クラスタを発見する
+  @ZR2_SP=ZR2
+  @ZR34_NEWCLUS=ZR3
+  ; SPを控える
+  TSX
+  STX @ZR2_SP
+  ; クラスタ番号カウンタをリセット
+  LDA #2
+  STA @ZR34_NEWCLUS
+  STZ @ZR34_NEWCLUS+1
+  STZ @ZR34_NEWCLUS+2
+  STZ @ZR34_NEWCLUS+3
+  ; FAT2の頭を開く
+  mem2mem16 FWK_REAL_SEC,DWK_FATSTART2
+  JSR RDSEC
+  ; ZP_SDSEEK_VEC16は最初のクラスタを指している…
+  ; 0,1番クラスタはスキップ
+  LDY #2*4
+@LOOP:
+  JSR @SEARCH_PAGE
+  INC ZP_SDSEEK_VEC16+1
+  JSR @SEARCH_PAGE
+@NEXT_SEC:
+  ; 次セクタ
+  loadreg16 (FWK_REAL_SEC)
+  JSR AX_DST
+  LDA #1
+  JSR L_ADD_BYT ; use:ZR0
+  LDY #0
+  JSR RDSEC
+  BRA @LOOP
+
+@SEARCH_PAGE:
+  ; ゼロ=空クラスタ検出
+  LDA (ZP_SDSEEK_VEC16),Y
+  INY
+  ORA (ZP_SDSEEK_VEC16),Y
+  INY
+  ORA (ZP_SDSEEK_VEC16),Y
+  INY
+  ORA (ZP_SDSEEK_VEC16),Y
+  BNE @NEXT_ENT                       ; 非ゼロなら次
+  ; 空クラスタ検出
+  ;   一段深いサブルーチンになっているのでスタック復帰
+  LDX @ZR2_SP
+  TXS
+  RTS
+@NEXT_ENT:
+  ; 次エントリ
+  PHY
+  loadreg16 (@ZR34_NEWCLUS)
+  JSR AX_DST
+  LDA #1
+  JSR L_ADD_BYT ; use:ZR0
+  PLY
+  INY
+  BNE @SEARCH_PAGE
+  ; ページを読み終わったら帰る
+  RTS
+
+WRITE_CLUS:
+  ; FAT2の着目箇所にクラスタ番号を書き込み、FAT1にも同様に書き込む
+  ; GET_EMPTY_CLUSにより(ZP_SDSEEK_VEC16),YはFAT2該当エントリの最後のバイトを指す
+  ; $0FFF_FFFFを置く
+  LDA #$0F
+  STA (ZP_SDSEEK_VEC16),Y
+  LDA #$FF
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
+  ; FAT2に書き込む
+  JSR WRSEC
+  BCS @ERR                    ; C=1 ERR
+@SKP_FAT2ERR:
+  ; FAT1に書き込む
+  DEC ZP_SDSEEK_VEC16+1       ; * fat1=fat2-fatlen
+  loadreg16 FWK_REAL_SEC      ; |
+  JSR AX_DST                  ; |
+  loadreg16 DWK_FATLEN        ; |
+  JSR L_SB_AXS                ; |
+  JSR WRSEC
+@ERR:
+  RTS
+
+ALLOC_CLUS:
+  ; 新規クラスタを割り当てる
+
+DIR_WRENT:
+  ; ディレクトリエントリを書き込む
+  ; 要求: 該当セクタがバッファに展開されている、REALSECも正しい
+  ;       ZP_SDSEEK_VEC16がエントリ先頭を指している
+  ; 名前
+  mem2AX16 ZP_SDSEEK_VEC16
+  JSR AX_DST
+  loadreg16 FINFO_WK+FINFO::NAME
+  JSR AX_SRC
+  JSR M_SFN_DOT2RAW
+  ; 属性
+  LDA FINFO_WK+FINFO::ATTR
+  LDY #OFS_DIR_ATTR
+  STA (ZP_SDSEEK_VEC16),Y
+  ; サポートしない情報 NTRes(1)CrtTimeTenth(1)CrtTime(2)CrtDate(2)LstAccDate(2)=8bytes
+  LDA #0
+@LOOP:
+  INY
+  STA (ZP_SDSEEK_VEC16),Y
+  CPY #OFS_DIR_FSTCLUSHI-1
+  BNE @LOOP
+  ; 先頭クラスタ 上位
+  INY
+  LDA FINFO_WK+FINFO::HEAD+2
+  STA (ZP_SDSEEK_VEC16),Y
+  INY
+  LDA FINFO_WK+FINFO::HEAD+3
+  STA (ZP_SDSEEK_VEC16),Y
+  ; 更新日時
+  LDX #FINFO::WRTIME
+@LOOP2:
+  INY
+  LDA FINFO_WK,X
+  STA (ZP_SDSEEK_VEC16),Y
+  INX
+  CPY #OFS_DIR_FSTCLUSLO-1
+  BNE @LOOP2
+  ; 先頭クラスタ 下位
+  INY
+  LDA FINFO_WK+FINFO::HEAD
+  STA (ZP_SDSEEK_VEC16),Y
+  INY
+  LDA FINFO_WK+FINFO::HEAD+1
+  STA (ZP_SDSEEK_VEC16),Y
+  ; サイズ
+  LDX #FINFO::SIZ
+@LOOP3:
+  INY
+  LDA FINFO_WK,X
+  STA (ZP_SDSEEK_VEC16),Y
+  INX
+  CPY #OFS_DIR_FILESIZE+3
+  BNE @LOOP3
+  ; ライトバック
+  JSR WRSEC
+  SEC                                         ; C=1 ERR
+  BNE @ERR
+  CLC                                         ; C=0 OK
+@ERR:
+  RTS
+
+WRSEC:
+  ; セクタバッファをFWK_REAL_SECに書き出す
+  LDA #>SECBF512
+  STA ZP_SDSEEK_VEC16+1
+  STZ ZP_SDSEEK_VEC16
+  loadmem16 ZP_SDCMDPRM_VEC16,(FWK_REAL_SEC)
+  JSR SD::WRSEC
+  SEC                                         ; C=1 ERR
+  BNE @ERR
+@SKP_E:
+  DEC ZP_SDSEEK_VEC16+1
+  CLC                                         ; C=0 OK
+@ERR:
   RTS
 
