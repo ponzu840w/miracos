@@ -827,9 +827,15 @@ FAT_READ:
   @ZR4_ITR            = ZR4       ; イテレータ
   @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
   ; ---------------------------------------------------------------
+  ;   引数の格納
+  PHX                             ; fdをプッシュ
+  pushmem16 ZR0                   ; 書き込み先アドレス退避
+  ; ---------------------------------------------------------------
   ;   LENGTHの処理
   ;   READ:   ファイルの残りより多く要求されていた場合、ファイルの残りにする
   ;   WRITE:  ファイルの残りより多く書くつもりの場合、ファイルサイズを拡張する
+  TXA
+  JSR LOAD_FWK_MAKEREALSEC        ; AのfdからFCTRL構造体をロード、リアルセクタ作成
   LDA FWK+FCTRL::SIZ
   long_long_sub   @ZR34_TMP32, FWK+FCTRL::SIZ, FWK+FCTRL::SEEK_PTR   ; tmp=siz-seek
   long_short_cmp  @ZR34_TMP32, @ZR2_LENGTH                           ; tmp<=>length @ZR34_TMP32の破棄

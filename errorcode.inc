@@ -6,4 +6,5 @@ NOT_DIR               = 3   ; ディレクトリではない
 FAILED_CLOSE          = 4
 FAILED_OPEN           = 5
 FILE_EXISTS           = 6   ; ファイルが既に存在する makef失敗など
+BROKEN_FD             = 7   ; 不正なファイル記述子
 

@@ -29,6 +29,10 @@ FDTOK_SPF         = 1
 ;                         不変データテーブル
 ; -------------------------------------------------------------------
 SPF_RW_VEC_T:
+  .WORD SPF_NUL_READ
+  .WORD SPF_NUL_WRITE
+  .WORD SPF_CON_READ
+  .WORD SPF_CON_WRITE
 
 SPF_NAME_T:
   .BYTE "NUL"
@@ -57,6 +61,21 @@ INIT:
   RTS
 
 ; -------------------------------------------------------------------
+;                         ファイル書き込み
+; -------------------------------------------------------------------
+; input :ZR1=fd, AY=len, ZR0=bfptr
+; output:AY=actual_len、C=EOF
+; -------------------------------------------------------------------
+FUNC_FS_WRITE:
+  ; ---------------------------------------------------------------
+  ;   サブルーチンローカル変数の定義
+  @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
+  SMB0 @ZR5L_RWFLAG
+  ; ---------------------------------------------------------------
+  ;   READを流用
+  BRA READ_OR_WRITE
+
+; -------------------------------------------------------------------
 ; BCOS 15                 ファイル読み取り
 ; -------------------------------------------------------------------
 ; input :ZR1=fd, AY=len, ZR0=bfptr
@@ -65,25 +84,40 @@ INIT:
 FUNC_FS_READ_BYTS:
   ; ---------------------------------------------------------------
   ;   サブルーチンローカル変数の定義
+  @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
+  RMB0 @ZR5L_RWFLAG               ; READにセット
+
+READ_OR_WRITE:
+  ; ---------------------------------------------------------------
+  ;   サブルーチンローカル変数の定義
   @ZR2_LENGTH         = ZR2       ; 読みたいバイト長=>読まれたバイト長
   @ZR34_TMP32         = ZR3       ; 32bit計算用、読まれたバイト長が求まった時点で破棄
   @ZR3_BFPTR          = ZR3       ; 書き込み先のアドレス
   @ZR4_ITR            = ZR4       ; イテレータ
   @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
-  ; ---------------------------------------------------------------
-  ;   引数の格納
-  RMB0 @ZR5L_RWFLAG               ; READにセット
-@WRITE_ENTRY:
   storeAY16 @ZR2_LENGTH
-  LDA ZR1
-  PHA                             ; fdをプッシュ
-  pushmem16 ZR0                   ; 書き込み先アドレス退避
   ; ---------------------------------------------------------------
-  ;   特殊ファイル判定
-  LDA ZR1
-  JSR LOAD_FWK_MAKEREALSEC        ; AのfdからFCTRL構造体をロード、リアルセクタ作成
+  ;   FDの精査 閉じてないか？ 特殊ファイルか？
+  LDX ZR1
+  LDA FD_TABLE+1,X                ; fdテーブルの上位バイトを取得
+  BEQ @CLOSED_FD
+  CMP #FDTOK_SPF
+  BEQ @SPF
+@FAT:
   JMP FAT_READ
-WRITE_ENTRY=@WRITE_ENTRY
+@CLOSED_FD:
+  LDA #ERR::BROKEN_FD
+  JMP ERR::REPORT
+  ; ---------------------------------------------------------------
+  ;   特殊ファイルの操作
+@SPF:
+  LDA FD_TABLE,X                  ; fdテーブルの下位=SPFジャンプテーブルのインデックス
+  TAX
+  BBS0 @ZR5L_RWFLAG,@WRITE
+@READ:
+  JMP (SPF_RW_VEC_T,X)
+@WRITE:
+  JMP (SPF_RW_VEC_T+2,X)
 
 ; -------------------------------------------------------------------
 ; BCOS 9                   ファイル検索                エラーハンドル
@@ -590,17 +624,91 @@ FD2FCTRL:
   RTS
 
 ; -------------------------------------------------------------------
-;                         ファイル書き込み
+;                       特殊ファイルRW
 ; -------------------------------------------------------------------
-; input :ZR1=fd, AY=len, ZR0=bfptr
+; input :ZR1=fd, ZR2=len, ZR0=bfptr
 ; output:AY=actual_len、C=EOF
+
 ; -------------------------------------------------------------------
-FUNC_FS_WRITE:
-  ; ---------------------------------------------------------------
-  ;   サブルーチンローカル変数の定義
-  @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
-  SMB0 @ZR5L_RWFLAG
-  ; ---------------------------------------------------------------
-  ;   READを流用
-  JMP WRITE_ENTRY
+;  NUL
+SPF_NUL_READ:
+  LDA #0
+  TAY
+  SEC
+  RTS
+
+SPF_NUL_WRITE:
+  mem2AY16 ZR2
+  CLC
+  RTS
+
+; -------------------------------------------------------------------
+;  CON
+SPF_CON_READ:
+  ; if(len<255)newlen=len;else newlen=255; ZR1L=newlen
+  LDA #$FF
+  STA ZR1
+  LDA ZR2+1
+  BEQ @FF
+  LDA ZR2
+  STA ZR1
+@FF:
+  LDY #$FF
+@NEXT:
+  INY
+@NOINC_NEXT:
+  PHY
+  LDA #$2
+  JSR FUNC_CON_RAWIN    ; 入力待機するがエコーしない
+  PLY
+  CMP #$4               ; EOFか？
+  BNE @NOTEOF
+@EOF:
+  LDA #0
+  TAY
+  SEC
+  RTS
+@NOTEOF:
+  CMP #$A               ; 改行か？
+  BEQ @END              ; 改行なら行入力終了
+  CMP #$8               ; ^H(BS)か？
+  BNE @WRITE            ; なら直下のバックスペース処理
+  DEY                   ; 後退（先行INY打消し
+  CPY #$FF              ; Y=0ならそれ以上後退できない
+  BEQ @NEXT             ; ので無視
+  DEY                   ; 後退（本質
+  BRA @ECHO             ; バッファには書き込まず、エコーのみ
+@WRITE:
+  CPY ZR1
+  BEQ @NOINC_NEXT
+  STA (ZR0),Y           ; バッファに書き込み
+@ECHO:
+  PHY
+  JSR FUNC_CON_OUT_CHR  ; エコー出力
+  PLY
+  BRA @NEXT
+@END:
+  LDA #$A
+  STA (ZR0),Y           ; 改行挿入
+  TYA                   ; 入力された字数を返す
+  LDY #0
+CLC_RTS:
+  CLC
+  RTS
+
+SPF_CON_WRITE:
+  mem2mem16 ZR1,ZR2
+@LOOP:
+  LDA ZR2
+  ORA ZR2+1
+  BEQ @END
+  LDA (ZR0)                   ; 文字をロード
+  JSR FUNC_CON_OUT_CHR        ; 文字を表示（独自にした方が効率的かも）
+  inc16 ZR0
+  dec16 ZR2
+  BRA @LOOP                   ; ループ
+@END:
+  mem2AY16 ZR1
+  CLC
+  RTS
 

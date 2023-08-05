@@ -103,3 +103,13 @@
 @skp:
 .endmac
 
+.macro dec16 src
+.local @skp
+  DEC src
+  LDA src
+  CMP #$FF
+  BNE @skp
+  DEC src+1
+@skp:
+.endmac
+

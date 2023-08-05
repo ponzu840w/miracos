@@ -74,6 +74,12 @@ REPORT:
   RTS
 .ENDPROC
 
+FUNC_CON_RAWIN:
+  PHX
+  syscall CON_RAWIN
+  PLX
+  RTS
+
 ; -------------------------------------------------------------------
 ; BCOS 15                大文字小文字変換
 ; -------------------------------------------------------------------
@@ -191,6 +197,8 @@ INIT:
   syscall ERR_GET
   syscall ERR_MES
 @END:
+  PHY
+  PLX
   RTS
 .ENDPROC
 
@@ -207,6 +215,8 @@ INIT:
   syscall ERR_GET
   syscall ERR_MES
 @END:
+  PHY
+  PLX
   RTS
 .ENDPROC
 
