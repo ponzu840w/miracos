@@ -14,7 +14,7 @@ SECVEC32:           .RES 4      ; 4バイト セクタアドレス指定汎用
 ; ゼロページにあるはずないので、上位バイトが0なら未使用
 ;FD_TABLE:           .REPEAT FCTRL_ALLOC_SIZE
 ; $0542
-FD_TABLE:           .REPEAT 4
+FD_TABLE:           .REPEAT 7
                       .RES 2
                     .ENDREP
 

@@ -79,13 +79,10 @@ LOAD_FWK:
   ; FCTRL内容をワークエリアにロード
   ; input:A=FD
   JSR FD2FCTRL
-  STA ZR0
-  STX ZR0+1               ; ZR0:FCTRL先頭ポインタ（ソース）
-  loadmem16 ZR1,FWK       ; ZR1:ワークエリア先頭ポインタ（ディスティネーション）
   LDY #.SIZEOF(FCTRL)     ; Y=最後尾インデックス
 @LOOP:
   LDA (ZR0),Y
-  STA (ZR1),Y
+  STA FWK,Y
   DEY
   BEQ @LOOP
   BPL @LOOP
@@ -96,13 +93,10 @@ PUT_FWK:
   ; ワークエリアからFCTRLに書き込む
   ; input:A=FD
   JSR FD2FCTRL
-  STA ZR0
-  STX ZR0+1               ; ZR0:FCTRL先頭ポインタ（ディスティネーション）
-  loadmem16 ZR1,FWK       ; ZR1:ワークエリア先頭ポインタ（ソース）
   LDY #.SIZEOF(FCTRL)     ; Y=最後尾インデックス
 @LOOP:
-  LDA (ZR1),Y
-  STA (ZR0),Y
+  LDA FWK,Y
+  STA FWK,Y
   DEY
   BEQ @LOOP
   BPL @LOOP

@@ -18,9 +18,22 @@
 ; LONG  32bit
 
 ; -------------------------------------------------------------------
-;                           定数定義
+;                              定数定義
 ; -------------------------------------------------------------------
-FCTRL_ALLOC_SIZE = 4  ; 静的に確保するFCTRLの数
+FCTRL_ALLOC_SIZE  = 4  ; 静的に確保するFCTRLの数
+SPF_NAME_LEN      = 3
+FDTOK_NUL         = 0
+FDTOK_SPF         = 1
+
+; -------------------------------------------------------------------
+;                         不変データテーブル
+; -------------------------------------------------------------------
+SPF_RW_VEC_T:
+
+SPF_NAME_T:
+  .BYTE "NUL"
+  .BYTE "CON"
+  .BYTE 0
 
 ; -------------------------------------------------------------------
 ;                           初期化処理
@@ -160,7 +173,6 @@ FUNC_FS_CLOSE:
 ;  LDA #ERR::FAILED_CLOSE
 ;  JMP ERR::REPORT
 ;@SKP_CLOSESTDF:
-  ASL                       ; テーブル参照の為x2
   INC                       ; 上位を見るために+1
   TAX
   LDA #0
@@ -175,6 +187,7 @@ FUNC_FS_CLOSE:
 ; ディスクアクセスはしない
 ; input : AY=パス先頭
 ; output: A=分析結果
+;           bit5:":"で始まる（特殊ファイル） これが1のときほかのbitは無効
 ;           bit4:/を含む
 ;           bit3:/で終わる
 ;           bit2:ルートディレクトリを指す
@@ -185,6 +198,16 @@ FUNC_FS_CLOSE:
 FUNC_FS_PURSE:
   storeAY16 ZR0
   STZ ZR1         ; 記録保存用
+  ; ---------------------------------------------------------------
+  ;   bit5 特殊ファイル判定
+  LDA (ZR0)       ; 冒頭:の有無を見る
+  CMP #':'
+  BNE @NOSPF
+  SMB5 ZR1
+  BRA @END
+@NOSPF:
+  ; ---------------------------------------------------------------
+  ;   bit0 ドライブ文字の有無
   LDY #1
   LDA (ZR0),Y     ; :の有無を見る
   CMP #':'
@@ -199,11 +222,15 @@ FUNC_FS_PURSE:
   STA ZR0+1
   LDA (ZR0)       ; 最初の文字を見る
   BEQ @ROOTEND    ; 何もないならルートを指している（ドライブ前提
+  ; ---------------------------------------------------------------
+  ;   bit1 絶対パス判定
 @NODRIVE:
   LDA (ZR0)       ; 最初の文字を見る
   CMP #'/'
   BNE @NOTFULL    ; /でないなら相対パス（ドライブ指定なし前提
   SMB1 ZR1        ; ルートから始まるフラグを立てる
+  ; ---------------------------------------------------------------
+  ;   bit4 スラッシュを含むか
 @NOTFULL:
   LDY #$FF
 @LOOP:            ; 最後の文字を調べるループ;おまけに/の有無を調べる
@@ -215,16 +242,22 @@ FUNC_FS_PURSE:
   SMB4 ZR1        ; /を含むフラグを立てる
 @SKP_SET4:
   BRA @LOOP
+  ; ---------------------------------------------------------------
+  ;   bit3 スラッシュで終わるか
 @SKP_LOOP:
   DEY             ; 最後の文字を指す
   LDA (ZR0),Y     ; 最後の文字を読む
   CMP #'/'
   BNE @END        ; 最後が/でなければ終わり
   SMB3 ZR1        ; /で終わるフラグを立てる
+  ; ---------------------------------------------------------------
+  ;   bit2 ルートか
   CPY #0          ; /で終わり、しかも一文字だけなら、それはルートを指している
   BNE @END
 @ROOTEND:
   SMB2 ZR1        ; ルートディレクトリが指されているフラグを立てる
+  ; ---------------------------------------------------------------
+  ;   終了
 @END:
   LDA ZR1
   RTS
@@ -262,6 +295,8 @@ FUNC_FS_CHDIR:
 ; -------------------------------------------------------------------
 ; input : AY=相対/絶対パス先頭
 ; output: AY=絶対パス先頭
+; 相対パスかもしれない入力パス文字列を絶対パスに変換する
+; ディスクアクセスはしない
 ; FINFOを受け取ったら親ディレクトリを追いかけてフルパスを組み立てることも
 ;  検討したが面倒すぎて折れた
 ; -------------------------------------------------------------------
@@ -276,9 +311,10 @@ FUNC_FS_FPATH:
   LDA ZR2
   LDY ZR2+1
   JSR FUNC_FS_PURSE             ; パスを解析する
-  ;BBR2 ZR1,@SKP_SETROOT         ; サブディレクトリやファイル（ルートディレクトリを指さない）なら分岐
+  BBS5 ZR1,@HAVE_DRV            ; 特殊ファイルであればドライブが指定されているのと等価
   BBR0 ZR1,@NO_DRV              ; ドライブレターがないなら分岐
   ; ドライブが指定された（A:/MIRACOS/）
+@HAVE_DRV:
   loadmem16 ZR1,PATH_WK         ; PATH_WKに与えられたパスをそのままコピー
   mem2AY16 ZR2                  ; 与えられたパス
   JSR M_CP_AYS
@@ -406,15 +442,53 @@ FUNC_FS_MAKEF:
 ; -------------------------------------------------------------------
 ; ドライブパスまたはFINFOポインタからファイル記述子をオープンして返す
 ; input:AY=(path or FINFO)ptr
-; output:A=FD, X=ERR
+; output:A=FD, C=ERR
 ; -------------------------------------------------------------------
 FUNC_FS_OPEN:
-  STA ZR2
-  STY ZR2+1
+  storeAY16 ZR2
   LDA (ZR2)                 ; 先頭バイトを取得
   CMP #$FF                  ; FINFOシグネチャ
   BEQ FINFO2FD
 @PATH:
+  CMP #':'
+  BNE @DRV_PATH
+  ; 特殊ファイルのオープン
+@SPF_PATH:
+@ZR1L_CNT=ZR1
+@ZR1H_PT=ZR1+1
+  LDA #$FF
+  STA @ZR1L_CNT
+  LDX #0                    ; X=名前リストインデックス
+@LOOP2:
+  INC @ZR1L_CNT
+  LDY #1                    ; Y=入力パスインデックス
+  STZ @ZR1H_PT
+@LOOP:
+  LDA SPF_NAME_T,X
+  BEQ FINFO2FD_ERR
+  CMP (ZR2),Y
+  BNE @NOTMATCH
+  INC @ZR1H_PT
+@NOTMATCH:
+  INX
+  INY
+  CPY #4
+  BNE @LOOP
+  LDA @ZR1H_PT
+  CMP #3
+  BNE @LOOP2
+  ASL @ZR1L_CNT             ; x4
+  ASL @ZR1L_CNT
+  JSR GET_NEXTFD
+  TAX
+  LDA @ZR1L_CNT
+  STA FD_TABLE,X
+  LDA #FDTOK_SPF
+  STA FD_TABLE+1,X
+  TXA
+  BRA X0RTS
+  ; 通常ファイルのオープン
+@DRV_PATH:
   JSR PATH2FINFO_ZR2        ; パスからファイルのFINFOを開く
   BCC @SKP_PATHERR          ; エラーハンドル
   RTS
@@ -423,6 +497,7 @@ FINFO2FD:
   ; 開かれているFINFOからFDを作成して帰る
   JSR FD_OPEN
   BCC X0RTS                 ; エラーハンドル
+FINFO2FD_ERR:
   LDA #ERR::FAILED_OPEN
 ERR_REPORT:
   JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
@@ -473,33 +548,29 @@ X0RTS:
 FCTRL_ALLOC:
   ; FDにFCTRL領域を割り当てる…インチキで
   ; input:A=FD
-  ;SEC
-  ;SBC #NONSTD_FD          ; 非標準番号
-  TAX                     ; 下位作成のためXに移動
-  ASL                     ; *2でテーブルの頭
-  TAY                     ; Yに保存
-  loadmem16 ZR0,FD_TABLE  ; FDテーブルへのポインタを作成
-  LDA #<FCTRL_RES         ; オフセット下位をロード
-@OFST_LOOP:
-  CPX #0
-  BEQ @OFST_DONE          ; オフセット完成
-  CLC
-  ADC #.SIZEOF(FCTRL)     ; 構造体サイズを加算
-  DEX
-  BRA @OFST_LOOP
+  TAY                     ; Y=FD
+  LSR                     ; /2で純粋なFD
+  TAX                     ; X=pureFD
+  LDA #<FCTRL_RES         ; * A=FCTRL_RES_L+(pureFD*FCTRL.size)
+@OFST_LOOP:               ; |
+  CPX #0                  ; |
+  BEQ @OFST_DONE          ; | オフセット完成
+  CLC                     ; |
+  ADC #.SIZEOF(FCTRL)     ; | 構造体サイズを加算
+  DEX                     ; |
+  BRA @OFST_LOOP          ; |
 @OFST_DONE:               ; 下位が完成
-  STA (ZR0),Y             ; テーブルに保存
+  STA FD_TABLE,Y          ; テーブルに保存
   INY
   LDA #>FCTRL_RES
-  STA (ZR0),Y             ; 上位をテーブルに保存
+  STA FD_TABLE,Y          ; 上位をテーブルに保存
   RTS
 
 GET_NEXTFD:
   ; 次に空いたFDを取得
-  loadmem16 ZR0,FD_TABLE  ; テーブル読み取り
   LDY #1
 @TLOOP:
-  LDA (ZR0),Y             ;NOTE:間接参照する利益がないのでは？
+  LDA FD_TABLE,Y
   BEQ @ZERO
   INY
   INY
@@ -507,22 +578,17 @@ GET_NEXTFD:
 @ZERO:
   DEY                     ; 下位桁に合わせる
   TYA
-;  CLC
-;  ADC #NONSTD_FD          ; 非標準ファイル
   RTS
 
 FD2FCTRL:
-  ; ファイル記述子をFCTRL先頭AXに変換
-  ;SEC
-  ;SBC #NONSTD_FD          ; 非標準番号
-  ASL                     ; x2
+  ; ファイル記述子をFCTRL先頭ZR0に変換
   TAY
-  loadmem16 ZR0,FD_TABLE  ; FDテーブルへのポインタを作成
   INY
-  LDA (ZR0),Y
-  TAX
+  LDA FD_TABLE,Y
+  STA ZR0+1
   DEY
-  LDA (ZR0),Y
+  LDA FD_TABLE,Y
+  STA ZR0
   RTS
 
 ; -------------------------------------------------------------------

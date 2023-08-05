@@ -28,12 +28,14 @@ LAST_ERROR:           .RES 1
 _finfo_wk=FINFO_WK
 _fwk=FWK
 _fwk_real_sec=FWK_REAL_SEC
+_fd_table=FD_TABLE
+_fctrl_res=FCTRL_RES
 
 .IMPORT popa, popax
 .IMPORTZP sreg
 
 .EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open,_read,_write
-.EXPORT _finfo_wk,_fwk
+.EXPORT _finfo_wk,_fwk,_fd_table
 .EXPORTZP _sdcmdprm,_sdseek
 .CONSTRUCTOR INIT
 

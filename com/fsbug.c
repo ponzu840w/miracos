@@ -75,6 +75,7 @@ extern void* sdcmdprm; // コマンドパラメータ4バイトを指す
 #pragma zpsym("sdcmdprm");
 extern fctrl_t fwk;
 extern finfo_t finfo_wk;
+extern unsigned int fd_table;
 
 // グローバル変数とか
 unsigned char putnum_buf[11];
@@ -226,6 +227,15 @@ void showFINFO(){
   printf("     Ent: $%02x\n",finfo_wk.Dir_Ent);
 }
 
+// FDテーブル表示
+void showFDtable(){
+  unsigned char i;
+  printf("File Discriptor Table:\n");
+  for(i=0;i<7;i++){
+    printf("%d:$%04X\n",i,*(&fd_table+i));
+  }
+}
+
 int main(void){
   unsigned long sec_cursor=0;
   unsigned char fd;
@@ -351,7 +361,8 @@ int main(void){
       // ファイルオープン
       tok=inputpath(line,tok);
       fd=open(tok);
-      printf("fd=%d\n",fd);
+      printf("new fd=%d\n",fd);
+      showFDtable();
 
     }else if(strcmp(tok,"exit")==0){
       printf("bye\n");
