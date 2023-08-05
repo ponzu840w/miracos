@@ -35,7 +35,7 @@ _fctrl_res=FCTRL_RES
 .IMPORTZP sreg
 
 .EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open,_read,_write
-.EXPORT _finfo_wk,_fwk,_fd_table
+.EXPORT _finfo_wk,_fwk,_fd_table,_fctrl_res
 .EXPORTZP _sdcmdprm,_sdseek
 .CONSTRUCTOR INIT
 

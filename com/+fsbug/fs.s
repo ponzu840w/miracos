@@ -583,12 +583,10 @@ GET_NEXTFD:
 FD2FCTRL:
   ; ファイル記述子をFCTRL先頭ZR0に変換
   TAY
-  INY
-  LDA FD_TABLE,Y
-  STA ZR0+1
-  DEY
   LDA FD_TABLE,Y
   STA ZR0
+  LDA FD_TABLE+1,Y
+  STA ZR0+1
   RTS
 
 ; -------------------------------------------------------------------

@@ -76,6 +76,7 @@ extern void* sdcmdprm; // コマンドパラメータ4バイトを指す
 extern fctrl_t fwk;
 extern finfo_t finfo_wk;
 extern unsigned int fd_table;
+extern fctrl_t fctrl_res;
 
 // グローバル変数とか
 unsigned char putnum_buf[11];
@@ -265,6 +266,8 @@ int main(void){
       printf("fat    - show FAT\n");
       printf("makef  - make new file.\n");
       printf("exit   - exit this tool.\n");
+      printf("work   - show work area.\n");
+      printf("table  - show tables.\n");
 
     }else if(strcmp(tok,"sec")==0){
       // 読み込み対象セクタ指定
@@ -294,6 +297,11 @@ int main(void){
       printf("  Start of Data(S):%s\n",put32(dwk_p->DATSTART));
       printf("    RootClus   (C):%s\n",put32(dwk_p->BPB_ROOTCLUS));
 
+    }else if(strcmp(tok,"table")==0){
+      showFDtable();
+      printf("FCTRL_RES start:$%02X",&fctrl_res);
+
+    }else if(strcmp(tok,"work")==0){
       printf("\nFWK:\n");
       showFWK();
       printf("\nFINFO_WK:\n");

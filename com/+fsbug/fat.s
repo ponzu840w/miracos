@@ -96,7 +96,7 @@ PUT_FWK:
   LDY #.SIZEOF(FCTRL)     ; Y=最後尾インデックス
 @LOOP:
   LDA FWK,Y
-  STA FWK,Y
+  STA (ZR0),Y
   DEY
   BEQ @LOOP
   BPL @LOOP
