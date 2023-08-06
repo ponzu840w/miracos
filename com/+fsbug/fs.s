@@ -336,6 +336,7 @@ FUNC_FS_CHDIR:
 ; -------------------------------------------------------------------
 FUNC_FS_FPATH:
   storeAY16 ZR2                 ; 与えられたパスをZR2に
+FUNC_FS_FPATH_ZR2S:
   loadmem16 ZR1,PATH_WK         ; PATH_WKにカレントディレクトリをコピー
   loadAY16 CUR_DIR
   JSR M_CP_AYS
@@ -474,7 +475,7 @@ FUNC_FS_MAKEF:
 ; -------------------------------------------------------------------
 ; BCOS 5                  ファイルオープン
 ; -------------------------------------------------------------------
-; ドライブパスまたはFINFOポインタからファイル記述子をオープンして返す
+; パスまたはFINFOポインタからファイル記述子をオープンして返す
 ; input:AY=(path or FINFO)ptr
 ; output:A=FD, C=ERR
 ; -------------------------------------------------------------------
@@ -483,7 +484,11 @@ FUNC_FS_OPEN:
   LDA (ZR2)                 ; 先頭バイトを取得
   CMP #$FF                  ; FINFOシグネチャ
   BEQ FINFO2FD
+FUNC_FS_OPEN_RAWPATH:
 @PATH:
+  JSR FUNC_FS_FPATH_ZR2S
+  storeAY16 ZR2
+  LDA (ZR2)                 ; 先頭バイトを取得
   CMP #':'
   BNE @DRV_PATH
   ; 特殊ファイルのオープン
