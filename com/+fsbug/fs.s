@@ -128,9 +128,26 @@ READ_OR_WRITE:
 ; 初回（FST）
 ; -------------------------------------------------------------------
 FUNC_FS_FIND_FST:
-  JSR FUNC_FS_FPATH         ; 何はともあれフルパス取得
+  ; フルパスの取得
+  JSR FUNC_FS_FPATH
+  storeAY16 ZR2             ; -> ZR2
+  ; SPF判定
+  LDA (ZR2)
+  CMP #':'
+  BNE FIND_FST_RAWPATH
+  ; ---------------------------------------------------------------
+  ;   SPF
+  JSR GET_SPF_NUMBER        ; SPF番号取得 -> ZR1L
+  BCC @SPF
+  LDA #ERR::FILE_NOT_FOUND
+  JMP ERR::REPORT
+@SPF:
+  mem2AY16 ZR2              ; 元のパス文字列をそのままFINFOと偽って渡す
+  CLC
+  RTS
+  ; ---------------------------------------------------------------
+  ;   通常ドライブパス
 FIND_FST_RAWPATH:           ; FPATHを多重に呼ぶと狂うので"とりあえず"スキップ
-@PATH:
   JSR PATH2FINFO            ; パスからFINFOを開く
   BCC @SKP_PATHERR          ; エラーハンドル
   RTS
@@ -147,12 +164,18 @@ FIND_FST_RAWPATH:           ; FPATHを多重に呼ぶと狂うので"とりあ�
 ; -------------------------------------------------------------------
 FUNC_FS_FIND_NXT:
   storeAY16 ZR1                       ; ZR1=与えられたFINFO
+  ; FINFOシグネチャチェック
+  LDA (ZR1)
+  DEC
+  BNE @FAIL
+  ; FINFO_WKにコピー
   LDY #.SIZEOF(FINFO)-1
 @DLFWK_LOOP:                          ; 与えられたFINFOをワークエリアにコピーするループ
   LDA (ZR1),Y
   STA FINFO_WK,Y
   DEY
   BPL @DLFWK_LOOP                     ; FINFOコピー終了
+  ; ディレクトリエントリ展開
   JSR FINFO_WK_OPEN_DIRENT
   JSR RDSEC                           ; セクタ読み取り
   JSR FINFO_WK_SEEK_DIRENT
@@ -160,6 +183,7 @@ FUNC_FS_FIND_NXT:
   CMP #$FF                            ; もう無いか？
   CLC
   BNE @SUCS
+@FAIL:
   SEC
 @SUCS:
   loadAY16 FINFO_WK
@@ -493,6 +517,40 @@ FUNC_FS_OPEN_RAWPATH:
   BNE @DRV_PATH
   ; 特殊ファイルのオープン
 @SPF_PATH:
+  JSR GET_SPF_NUMBER        ; SPF番号を取得
+  BCC @SPFGOT               ; エラーハンドル
+  RTS
+@SPFGOT:
+  JSR GET_NEXTFD            ; 新規ファイル記述子取得
+  TAX                       ;   ->X
+  LDA ZR1                   ; *
+  STA FD_TABLE,X            ; | fd_entry=$01xx
+  LDA #FDTOK_SPF            ; |   xx=SPF番号
+  STA FD_TABLE+1,X          ; |
+  TXA
+  BRA X0RTS
+  ; 通常ファイルのオープン
+@DRV_PATH:
+  JSR PATH2FINFO_ZR2        ; パスからファイルのFINFOを開く
+  BCC FINFO2FD              ; エラーハンドル
+  RTS
+FINFO2FD:
+  ; 開かれているFINFOからFDを作成して帰る
+  JSR FD_OPEN
+  BCC X0RTS                 ; エラーハンドル
+FINFO2FD_ERR:
+  LDA #ERR::FAILED_OPEN
+ERR_REPORT:
+  JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
+
+; -------------------------------------------------------------------
+;                        特殊ファイル番号取得
+; -------------------------------------------------------------------
+; input   :ZR2=検索対象文字列（先頭は:として無視される）
+; output  :ZR1L=NUM,  C=ERR
+; use     :ZR1
+; -------------------------------------------------------------------
+GET_SPF_NUMBER:
 @ZR1L_CNT=ZR1
 @ZR1H_PT=ZR1+1
   LDA #$FF
@@ -518,28 +576,8 @@ FUNC_FS_OPEN_RAWPATH:
   BNE @LOOP2
   ASL @ZR1L_CNT             ; x4
   ASL @ZR1L_CNT
-  JSR GET_NEXTFD
-  TAX
-  LDA @ZR1L_CNT
-  STA FD_TABLE,X
-  LDA #FDTOK_SPF
-  STA FD_TABLE+1,X
-  TXA
-  BRA X0RTS
-  ; 通常ファイルのオープン
-@DRV_PATH:
-  JSR PATH2FINFO_ZR2        ; パスからファイルのFINFOを開く
-  BCC @SKP_PATHERR          ; エラーハンドル
+  CLC
   RTS
-@SKP_PATHERR:
-FINFO2FD:
-  ; 開かれているFINFOからFDを作成して帰る
-  JSR FD_OPEN
-  BCC X0RTS                 ; エラーハンドル
-FINFO2FD_ERR:
-  LDA #ERR::FAILED_OPEN
-ERR_REPORT:
-  JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
 
 ; -------------------------------------------------------------------
 ;                         リアルセクタ作成

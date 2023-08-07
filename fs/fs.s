@@ -18,10 +18,26 @@
 ; LONG  32bit
 
 ; -------------------------------------------------------------------
-;                           定数定義
+;                              定数定義
 ; -------------------------------------------------------------------
-FCTRL_ALLOC_SIZE = 4  ; 静的に確保するFCTRLの数
-NONSTD_FD        = 8  ; 0～7を一応標準ファイルに予約
+FCTRL_ALLOC_SIZE  = 4  ; 静的に確保するFCTRLの数
+SPF_NAME_LEN      = 3
+FDTOK_NUL         = 0
+FDTOK_SPF         = 1
+
+; -------------------------------------------------------------------
+;                         不変データテーブル
+; -------------------------------------------------------------------
+SPF_RW_VEC_T:
+  .WORD SPF_NUL_READ
+  .WORD SPF_NUL_WRITE
+  .WORD SPF_CON_READ
+  .WORD SPF_CON_WRITE
+
+SPF_NAME_T:
+  .BYTE "NUL"
+  .BYTE "CON"
+  .BYTE 0
 
 ; -------------------------------------------------------------------
 ;                           初期化処理
@@ -45,78 +61,33 @@ INIT:
   RTS
 
 ; -------------------------------------------------------------------
+;                         ファイル書き込み
+; -------------------------------------------------------------------
+; input :ZR1=fd, AY=len, ZR0=bfptr
+; output:AY=actual_len、C=EOF
+; -------------------------------------------------------------------
+FUNC_FS_WRITE:
+  ; ---------------------------------------------------------------
+  ;   サブルーチンローカル変数の定義
+  @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
+  SMB0 @ZR5L_RWFLAG
+  ; ---------------------------------------------------------------
+  ;   READを流用
+  BRA READ_OR_WRITE
+
+; -------------------------------------------------------------------
 ; BCOS 15                 ファイル読み取り
 ; -------------------------------------------------------------------
 ; input :ZR1=fd, AY=len, ZR0=bfptr
 ; output:AY=actual_len、C=EOF
 ; -------------------------------------------------------------------
 FUNC_FS_READ_BYTS:
-; 32bit値をコピーする
-.macro long_long_copy dst,src
-  LDA src
-  STA dst
-  LDA src+1
-  STA dst+1
-  LDA src+2
-  STA dst+2
-  LDA src+3
-  STA dst+3
-.endmac
-; 32bit値を減算する
-.macro long_long_sub dst,left,right
-  SEC
-  LDA left
-  SBC right
-  STA dst
-  LDA left+1
-  SBC right+1
-  STA dst+1
-  LDA left+2
-  SBC right+2
-  STA dst+2
-  LDA left+3
-  SBC right+3
-  STA dst+3
-.endmac
-; 32bit値と16bit値とを比較する
-.macro long_short_cmp left,right
-  .local @EXIT
-  .local @LEFT_GREAT
-  .local @EQUAL
-  .local @LEFT_SMALL
-  ; byte 3, 2 の比較
-  LDA left+3
-  ORA left+2
-  BNE @LEFT_GREAT ; 左の上位半分がゼロでなかったら右は敵わない
-  ; byte 1
-  LDA left+1
-  CMP right+1
-  BNE @EXIT       ; 16bit中上位8bitが同じでなかったら比較結果が出ている
-  ; byte 0
-  LDA left
-  CMP right
-  BRA @EXIT
-@LEFT_GREAT:
-  LDA #2
-  CMP #1          ; 2-1
-@EXIT:
-.endmac
-; 32bit値に16bit値を加算する
-.macro long_short_add dst,left,right
-  CLC
-  LDA left
-  ADC right
-  STA dst
-  LDA left+1
-  ADC right+1
-  STA dst+1
-  LDA left+2
-  ADC #0
-  STA dst+2
-  LDA left+3
-  ADC #0
-  STA dst+3
-.endmac
+  ; ---------------------------------------------------------------
+  ;   サブルーチンローカル変数の定義
+  @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
+  RMB0 @ZR5L_RWFLAG               ; READにセット
+
+READ_OR_WRITE:
   ; ---------------------------------------------------------------
   ;   サブルーチンローカル変数の定義
   @ZR2_LENGTH         = ZR2       ; 読みたいバイト長=>読まれたバイト長
@@ -124,204 +95,29 @@ FUNC_FS_READ_BYTS:
   @ZR3_BFPTR          = ZR3       ; 書き込み先のアドレス
   @ZR4_ITR            = ZR4       ; イテレータ
   @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
-  ; ---------------------------------------------------------------
-  ;   引数の格納
-  RMB0 @ZR5L_RWFLAG               ; READにセット
-@WRITE_ENTRY:
   storeAY16 @ZR2_LENGTH
-  LDA ZR1
-  PHA                             ; fdをプッシュ
-  pushmem16 ZR0                   ; 書き込み先アドレス退避
-  LDA ZR1
   ; ---------------------------------------------------------------
-  ;   LENGTHの処理
-  ;   READ:   ファイルの残りより多く要求されていた場合、ファイルの残りにする
-  ;   WRITE:  ファイルの残りより多く書くつもりの場合、ファイルサイズを拡張する
-  JSR LOAD_FWK_MAKEREALSEC        ; AのfdからFCTRL構造体をロード、リアルセクタ作成
-  LDA FWK+FCTRL::SIZ
-  long_long_sub   @ZR34_TMP32, FWK+FCTRL::SIZ, FWK+FCTRL::SEEK_PTR   ; tmp=siz-seek
-  long_short_cmp  @ZR34_TMP32, @ZR2_LENGTH                           ; tmp<=>length @ZR34_TMP32の破棄
-  BEQ @SKP_PARTIAL_LENGTH
-  BCS @SKP_PARTIAL_LENGTH         ; 要求lengthがファイルの残りより小さければそのままで問題なし
-  ; siz-seek<length
-  BBR0 @ZR5L_RWFLAG,@OVER_LEN_READ
+  ;   FDの精査 閉じてないか？ 特殊ファイルか？
+  LDX ZR1
+  LDA FD_TABLE+1,X                ; fdテーブルの上位バイトを取得
+  BEQ @CLOSED_FD
+  CMP #FDTOK_SPF
+  BEQ @SPF
+@FAT:
+  JMP FAT_READ
+@CLOSED_FD:
+  LDA #ERR::BROKEN_FD
+  JMP ERR::REPORT
   ; ---------------------------------------------------------------
-  ;   WRITE:sizを更新
-@OVER_LEN_WRITE:
-  ; ディレクトリを開く
-  JSR INTOPEN_PDIR
-  ; FINFO newsiz=seek+len
-  loadreg16 FINFO_WK+FINFO::SIZ   ; * siz=seek+len
-  JSR AX_DST                      ; |
-  loadreg16 FWK+FCTRL::SEEK_PTR   ; |
-  JSR L_LD_AXS                    ; |
-  STZ ZR3                         ; |
-  STZ ZR3+1                       ; |
-  loadreg16 @ZR2_LENGTH           ; |
-  JSR L_ADD_AXS                   ; |
-  ; FINFOをディスクに書き込み
-  JSR DIR_WRENT
-  ; FINFO->FWK
-  JSR INTOPEN_FILE
-  JSR INTOPEN_FILE_SIZ
-  BRA @SKP_PARTIAL_LENGTH
-  ; ---------------------------------------------------------------
-  ;   READ:lengthをファイルの残りに変更
-@OVER_LEN_READ:
-  mem2mem16 @ZR2_LENGTH,@ZR34_TMP32
-@SKP_PARTIAL_LENGTH:
-  ; lengthが0になったら強制終了
-  LDA @ZR2_LENGTH
-  ORA @ZR2_LENGTH+1
-  BNE @SKP_EOF
-  ; length=0
-  PLX                             ; ユーザバッファアドレス回収
-  PLX
-  PLX                             ; fd回収
-  SEC
-  RTS
-@SKP_EOF:
-  pullmem16 @ZR3_BFPTR            ; 書き込み先アドレスをスタックから復帰
-  ; ---------------------------------------------------------------
-  ;   モード分岐
-  BBS0 @ZR5L_RWFLAG,@READ_BY_BYT  ; WRITEならバイトモード強制
-  ; SEEKはセクタアライメントされているか？
-  LDA FWK+FCTRL::SEEK_PTR
-  BNE @NOT_SECALIGN
-  LDA FWK+FCTRL::SEEK_PTR+1
-  LSR
-  BCS @NOT_SECALIGN
-  ; SEEKがセクタアライン
-  ; LENGTHはセクタアライメントされているか？
-  LDA @ZR2_LENGTH                 ; 下位
-  BNE @NOT_SECALIGN
-  LDA @ZR2_LENGTH+1               ; 上位
-  LSR                             ; C=bit0
-  BCS @NOT_SECALIGN               ; ページ境界だがセクタ境界でない残念な場合
-  ; LENGTHもセクタアライン、A=読み取りセクタ数
-  JMP @READ_BY_SEC
-@NOT_SECALIGN:
-  ; SEEKがセクタアライメントされていなかった
-  ; ---------------------------------------------------------------
-  ;   バイト単位リード -- 実はREADと共用で、データの移動方向とクラスタ追加の可否だけが違う
-@READ_BY_BYT:
-  ; 読み取り長さの上位をイテレータに
-  LDA @ZR2_LENGTH+1
-  STA @ZR4_ITR
-  JSR RDSEC_F
-  ; SDSEEKの初期位置をシークポインタから計算
-  JSR FCTRL2SEEK
-  ; 1文字ずつ、固定バッファロード->指定バッファに移送
-  LDX @ZR2_LENGTH                 ; ページ端数部分を初回ループカウンタに
-  BEQ @SKP_INC_ITR                ; 下位がゼロでないとき、
-  INC @ZR4_ITR                    ; DECでゼロ検知したいので1つ足す
-@SKP_INC_ITR:
-  LDY #0                          ; BFPTRインデックス
-@LOOP_BYT:
-  BBS0 @ZR5L_RWFLAG,@WRITE_BYTE   ; RW分岐
-  ; --- R ---
-@READ_BYTE:
-  LDA (ZP_SDSEEK_VEC16)           ; 固定バッファからデータをロード
-  STA (@ZR3_BFPTR),Y              ; 指定バッファにデータをストア
-  BRA @SKP_WRITE_BYTE
-  ; --- W ---
-@WRITE_BYTE:
-  LDA (@ZR3_BFPTR),Y              ; 指定バッファからデータをロード
-  STA (ZP_SDSEEK_VEC16)           ; 固定バッファにデータをストア
-  ; --- 共通 ---
-@SKP_WRITE_BYTE:
-  ; BFPTRの更新
-  INY                             ; Yインクリメント
-  BNE @SKP_BF_NEXT_PAGE           ; Yが0に戻った=BFPTRのページ跨ぎ発生
-  ; BFPTRのページを進める
-  INC @ZR3_BFPTR+1                ; 書き込み先の上位インクリメント
-  ; - BFPTRのページ進め終了
-@SKP_BF_NEXT_PAGE:                ; <-BFPTRページ跨ぎがない
-  ; SDSEEKの更新
-  INC ZP_SDSEEK_VEC16             ; 下位インクリメント
-  BNE @SKP_SDSEEK_NEXT_PAGE       ; 下位のインクリメントがゼロに=SDSEEKのページ跨ぎ
-  ; SDSEEKのページを進める
-  LDA ZP_SDSEEK_VEC16+1           ; 上位
-  CMP #>SECBF512
-  BEQ @INC_SDSEEK_PAGE            ; 固定バッファの前半分だったら上位インクリメント
-  ; SDSEEKのページを巻き戻し、次のセクタをロード
-  PHX
-  PHY
-  BBR0 @ZR5L_RWFLAG,@SKP_WRSEC    ; RW分岐
-  JSR WRSEC
-@SKP_WRSEC:
-  JSR NEXTSEC                     ; 次のセクタに移行
-;  BCC @SKP_EOC
-;  JMP RW_EOC
-;@SKP_EOC:
-  JSR RDSEC_F
-  PLY
-  PLX
-  BRA @SKP_INC_SDSEEK
-@INC_SDSEEK_PAGE:                 ; <-ページ巻き戻しが不要
-  INC ZP_SDSEEK_VEC16+1           ; 上位インクリメント
-@SKP_INC_SDSEEK:                  ; <-ページ巻き戻し終了（特別やることがないので実際には直接LOOP_BYTへ）
-@SKP_SDSEEK_NEXT_PAGE:            ; <-SDSEEKページ跨ぎなし（特別やることがないので実際には直接LOOP_BYTへ）
-  ; 残りチェック
-  DEX
-  BNE @LOOP_BYT                   ; まだ文字があるので次へ
-  ; 残りページ数チェック
-  DEC @ZR4_ITR                    ; 読み取り長さ上位イテレータ
-  BNE @LOOP_BYT                   ; イテレータが1以上ならまだやることがある
-  ; おわり
-  BBR0 @ZR5L_RWFLAG,@END
-  BRK
-  NOP
-  JSR WRSEC
-  BRA @END
-  ; ---------------------------------------------------------------
-  ;   セクタ単位リード
-@READ_BY_SEC:
-  ; 残りセクタ数をイテレータに
-  STA @ZR4_ITR
-  ; rdsec
-  mem2mem16 ZP_SDSEEK_VEC16  ,  @ZR3_BFPTR      ; 書き込み先をBFPTRに（初回のみ）
-  loadmem16 ZP_SDCMDPRM_VEC16,  FWK_REAL_SEC    ; リアルセクタをコマンドパラメータに
-@LOOP_SEC:
-  JSR SD::RDSEC                   ; 実際にロード
-  JSR NEXTSEC                     ; 次弾装填
-  INC ZP_SDSEEK_VEC16+1           ; 書き込み先ページの更新
-  DEC @ZR4_ITR                    ; 残りセクタ数を減算
-  BNE @LOOP_SEC                   ; 残りセクタが0でなければ次を読む
-  ; エラー処理省略
-  ; ---------------------------------------------------------------
-  ;   終了処理
-@END:
-  ; fctrl::seekを進める
-  long_short_add FWK+FCTRL::SEEK_PTR, FWK+FCTRL::SEEK_PTR, @ZR2_LENGTH ; seek=seek+length
-  ; FWKを反映
-  PLA                             ; fd
-  JSR PUT_FWK
-@SKP_SEC:
-  ; 実際に読み込んだバイト長をAYで帰す
-  mem2AY16 @ZR2_LENGTH
-  CLC
-  ; debug for com/test/fsread.s
-  ;mem2mem16 ZR0,ZP_SDSEEK_VEC16
-  ;loadAY16 FWK                    ; 実験用にFCTRLを開放
-  RTS
-WRITE_ENTRY=@WRITE_ENTRY
-
-FCTRL2SEEK:
-  ; SDSEEKの初期位置をシークポインタから計算
-  LDA FWK+FCTRL::SEEK_PTR+1       ; 第1バイト
-  LSR                             ; bit 0 をキャリーに
-  BCC @SKP_INCPAGE                ; C=0 上部 $03 ？ 逆では
-  INC ZP_SDSEEK_VEC16+1           ; C=1 下部 $04
-@SKP_INCPAGE:
-  LDA FWK+FCTRL::SEEK_PTR         ; 第0バイト
-  STA ZP_SDSEEK_VEC16
-  RTS
-
-RDSEC_F:
-  JSR RDSEC                       ; ロード NOTE:Aに示されるエラーコードを見る…1ならたぶんCMD17失敗
-  BCS RDSEC_F                     ; CMD17失敗をリトライで対応 TODO:大変アドホック！なんとかしろ
-  RTS
+  ;   特殊ファイルの操作
+@SPF:
+  LDA FD_TABLE,X                  ; fdテーブルの下位=SPFジャンプテーブルのインデックス
+  TAX
+  BBS0 @ZR5L_RWFLAG,@WRITE
+@READ:
+  JMP (SPF_RW_VEC_T,X)
+@WRITE:
+  JMP (SPF_RW_VEC_T+2,X)
 
 ; -------------------------------------------------------------------
 ; BCOS 9                   ファイル検索                エラーハンドル
@@ -332,15 +128,37 @@ RDSEC_F:
 ; 初回（FST）
 ; -------------------------------------------------------------------
 FUNC_FS_FIND_FST:
-  JSR FUNC_FS_FPATH         ; 何はともあれフルパス取得
-FIND_FST_RAWPATH:           ; FPATHを多重に呼ぶと狂うので"とりあえず"スキップ
-@PATH:
-  JSR PATH2FINFO            ; パスからFINFOを開く
-  BCC @SKP_PATHERR          ; エラーハンドル
-  RTS
-@SKP_PATHERR:
+  ; フルパスの取得
+  JSR FUNC_FS_FPATH
+  storeAY16 ZR2             ; -> ZR2
+  ; SPF判定
+  LDA (ZR2)
+  CMP #':'
+  BNE FIND_FST_RAWPATH
+  ; ---------------------------------------------------------------
+  ;   SPF
+  JSR GET_SPF_NUMBER        ; SPF番号取得 -> ZR1L
+  BCC @SPF
+  LDA #ERR::FILE_NOT_FOUND
+  JMP ERR::REPORT
+@SPF:
+  ;mem2AY16 ZR2              ; 元のパス文字列をそのままFINFOと偽って渡す
+  LDY #0
+@LOOP:
+  LDA (ZR2),Y
+  STA FINFO_WK,Y
+  INY
+  CPY #5
+  BNE @LOOP
+RET_FINFO_WK:
   loadAY16 FINFO_WK
   CLC
+  RTS
+  ; ---------------------------------------------------------------
+  ;   通常ドライブパス
+FIND_FST_RAWPATH:           ; FPATHを多重に呼ぶと狂うので"とりあえず"スキップ
+  JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
+  BCC RET_FINFO_WK          ; エラーハンドル
   RTS
 
 ; -------------------------------------------------------------------
@@ -351,19 +169,27 @@ FIND_FST_RAWPATH:           ; FPATHを多重に呼ぶと狂うので"とりあ�
 ; -------------------------------------------------------------------
 FUNC_FS_FIND_NXT:
   storeAY16 ZR1                       ; ZR1=与えられたFINFO
+  ; FINFOシグネチャチェック
+  LDA (ZR1)
+  INC
+  BNE @FAIL
+  ; FINFO_WKにコピー
   LDY #.SIZEOF(FINFO)-1
 @DLFWK_LOOP:                          ; 与えられたFINFOをワークエリアにコピーするループ
   LDA (ZR1),Y
   STA FINFO_WK,Y
   DEY
   BPL @DLFWK_LOOP                     ; FINFOコピー終了
+  ; ディレクトリエントリ展開
   JSR FINFO_WK_OPEN_DIRENT
   JSR RDSEC                           ; セクタ読み取り
   JSR FINFO_WK_SEEK_DIRENT
   JSR DIR_NEXTMATCH_NEXT_ZR2
-  CMP #$FF                            ; もう無いか？
+  ;CMP #$FF                            ; もう無いか？
+  INC
   CLC
   BNE @SUCS
+@FAIL:
   SEC
 @SUCS:
   loadAY16 FINFO_WK
@@ -405,13 +231,12 @@ FLASH_REALSEC:
 ; input:A=fd
 ; -------------------------------------------------------------------
 FUNC_FS_CLOSE:
-  SEC
-  SBC #NONSTD_FD            ; 標準ファイル分を減算
-  BVC @SKP_CLOSESTDF
-  LDA #ERR::FAILED_CLOSE
-  JMP ERR::REPORT
-@SKP_CLOSESTDF:
-  ASL                       ; テーブル参照の為x2
+;  SEC
+;  SBC #NONSTD_FD            ; 標準ファイル分を減算
+;  BVC @SKP_CLOSESTDF
+;  LDA #ERR::FAILED_CLOSE
+;  JMP ERR::REPORT
+;@SKP_CLOSESTDF:
   INC                       ; 上位を見るために+1
   TAX
   LDA #0
@@ -426,6 +251,7 @@ FUNC_FS_CLOSE:
 ; ディスクアクセスはしない
 ; input : AY=パス先頭
 ; output: A=分析結果
+;           bit5:":"で始まる（特殊ファイル） これが1のときほかのbitは無効
 ;           bit4:/を含む
 ;           bit3:/で終わる
 ;           bit2:ルートディレクトリを指す
@@ -436,6 +262,16 @@ FUNC_FS_CLOSE:
 FUNC_FS_PURSE:
   storeAY16 ZR0
   STZ ZR1         ; 記録保存用
+  ; ---------------------------------------------------------------
+  ;   bit5 特殊ファイル判定
+  LDA (ZR0)       ; 冒頭:の有無を見る
+  CMP #':'
+  BNE @NOSPF
+  SMB5 ZR1
+  BRA @END
+@NOSPF:
+  ; ---------------------------------------------------------------
+  ;   bit0 ドライブ文字の有無
   LDY #1
   LDA (ZR0),Y     ; :の有無を見る
   CMP #':'
@@ -450,11 +286,15 @@ FUNC_FS_PURSE:
   STA ZR0+1
   LDA (ZR0)       ; 最初の文字を見る
   BEQ @ROOTEND    ; 何もないならルートを指している（ドライブ前提
+  ; ---------------------------------------------------------------
+  ;   bit1 絶対パス判定
 @NODRIVE:
   LDA (ZR0)       ; 最初の文字を見る
   CMP #'/'
   BNE @NOTFULL    ; /でないなら相対パス（ドライブ指定なし前提
   SMB1 ZR1        ; ルートから始まるフラグを立てる
+  ; ---------------------------------------------------------------
+  ;   bit4 スラッシュを含むか
 @NOTFULL:
   LDY #$FF
 @LOOP:            ; 最後の文字を調べるループ;おまけに/の有無を調べる
@@ -466,16 +306,22 @@ FUNC_FS_PURSE:
   SMB4 ZR1        ; /を含むフラグを立てる
 @SKP_SET4:
   BRA @LOOP
+  ; ---------------------------------------------------------------
+  ;   bit3 スラッシュで終わるか
 @SKP_LOOP:
   DEY             ; 最後の文字を指す
   LDA (ZR0),Y     ; 最後の文字を読む
   CMP #'/'
   BNE @END        ; 最後が/でなければ終わり
   SMB3 ZR1        ; /で終わるフラグを立てる
+  ; ---------------------------------------------------------------
+  ;   bit2 ルートか
   CPY #0          ; /で終わり、しかも一文字だけなら、それはルートを指している
   BNE @END
 @ROOTEND:
   SMB2 ZR1        ; ルートディレクトリが指されているフラグを立てる
+  ; ---------------------------------------------------------------
+  ;   終了
 @END:
   LDA ZR1
   RTS
@@ -491,7 +337,8 @@ FUNC_FS_CHDIR:
   JSR FUNC_FS_PURSE             ; ディレクトリである必要性をチェック
   BBS2 ZR1,@OK                  ; ルートディレクトリを指すならディレクトリチェック不要
   mem2AY16 ZR3
-  JSR FIND_FST_RAWPATH          ; 検索、成功したらC=0
+  ;JSR FIND_FST_RAWPATH          ; 検索、成功したらC=0
+  JSR PATH2FINFO
   BCC @SKPERR
   RTS
 @SKPERR:                        ; どうやら存在するらしい
@@ -513,11 +360,14 @@ FUNC_FS_CHDIR:
 ; -------------------------------------------------------------------
 ; input : AY=相対/絶対パス先頭
 ; output: AY=絶対パス先頭
+; 相対パスかもしれない入力パス文字列を絶対パスに変換する
+; ディスクアクセスはしない
 ; FINFOを受け取ったら親ディレクトリを追いかけてフルパスを組み立てることも
 ;  検討したが面倒すぎて折れた
 ; -------------------------------------------------------------------
 FUNC_FS_FPATH:
   storeAY16 ZR2                 ; 与えられたパスをZR2に
+FUNC_FS_FPATH_ZR2S:
   loadmem16 ZR1,PATH_WK         ; PATH_WKにカレントディレクトリをコピー
   loadAY16 CUR_DIR
   JSR M_CP_AYS
@@ -527,9 +377,10 @@ FUNC_FS_FPATH:
   LDA ZR2
   LDY ZR2+1
   JSR FUNC_FS_PURSE             ; パスを解析する
-  ;BBR2 ZR1,@SKP_SETROOT         ; サブディレクトリやファイル（ルートディレクトリを指さない）なら分岐
+  BBS5 ZR1,@HAVE_DRV            ; 特殊ファイルであればドライブが指定されているのと等価
   BBR0 ZR1,@NO_DRV              ; ドライブレターがないなら分岐
   ; ドライブが指定された（A:/MIRACOS/）
+@HAVE_DRV:
   loadmem16 ZR1,PATH_WK         ; PATH_WKに与えられたパスをそのままコピー
   mem2AY16 ZR2                  ; 与えられたパス
   JSR M_CP_AYS
@@ -646,7 +497,8 @@ FUNC_FS_MAKEF:
   JSR RDSEC
   pullmem16 ZP_SDSEEK_VEC16
   JSR DIR_WRENT
-  RTS
+  ; ファイルをオープンする
+  BRA FINFO2FD
 @EXIST:
   LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ
   BRA ERR_REPORT
@@ -654,28 +506,85 @@ FUNC_FS_MAKEF:
 ; -------------------------------------------------------------------
 ; BCOS 5                  ファイルオープン
 ; -------------------------------------------------------------------
-; ドライブパスまたはFINFOポインタからファイル記述子をオープンして返す
+; パスまたはFINFOポインタからファイル記述子をオープンして返す
 ; input:AY=(path or FINFO)ptr
-; output:A=FD, X=ERR
+; output:A=FD, C=ERR
 ; -------------------------------------------------------------------
 FUNC_FS_OPEN:
-  STA ZR2
-  STY ZR2+1
+  storeAY16 ZR2
   LDA (ZR2)                 ; 先頭バイトを取得
   CMP #$FF                  ; FINFOシグネチャ
   BEQ FINFO2FD
+FUNC_FS_OPEN_RAWPATH:
 @PATH:
-  JSR PATH2FINFO_ZR2        ; パスからファイルのFINFOを開く
-  BCC @SKP_PATHERR          ; エラーハンドル
+  JSR FUNC_FS_FPATH_ZR2S
+  storeAY16 ZR2
+  LDA (ZR2)                 ; 先頭バイトを取得
+  CMP #':'
+  BNE @DRV_PATH
+  ; 特殊ファイルのオープン
+@SPF_PATH:
+  JSR GET_SPF_NUMBER        ; SPF番号を取得
+  BCC @SPFGOT               ; エラーハンドル
   RTS
-@SKP_PATHERR:
+@SPFGOT:
+  JSR GET_NEXTFD            ; 新規ファイル記述子取得
+  TAX                       ;   ->X
+  LDA ZR1                   ; *
+  STA FD_TABLE,X            ; | fd_entry=$01xx
+  LDA #FDTOK_SPF            ; |   xx=SPF番号
+  STA FD_TABLE+1,X          ; |
+  TXA
+  BRA X0RTS
+  ; 通常ファイルのオープン
+@DRV_PATH:
+  JSR PATH2FINFO_ZR2        ; パスからファイルのFINFOを開く
+  BCC FINFO2FD              ; エラーハンドル
+  RTS
 FINFO2FD:
   ; 開かれているFINFOからFDを作成して帰る
   JSR FD_OPEN
   BCC X0RTS                 ; エラーハンドル
+FINFO2FD_ERR:
   LDA #ERR::FAILED_OPEN
 ERR_REPORT:
   JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
+
+; -------------------------------------------------------------------
+;                        特殊ファイル番号取得
+; -------------------------------------------------------------------
+; input   :ZR2=検索対象文字列（先頭は:として無視される）
+; output  :ZR1L=NUM,  C=ERR
+; use     :ZR1
+; -------------------------------------------------------------------
+GET_SPF_NUMBER:
+@ZR1L_CNT=ZR1
+@ZR1H_PT=ZR1+1
+  LDA #$FF
+  STA @ZR1L_CNT
+  LDX #0                    ; X=名前リストインデックス
+@LOOP2:
+  INC @ZR1L_CNT
+  LDY #1                    ; Y=入力パスインデックス
+  STZ @ZR1H_PT
+@LOOP:
+  LDA SPF_NAME_T,X
+  BEQ FINFO2FD_ERR
+  CMP (ZR2),Y
+  BNE @NOTMATCH
+  INC @ZR1H_PT
+@NOTMATCH:
+  INX
+  INY
+  CPY #4
+  BNE @LOOP
+  LDA @ZR1H_PT
+  CMP #3
+  BNE @LOOP2
+  ASL @ZR1L_CNT             ; x4
+  ASL @ZR1L_CNT
+  CLC
+  RTS
 
 ; -------------------------------------------------------------------
 ;                         リアルセクタ作成
@@ -696,7 +605,6 @@ LOAD_FWK_MAKEREALSEC:
 ; -------------------------------------------------------------------
 ;                       ファイル記述子操作関連
 ; -------------------------------------------------------------------
-
 FD_OPEN:
   ; FINFOからファイル記述子をオープン
   ; output A=FD, X=EC
@@ -724,33 +632,29 @@ X0RTS:
 FCTRL_ALLOC:
   ; FDにFCTRL領域を割り当てる…インチキで
   ; input:A=FD
-  SEC
-  SBC #NONSTD_FD          ; 非標準番号
-  TAX                     ; 下位作成のためXに移動
-  ASL                     ; 非標準番号*2でテーブルの頭
-  TAY                     ; Yに保存
-  loadmem16 ZR0,FD_TABLE  ; 非標準FDテーブルへのポインタを作成
-  LDA #<FCTRL_RES         ; オフセット下位をロード
-@OFST_LOOP:
-  CPX #0
-  BEQ @OFST_DONE          ; オフセット完成
-  CLC
-  ADC #.SIZEOF(FCTRL)     ; 構造体サイズを加算
-  DEX
-  BRA @OFST_LOOP
+  TAY                     ; Y=FD
+  LSR                     ; /2で純粋なFD
+  TAX                     ; X=pureFD
+  LDA #<FCTRL_RES         ; * A=FCTRL_RES_L+(pureFD*FCTRL.size)
+@OFST_LOOP:               ; |
+  CPX #0                  ; |
+  BEQ @OFST_DONE          ; | オフセット完成
+  CLC                     ; |
+  ADC #.SIZEOF(FCTRL)     ; | 構造体サイズを加算
+  DEX                     ; |
+  BRA @OFST_LOOP          ; |
 @OFST_DONE:               ; 下位が完成
-  STA (ZR0),Y             ; テーブルに保存
+  STA FD_TABLE,Y          ; テーブルに保存
   INY
   LDA #>FCTRL_RES
-  STA (ZR0),Y             ; 上位をテーブルに保存
+  STA FD_TABLE,Y          ; 上位をテーブルに保存
   RTS
 
 GET_NEXTFD:
   ; 次に空いたFDを取得
-  loadmem16 ZR0,FD_TABLE  ; テーブル読み取り
   LDY #1
 @TLOOP:
-  LDA (ZR0),Y             ;NOTE:間接参照する利益がないのでは？
+  LDA FD_TABLE,Y
   BEQ @ZERO
   INY
   INY
@@ -758,36 +662,103 @@ GET_NEXTFD:
 @ZERO:
   DEY                     ; 下位桁に合わせる
   TYA
-  CLC
-  ADC #NONSTD_FD          ; 非標準ファイル
   RTS
 
 FD2FCTRL:
-  ; ファイル記述子をFCTRL先頭AXに変換
-  SEC
-  SBC #NONSTD_FD          ; 非標準番号
-  ASL                     ; x2
+  ; ファイル記述子をFCTRL先頭ZR0に変換
   TAY
-  loadmem16 ZR0,FD_TABLE  ; 非標準FDテーブルへのポインタを作成
-  INY
-  LDA (ZR0),Y
-  TAX
-  DEY
-  LDA (ZR0),Y
+  LDA FD_TABLE,Y
+  STA ZR0
+  LDA FD_TABLE+1,Y
+  STA ZR0+1
   RTS
 
 ; -------------------------------------------------------------------
-;                         ファイル書き込み
+;                       特殊ファイルRW
 ; -------------------------------------------------------------------
-; input :ZR1=fd, AY=len, ZR0=bfptr
+; input :ZR1=fd, ZR2=len, ZR0=bfptr
 ; output:AY=actual_len、C=EOF
+
 ; -------------------------------------------------------------------
-FUNC_FS_WRITE:
-  ; ---------------------------------------------------------------
-  ;   サブルーチンローカル変数の定義
-  @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
-  SMB0 @ZR5L_RWFLAG
-  ; ---------------------------------------------------------------
-  ;   READを流用
-  JMP WRITE_ENTRY
+;  NUL
+SPF_NUL_READ:
+  LDA #0
+  TAY
+  SEC
+  RTS
+
+SPF_NUL_WRITE:
+  mem2AY16 ZR2
+  CLC
+  RTS
+
+; -------------------------------------------------------------------
+;  CON
+SPF_CON_READ:
+  ; if(len<255)newlen=len;else newlen=255; ZR1L=newlen
+  LDA #$FF
+  STA ZR1
+  LDA ZR2+1
+  BEQ @FF
+  LDA ZR2
+  STA ZR1
+@FF:
+  LDY #$FF
+@NEXT:
+  INY
+@NOINC_NEXT:
+  PHY
+  LDA #$2
+  JSR FUNC_CON_RAWIN    ; 入力待機するがエコーしない
+  PLY
+  CMP #$4               ; EOFか？
+  BNE @NOTEOF
+@EOF:
+  LDA #0
+  TAY
+  SEC
+  RTS
+@NOTEOF:
+  CMP #$A               ; 改行か？
+  BEQ @END              ; 改行なら行入力終了
+  CMP #$8               ; ^H(BS)か？
+  BNE @WRITE            ; なら直下のバックスペース処理
+  DEY                   ; 後退（先行INY打消し
+  CPY #$FF              ; Y=0ならそれ以上後退できない
+  BEQ @NEXT             ; ので無視
+  DEY                   ; 後退（本質
+  BRA @ECHO             ; バッファには書き込まず、エコーのみ
+@WRITE:
+  CPY ZR1
+  BEQ @NOINC_NEXT
+  STA (ZR0),Y           ; バッファに書き込み
+@ECHO:
+  PHY
+  JSR FUNC_CON_OUT_CHR  ; エコー出力
+  PLY
+  BRA @NEXT
+@END:
+  LDA #$A
+  STA (ZR0),Y           ; 改行挿入
+  TYA                   ; 入力された字数を返す
+  LDY #0
+CLC_RTS:
+  CLC
+  RTS
+
+SPF_CON_WRITE:
+  mem2mem16 ZR1,ZR2
+@LOOP:
+  LDA ZR2
+  ORA ZR2+1
+  BEQ @END
+  LDA (ZR0)                   ; 文字をロード
+  JSR FUNC_CON_OUT_CHR        ; 文字を表示（独自にした方が効率的かも）
+  inc16 ZR0
+  dec16 ZR2
+  BRA @LOOP                   ; ループ
+@END:
+  mem2AY16 ZR1
+  CLC
+  RTS
 
