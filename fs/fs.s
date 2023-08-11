@@ -691,14 +691,18 @@ SPF_NUL_WRITE:
 ; -------------------------------------------------------------------
 ;  CON
 SPF_CON_READ:
-  ; if(len<255)newlen=len;else newlen=255; ZR1L=newlen
+  ; ---------------------------------------------------------------
+  ;   初期化
+@ZR1L_LEN=ZR1
   LDA #$FF
-  STA ZR1
-  LDA ZR2+1
-  BEQ @FF
-  LDA ZR2
-  STA ZR1
+  STA @ZR1L_LEN  ; if(len<255)
+  LDA ZR2+1      ;   newlen=len;
+  BNE @FF        ; else newlen=255;
+  LDA ZR2        ; ZR1L=newlen;
+  STA @ZR1L_LEN
 @FF:
+  ; ---------------------------------------------------------------
+  ;  ループ
   LDY #$FF
 @NEXT:
   INY
@@ -725,9 +729,7 @@ SPF_CON_READ:
   DEY                   ; 後退（本質
   BRA @ECHO             ; バッファには書き込まず、エコーのみ
 @WRITE:
-  BRK
-  NOP
-  CPY ZR1
+  CPY @ZR1L_LEN
   BEQ @NOINC_NEXT
   STA (ZR0),Y           ; バッファに書き込み
 @ECHO:
