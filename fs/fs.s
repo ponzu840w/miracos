@@ -708,21 +708,22 @@ SPF_CON_READ:
   INY
 @NOINC_NEXT:
   PHY
+  ; 入力受付
   LDA #$2
   JSR FUNC_CON_RAWIN    ; 入力待機するがエコーしない
   PLY
-  CMP #$4               ; EOFか？
-  BNE @NOTEOF
-@EOF:
-  LDA #0
-  TAY
-  SEC
-  RTS
+  CMP #$4               ; * EOF処理
+  BNE @NOTEOF           ; | if(EOF){
+@EOF:                   ; |   exit(1);
+  LDA #0                ; | }
+  TAY                   ; |
+  SEC                   ; |
+  RTS                   ; |
 @NOTEOF:
   CMP #$A               ; 改行か？
-  BEQ @END              ; 改行なら行入力終了
+  BEQ @END              ;   なら行入力終了
   CMP #$8               ; ^H(BS)か？
-  BNE @WRITE            ; なら直下のバックスペース処理
+  BNE @WRITE            ;   なら直下のバックスペース処理
   DEY                   ; 後退（先行INY打消し
   CPY #$FF              ; Y=0ならそれ以上後退できない
   BEQ @NEXT             ; ので無視
@@ -741,6 +742,7 @@ SPF_CON_READ:
   LDA #$A
   STA (ZR0),Y           ; 改行挿入
   TYA                   ; 入力された字数を返す
+  INC
   LDY #0
 CLC_RTS:
   CLC

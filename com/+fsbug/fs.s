@@ -742,6 +742,7 @@ SPF_CON_READ:
   LDA #$A
   STA (ZR0),Y           ; 改行挿入
   TYA                   ; 入力された字数を返す
+  INC
   LDY #0
 CLC_RTS:
   CLC
