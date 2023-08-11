@@ -4,8 +4,8 @@
 ; SDカードのFAT32ファイルシステムをサポートする
 ; 1バイトのファイル記述子をオープンすることでファイルにアクセス可能
 ; -------------------------------------------------------------------
-.INCLUDE "FXT65.inc"
-.INCLUDE "errorcode.inc"
+.INCLUDE "../FXT65.inc"
+.INCLUDE "../errorcode.inc"
 
 .INCLUDE "lib_fs.s"
 ;.PROC FAT
@@ -142,23 +142,18 @@ FUNC_FS_FIND_FST:
   LDA #ERR::FILE_NOT_FOUND
   JMP ERR::REPORT
 @SPF:
-  ;mem2AY16 ZR2              ; 元のパス文字列をそのままFINFOと偽って渡す
-  LDY #0
-@LOOP:
-  LDA (ZR2),Y
-  STA FINFO_WK,Y
-  INY
-  CPY #5
-  BNE @LOOP
-RET_FINFO_WK:
-  loadAY16 FINFO_WK
+  mem2AY16 ZR2              ; 元のパス文字列をそのままFINFOと偽って渡す
   CLC
   RTS
   ; ---------------------------------------------------------------
   ;   通常ドライブパス
 FIND_FST_RAWPATH:           ; FPATHを多重に呼ぶと狂うので"とりあえず"スキップ
   JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
-  BCC RET_FINFO_WK          ; エラーハンドル
+  BCC @SKP_PATHERR          ; エラーハンドル
+  RTS
+@SKP_PATHERR:
+  loadAY16 FINFO_WK
+  CLC
   RTS
 
 ; -------------------------------------------------------------------
@@ -185,8 +180,7 @@ FUNC_FS_FIND_NXT:
   JSR RDSEC                           ; セクタ読み取り
   JSR FINFO_WK_SEEK_DIRENT
   JSR DIR_NEXTMATCH_NEXT_ZR2
-  ;CMP #$FF                            ; もう無いか？
-  INC
+  CMP #$FF                            ; もう無いか？
   CLC
   BNE @SUCS
 @FAIL:
@@ -336,9 +330,8 @@ FUNC_FS_CHDIR:
   storeAY16 ZR3                 ; フルパスをZR3に格納
   JSR FUNC_FS_PURSE             ; ディレクトリである必要性をチェック
   BBS2 ZR1,@OK                  ; ルートディレクトリを指すならディレクトリチェック不要
-  mem2AY16 ZR3
-  ;JSR FIND_FST_RAWPATH          ; 検索、成功したらC=0
-  JSR PATH2FINFO
+  mem2mem16 ZR2,ZR3
+  JSR FIND_FST_RAWPATH          ; 検索、成功したらC=0
   BCC @SKPERR
   RTS
 @SKPERR:                        ; どうやら存在するらしい
@@ -515,6 +508,8 @@ FUNC_FS_OPEN:
   LDA (ZR2)                 ; 先頭バイトを取得
   CMP #$FF                  ; FINFOシグネチャ
   BEQ FINFO2FD
+  CMP #':'
+  BEQ OPEN_RAWPATH_SPF
 FUNC_FS_OPEN_RAWPATH:
 @PATH:
   JSR FUNC_FS_FPATH_ZR2S
@@ -541,6 +536,7 @@ FUNC_FS_OPEN_RAWPATH:
   JSR PATH2FINFO_ZR2        ; パスからファイルのFINFOを開く
   BCC FINFO2FD              ; エラーハンドル
   RTS
+OPEN_RAWPATH_SPF=@SPF_PATH
 FINFO2FD:
   ; 開かれているFINFOからFDを作成して帰る
   JSR FD_OPEN
@@ -729,6 +725,8 @@ SPF_CON_READ:
   DEY                   ; 後退（本質
   BRA @ECHO             ; バッファには書き込まず、エコーのみ
 @WRITE:
+  BRK
+  NOP
   CPY ZR1
   BEQ @NOINC_NEXT
   STA (ZR0),Y           ; バッファに書き込み

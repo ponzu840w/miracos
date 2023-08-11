@@ -34,7 +34,7 @@ _fctrl_res=FCTRL_RES
 .IMPORT popa, popax
 .IMPORTZP sreg
 
-.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open,_read,_write
+.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open,_read,_write,_search_open
 .EXPORT _finfo_wk,_fwk,_fd_table,_fctrl_res
 .EXPORTZP _sdcmdprm,_sdseek
 .CONSTRUCTOR INIT
@@ -218,6 +218,35 @@ INIT:
   PHY
   PLX
   RTS
+.ENDPROC
+
+.PROC _search_open
+  ; ---------------------------------------------------------------
+  ;   コマンドライン引数処理
+  storeAX16 ZR0                   ; ZR0=arg
+  ; nullチェック
+  LDA (ZR0)
+  BEQ NOTFOUND
+  mem2AY16 ZR0
+  ; ---------------------------------------------------------------
+  ;   ファイルオープン
+  BRK
+  NOP
+  JSR FS::FUNC_FS_FIND_FST            ; 検索
+  BCS NOTFOUND                    ; 見つからなかったらあきらめる
+  BRK
+  NOP
+  JSR FS::FUNC_FS_OPEN                ; ファイルをオープン
+  BCS NOTFOUND                    ; オープンできなかったらあきらめる
+  BRK
+  NOP
+  RTS
+NOTFOUND:
+  loadAY16 STR_NF
+  JSR FUNC_CON_OUT_STR
+  RTS
+STR_NF:
+  .BYTE "File Not Found.",$A,$0
 .ENDPROC
 
 ; void dump(boolean wide, unsigned int from, unsigned int to, unsigned int base);

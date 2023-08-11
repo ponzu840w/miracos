@@ -67,6 +67,7 @@ extern unsigned char* makef(unsigned char* path);
 extern unsigned char open(unsigned char* path);
 extern unsigned int read(unsigned char fd, unsigned char *buf, unsigned int count);
 extern unsigned int write(unsigned char fd, unsigned char *buf, unsigned int count);
+extern unsigned char search_open(unsigned char* path);
 
 // アセンブラ変数とか
 extern void* sdseek;   // セクタ読み書きのポインタ
@@ -385,6 +386,11 @@ int main(void){
       unsigned int len=write(fd,"hoge",4);
       printf("write>[%d]\n",len);
 
+    }else if(strcmp(tok,"search")==0){
+      tok=inputpath(line,tok);
+      fd=search_open(tok);
+      printf("new fd=%d\n",fd);
+      showFDtable();
     }
   }
   return 0;

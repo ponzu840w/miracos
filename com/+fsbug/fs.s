@@ -148,7 +148,7 @@ FUNC_FS_FIND_FST:
   ; ---------------------------------------------------------------
   ;   通常ドライブパス
 FIND_FST_RAWPATH:           ; FPATHを多重に呼ぶと狂うので"とりあえず"スキップ
-  JSR PATH2FINFO            ; パスからFINFOを開く
+  JSR PATH2FINFO_ZR2        ; パスからFINFOを開く
   BCC @SKP_PATHERR          ; エラーハンドル
   RTS
 @SKP_PATHERR:
@@ -166,7 +166,7 @@ FUNC_FS_FIND_NXT:
   storeAY16 ZR1                       ; ZR1=与えられたFINFO
   ; FINFOシグネチャチェック
   LDA (ZR1)
-  DEC
+  INC
   BNE @FAIL
   ; FINFO_WKにコピー
   LDY #.SIZEOF(FINFO)-1
@@ -330,7 +330,7 @@ FUNC_FS_CHDIR:
   storeAY16 ZR3                 ; フルパスをZR3に格納
   JSR FUNC_FS_PURSE             ; ディレクトリである必要性をチェック
   BBS2 ZR1,@OK                  ; ルートディレクトリを指すならディレクトリチェック不要
-  mem2AY16 ZR3
+  mem2mem16 ZR2,ZR3
   JSR FIND_FST_RAWPATH          ; 検索、成功したらC=0
   BCC @SKPERR
   RTS
@@ -508,6 +508,8 @@ FUNC_FS_OPEN:
   LDA (ZR2)                 ; 先頭バイトを取得
   CMP #$FF                  ; FINFOシグネチャ
   BEQ FINFO2FD
+  CMP #':'
+  BEQ OPEN_RAWPATH_SPF
 FUNC_FS_OPEN_RAWPATH:
 @PATH:
   JSR FUNC_FS_FPATH_ZR2S
@@ -534,6 +536,7 @@ FUNC_FS_OPEN_RAWPATH:
   JSR PATH2FINFO_ZR2        ; パスからファイルのFINFOを開く
   BCC FINFO2FD              ; エラーハンドル
   RTS
+OPEN_RAWPATH_SPF=@SPF_PATH
 FINFO2FD:
   ; 開かれているFINFOからFDを作成して帰る
   JSR FD_OPEN
