@@ -673,6 +673,16 @@ DIR_WRENT:
   ; ディレクトリエントリを書き込む
   ; 要求: 該当セクタがバッファに展開されている、REALSECも正しい
   ;       ZP_SDSEEK_VEC16がエントリ先頭を指している
+  JSR DIR_WRENT_DRY
+  ; ライトバック
+  JSR WRSEC
+  SEC                                         ; C=1 ERR
+  BNE @ERR
+  CLC                                         ; C=0 OK
+@ERR:
+  RTS
+
+DIR_WRENT_DRY:
   ; 名前
   mem2AX16 ZP_SDSEEK_VEC16
   JSR AX_DST
@@ -722,12 +732,6 @@ DIR_WRENT:
   INX
   CPY #OFS_DIR_FILESIZE+3
   BNE @LOOP3
-  ; ライトバック
-  JSR WRSEC
-  SEC                                         ; C=1 ERR
-  BNE @ERR
-  CLC                                         ; C=0 OK
-@ERR:
   RTS
 
 WRSEC:

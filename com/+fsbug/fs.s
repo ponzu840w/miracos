@@ -446,55 +446,103 @@ FUNC_FS_FPATH_ZR2S:
 ;                            ファイル作成
 ; -------------------------------------------------------------------
 ; ドライブパスからファイルを作成してオープンする
-; input:AY=path ptr
+; input:AY=path ptr, ZR0=ファイルアトリビュート 00ad_vshr
 ; output:A=FD, X=ERR
 ; -------------------------------------------------------------------
-FUNC_FS_MAKEF:
-  STA ZR2
-  STY ZR2+1
-  JSR FUNC_UPPER_STR        ; 大文字にしておく
-@PATH:
+FUNC_FS_MAKE:
+  storeAY16 ZR2             ; パス->ZR2
+  LDA ZR0
+  BIT #%11001000            ; 属性バリデーション
+  BEQ @ATTRVALID            ; 先頭2bit、ボリューム名、LFNを拒否
+  SEC
+  RTS
+@ATTRVALID:
+  STA ATTR_WORK             ; 属性を一時保存する
+  JSR FUNC_FS_FPATH_ZR2S    ; フルパスを得る
   JSR P2F_PATH2DIRINFO      ; パスからディレクトリのFINFOを開く
   BCC @SKP_DIRPATHERR       ; エラーハンドル
   RTS
 @SKP_DIRPATHERR:
   ; ディレクトリは開けた状態
+  pushAY16                      ; ディレクトリ作成時、..を置くために
+  loadreg16 HEAD_SAV            ;   親HEADをセーブ
+  JSR AX_DST                    ;
+  loadreg16 FINFO_WK+FINFO::HEAD;
+  JSR L_LD_AXS                  ;
+  LDA FINFO_WK+FINFO::ATTR      ;   親ATTRをセーブ
+  STA ATTR_SAV                  ;
+  pullAY16
   JSR P2F_CHECKNEXT         ; 最終要素は開けるかな？
-  BCC @EXIST
-  ; ディレクトリは開けたが、最終要素が開けない
-  ; = ファイル作成の季節
+  BCC @EXIST                ; 最終要素あり->重複END
+  ; ---------------------------------------------------------------
+  ;   ファイル作成
   ; FWK_REAL_SECとZP_SDSEEK_VEC16をスタックにプッシュ
   pushmem16 ZP_SDSEEK_VEC16
   pushmem16 FWK_REAL_SEC
   pushmem16 FWK_REAL_SEC+2
+  ; ---------------------------------------------------------------
+  ;   FINFO組み立て
+  ; FINFOをゼロリセットする
+  JSR CLEAR_FINFO
   ; FINFOに新規ファイル名を設定する
   loadmem16 ZR1,FINFO_WK+FINFO::NAME
   mem2mem16 ZR0,ZR2
   JSR M_CP
-  ; FINFOをゼロリセットする
-  LDA #0
-  TAX
-@FILLLOOP:
-  STA FINFO_WK+FINFO::ATTR,X
-  INX
-  CPX FINFO::DRV_NUM-FINFO::ATTR
-  BNE @FILLLOOP
+  ; FINFOに属性を指定する
+  LDA ATTR_WORK
+  STA FINFO_WK+FINFO::ATTR
   ; FINFOに割り当てクラスタを設定する
   JSR GET_EMPTY_CLUS        ; 新規クラスタを発見 ZR34に
   JSR WRITE_CLUS            ; FAT登録
   mem2mem16 FINFO_WK+FINFO::HEAD,ZR3
   mem2mem16 FINFO_WK+FINFO::HEAD+2,ZR4
+  ; ---------------------------------------------------------------
+  ;   ディスク反映
   ; ディレクトリエントリの書き込み先をスタックから回復
   pullmem16 FWK_REAL_SEC+2
   pullmem16 FWK_REAL_SEC
-  JSR RDSEC
+  JSR RDSEC                 ; セクタ読み出し
   pullmem16 ZP_SDSEEK_VEC16
-  JSR DIR_WRENT
-  ; ファイルをオープンする
+  JSR DIR_WRENT             ; 書き出し
+  LDA #DIRATTR_DIRECTORY    ; ディレクトリかチェック
+  BIT ATTR_WORK
+  BNE @MAKED
+  ; ---------------------------------------------------------------
+  ;   ファイルをオープンする
+@OPEN:
   BRA FINFO2FD
 @EXIST:
   LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ
   BRA ERR_REPORT
+
+  ; ---------------------------------------------------------------
+  ;   ディレクトリ：.と..
+@MAKED:
+  loadreg16 FINFO_WK+FINFO::HEAD  ; 新しく割り当てた内容の先頭クラスタ先頭セクタを
+  JSR HEAD2FWK                    ;   READSECに展開する
+  STZ SECBF512+64                 ; .と..の次が空になるように
+  ; .
+  LDA #'.'
+  STA FINFO_WK+FINFO::NAME
+  STZ FINFO_WK+FINFO::NAME+1
+  LDA #>SECBF512
+  STA ZP_SDSEEK_VEC16+1
+  STZ ZP_SDSEEK_VEC16
+  JSR DIR_WRENT_DRY
+  ; ..
+  LDA #'.'
+  STA FINFO_WK+FINFO::NAME+1
+  STZ FINFO_WK+FINFO::NAME+2
+  loadreg16 FINFO_WK+FINFO::HEAD; 親HEAD回復
+  JSR AX_DST                    ;
+  loadreg16 HEAD_SAV            ;
+  JSR L_LD_AXS                  ;
+  LDA ATTR_SAV                  ; 親ATTR回復
+  STA FINFO_WK+FINFO::ATTR      ;
+  LDA #32
+  STA ZP_SDSEEK_VEC16
+  JSR DIR_WRENT
+  RTS
 
 ; -------------------------------------------------------------------
 ; BCOS 5                  ファイルオープン
@@ -762,5 +810,15 @@ SPF_CON_WRITE:
 @END:
   mem2AY16 ZR1
   CLC
+  RTS
+
+CLEAR_FINFO:
+  LDA #0
+  TAX
+@FILLLOOP:
+  STA FINFO_WK,X
+  INX
+  CPX #.SIZEOF(FINFO)
+  BNE @FILLLOOP
   RTS
 

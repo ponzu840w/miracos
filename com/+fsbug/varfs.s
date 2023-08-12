@@ -38,8 +38,3 @@ FINFO_WK:           .TAG FINFO
 DWK:                .TAG DINFO  ; ドライブワークエリア
 DWK_CUR_DRV:        .RES 1      ; カレントドライブ（無駄リロード阻止用）
 
-; $05C8
-FWK:                .TAG FCTRL  ; ファイルワークエリア
-; $05DA
-FWK_REAL_SEC:       .RES 4      ; 実際のセクタ
-

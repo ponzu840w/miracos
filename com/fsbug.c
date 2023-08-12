@@ -64,6 +64,7 @@ extern void restoreGCON();
 extern void cins(const char *str);
 //extern unsigned char* path2finfo(unsigned char* path);
 extern unsigned char* makef(unsigned char* path);
+extern void maked(unsigned char* path);
 extern unsigned char open(unsigned char* path);
 extern unsigned int read(unsigned char fd, unsigned char *buf, unsigned int count);
 extern unsigned int write(unsigned char fd, unsigned char *buf, unsigned int count);
@@ -365,6 +366,11 @@ int main(void){
       // ファイル作成
       tok=inputpath(line,tok);
       makef(tok);
+
+    }else if(strcmp(tok,"maked")==0){
+      // ディレクトリ作成
+      tok=inputpath(line,tok);
+      maked(tok);
 
     }else if(strcmp(tok,"open")==0){
       // ファイルオープン

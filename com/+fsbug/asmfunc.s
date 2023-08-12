@@ -34,7 +34,7 @@ _fctrl_res=FCTRL_RES
 .IMPORT popa, popax
 .IMPORTZP sreg
 
-.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open,_read,_write,_search_open
+.EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open,_read,_write,_search_open,_maked
 .EXPORT _finfo_wk,_fwk,_fd_table,_fctrl_res
 .EXPORTZP _sdcmdprm,_sdseek
 .CONSTRUCTOR INIT
@@ -169,7 +169,19 @@ INIT:
 .PROC _makef
   PHX
   PLY
-  JSR FS::FUNC_FS_MAKEF
+  STZ ZR0
+  JSR FS::FUNC_FS_MAKE
+  RTS
+.ENDPROC
+
+.PROC _maked
+  PHX
+  PLY
+  TAX
+  LDA #DIRATTR_DIRECTORY
+  STA ZR0
+  TXA
+  JSR FS::FUNC_FS_MAKE
   RTS
 .ENDPROC
 

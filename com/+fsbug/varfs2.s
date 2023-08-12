@@ -6,3 +6,11 @@ PATH_WK:            .RES 64
 DWK_FATSTART2:      .RES 4
 DWK_FATLEN:         .RES 4
 
+FWK:                .TAG FCTRL  ; ファイルワークエリア
+FWK_REAL_SEC:       .RES 4      ; 実際のセクタ
+
+ATTR_WORK:          .RES 1
+
+HEAD_SAV:           .RES 4
+ATTR_SAV:           .RES 1
+
