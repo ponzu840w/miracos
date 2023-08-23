@@ -595,6 +595,42 @@ ERR_REPORT:
   JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
 
 ; -------------------------------------------------------------------
+;                         ファイル削除
+; -------------------------------------------------------------------
+; パスまたはFINFOポインタからファイルを削除する
+; input:AY=(path or FINFO)ptr
+; output:C=ERR
+; -------------------------------------------------------------------
+FUNC_FS_DELETE:
+  storeAY16 ZR2
+  LDA (ZR2)                 ; 先頭バイトを取得
+  CMP #$FF                  ; FINFOシグネチャ
+  BEQ @DEL_FINFO            ; FINFOが直接与えられればパス処理省略
+  JSR FUNC_FS_FPATH_ZR2S    ; フルパス取得
+  JSR PATH2FINFO_ZR2        ; パスからファイルのFINFOを開く
+  BCC DEL_FINFO             ; エラーハンドル
+@RT:
+  RTS
+@DEL_FINFO:
+  ; 開かれているFINFOのファイルを削除する
+  LDA FINFO_WK+FINFO::ATTR
+  BIT #(DIRATTR_READONLY|DIRATTR_SYSTEM)
+  BEQ @DELOK                ; * 読み取り禁止かシステムファイルなら削除拒否
+  LDA #ERR::FAILED_OPEN     ; |
+  BRA ERR_REPORT            ; |
+@DELOK:
+  ; ディレクトリか？
+  BIT #DIRATTR_DIRECTORY
+  BEQ @FILE
+  BRK ; dir!
+  NOP
+  RTS
+@FILE:
+  ; 親ディレクトリを開く
+  JSR INTOPEN_PDIR
+  RTS
+
+; -------------------------------------------------------------------
 ;                        特殊ファイル番号取得
 ; -------------------------------------------------------------------
 ; input   :ZR2=検索対象文字列（先頭は:として無視される）

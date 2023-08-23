@@ -316,6 +316,7 @@ NEXTSEC:
   LDA FWK+FCTRL::CUR_SEC
   CMP DWK+DINFO::BPB_SECPERCLUS ; クラスタ内最終セクタか
   BNE @SKP_NEXTCLUS             ; まだならFATチェーン読み取りキャンセル
+
   ; 次のクラスタの先頭セクタを開く
   LDA FWK+FCTRL::CUR_CLUS       ; 現在クラスタ番号{N}->FAT論理セクタ
   ASL                           ; x4/512 : /128 : >>7 最下位バイトからはMSBしか採れない
@@ -359,6 +360,7 @@ NEXTSEC:
   CMP #$0F
   BEQ @MIGHT_EOC                  ; EOCかもしれない
 @NOT_EOC:
+  ; FWK現在クラスタ更新
   LDA (ZP_LSRC0_VEC16),Y
   STA FWK+FCTRL::CUR_CLUS,Y
   DEY
