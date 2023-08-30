@@ -61,6 +61,112 @@ INIT:
   RTS
 
 ; -------------------------------------------------------------------
+;                         ファイル削除
+; -------------------------------------------------------------------
+; パスまたはFINFOポインタからファイルを削除する
+; input:AY=(path or FINFO)ptr
+; output:C=ERR
+; -------------------------------------------------------------------
+FUNC_FS_DELETE:
+  storeAY16 ZR2
+  LDA (ZR2)                 ; 先頭バイトを取得
+  CMP #$FF                  ; FINFOシグネチャ
+  BEQ @DEL_FINFO            ; FINFOが直接与えられればパス処理省略
+  JSR FUNC_FS_FPATH_ZR2S    ; フルパス取得
+  JSR PATH2FINFO            ; パスからファイルのFINFOを開く
+  BCC @DEL_FINFO            ; エラーハンドル
+@RT:
+  ; SEC
+  RTS
+@DEL_FINFO:
+  ; 開かれているFINFOのファイルを削除する
+  LDA FINFO_WK+FINFO::ATTR
+  BIT #(DIRATTR_READONLY|DIRATTR_SYSTEM)
+  BEQ @DELOK                ; * 読み取り禁止かシステムファイルなら削除拒否
+  LDA #ERR::FAILED_OPEN     ; |
+  JMP ERR_REPORT            ; |
+@DELOK:
+  ; ディレクトリか？
+  BIT #DIRATTR_DIRECTORY
+  BEQ @FILE
+  loadreg16 $DDDD
+  BRK ; dir!
+  NOP
+  SEC
+  RTS
+@FILE:
+  ; FATを消し飛ばす
+  JSR INTOPEN_FILE                  ; set CUR_CLUS
+  loadreg16 (FWK_REAL_SEC)
+  JSR AX_DST                        ; setDST RSEC
+@NEXT_FAT:
+  JSR CUR_CLUS_2_LOGICAL_FAT        ; LFAT(CUR_CLUS) -> RSEC
+  loadreg16 DWK_FATSTART2
+  JSR L_ADD_AXS                     ; to FAT2
+  JSR OPEN_FAT                      ; open entry -> ZP_LSRC0_VEC16
+  ; CUR_CLUSに控える
+  LDY #3
+@CPLOOP:
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  CPY #$FF
+  BNE @CPLOOP
+  mem2AY16 ZP_LSRC0_VEC16
+  BRK
+  NOP
+  ; 値変更 $00000000:未使用クラスタ
+  LDY #3
+  LDA #0
+@STZLOOP:
+  STA (ZP_LSRC0_VEC16),Y
+  DEY
+  CPY #$FF
+  BNE @STZLOOP
+  mem2AY16 ZP_LSRC0_VEC16
+  BRK
+  NOP
+  JSR WRITE_CLUS                    ; write FAT2 and FAT1
+  ; EOCチェック（控えたCUR_CLUSに対して）
+  JSR CHECK_EOC
+  BCC @NEXT_FAT
+  ; 親ディレクトリを開く
+  JSR FINFO_WK_OPEN_DIRENT
+  JSR RDSEC                         ; セクタ読み取り
+  JSR FINFO_WK_SEEK_DIRENT
+  ; 無効化
+  LDA #$E5
+  STA (ZP_SDSEEK_VEC16)
+  JSR WRSEC
+  CLC
+  RTS
+
+CHECK_EOC:
+  ; NEXT_SECにもあるが速度重視すぎて癒着している
+  LDY #3
+  LDA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  CMP #$0F
+  BNE @NOT_EOC
+  ; 上位バイトを見たところEOCの可能性あり
+  LDA FWK+FCTRL::CUR_CLUS,Y ; $0F[??]_????
+  DEY
+  AND FWK+FCTRL::CUR_CLUS,Y ; $0F??_[??]??
+  DEY
+  INC                       ; $FF++==0
+  BNE @NOT_EOC              ; 中位2バイトをみたらEOCじゃなかった
+  LDA FWK+FCTRL::CUR_CLUS,Y ; $0F??_??[??]
+  ORA #%111
+  INC                       ; $FF++==0
+  BNE @NOT_EOC              ; 最下位バイトを見たらEOCじゃなかった（そんなことある？）
+  ; EOC確定
+  SEC
+  RTS
+@NOT_EOC:
+  CLC
+  RTS
+
+; -------------------------------------------------------------------
 ;                         ファイル書き込み
 ; -------------------------------------------------------------------
 ; input :ZR1=fd, AY=len, ZR0=bfptr
@@ -473,7 +579,12 @@ FUNC_FS_MAKE:
   STA ATTR_SAV                  ;
   pullAY16
   JSR P2F_CHECKNEXT         ; 最終要素は開けるかな？
-  BCC @EXIST                ; 最終要素あり->重複END
+  ;BCC @EXIST                ; 最終要素あり->重複END
+  BCS @NOT_EXIST
+@EXIST:
+  LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ
+  JMP ERR::REPORT
+@NOT_EXIST:
   ; ---------------------------------------------------------------
   ;   ファイル作成
   ; FWK_REAL_SECとZP_SDSEEK_VEC16をスタックにプッシュ
@@ -493,6 +604,17 @@ FUNC_FS_MAKE:
   STA FINFO_WK+FINFO::ATTR
   ; FINFOに割り当てクラスタを設定する
   JSR GET_EMPTY_CLUS        ; 新規クラスタを発見 ZR34に
+  ; GET_EMPTY_CLUSにより(ZP_SDSEEK_VEC16),YはFAT2該当エントリの最後のバイトを指す
+  ; $0FFF_FFFFを置く
+  LDA #$0F
+  STA (ZP_SDSEEK_VEC16),Y
+  LDA #$FF
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
   JSR WRITE_CLUS            ; FAT登録
   mem2mem16 FINFO_WK+FINFO::HEAD,ZR3
   mem2mem16 FINFO_WK+FINFO::HEAD+2,ZR4
@@ -511,9 +633,6 @@ FUNC_FS_MAKE:
   ;   ファイルをオープンする
 @OPEN:
   BRA FINFO2FD
-@EXIST:
-  LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ
-  BRA ERR_REPORT
 
   ; ---------------------------------------------------------------
   ;   ディレクトリ：.と..
@@ -593,42 +712,6 @@ FINFO2FD_ERR:
   LDA #ERR::FAILED_OPEN
 ERR_REPORT:
   JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
-
-; -------------------------------------------------------------------
-;                         ファイル削除
-; -------------------------------------------------------------------
-; パスまたはFINFOポインタからファイルを削除する
-; input:AY=(path or FINFO)ptr
-; output:C=ERR
-; -------------------------------------------------------------------
-FUNC_FS_DELETE:
-  storeAY16 ZR2
-  LDA (ZR2)                 ; 先頭バイトを取得
-  CMP #$FF                  ; FINFOシグネチャ
-  BEQ @DEL_FINFO            ; FINFOが直接与えられればパス処理省略
-  JSR FUNC_FS_FPATH_ZR2S    ; フルパス取得
-  JSR PATH2FINFO_ZR2        ; パスからファイルのFINFOを開く
-  BCC DEL_FINFO             ; エラーハンドル
-@RT:
-  RTS
-@DEL_FINFO:
-  ; 開かれているFINFOのファイルを削除する
-  LDA FINFO_WK+FINFO::ATTR
-  BIT #(DIRATTR_READONLY|DIRATTR_SYSTEM)
-  BEQ @DELOK                ; * 読み取り禁止かシステムファイルなら削除拒否
-  LDA #ERR::FAILED_OPEN     ; |
-  BRA ERR_REPORT            ; |
-@DELOK:
-  ; ディレクトリか？
-  BIT #DIRATTR_DIRECTORY
-  BEQ @FILE
-  BRK ; dir!
-  NOP
-  RTS
-@FILE:
-  ; 親ディレクトリを開く
-  JSR INTOPEN_PDIR
-  RTS
 
 ; -------------------------------------------------------------------
 ;                        特殊ファイル番号取得

@@ -69,6 +69,7 @@ extern unsigned char open(unsigned char* path);
 extern unsigned int read(unsigned char fd, unsigned char *buf, unsigned int count);
 extern unsigned int write(unsigned char fd, unsigned char *buf, unsigned int count);
 extern unsigned char search_open(unsigned char* path);
+extern void del(unsigned char* path);
 
 // アセンブラ変数とか
 extern void* sdseek;   // セクタ読み書きのポインタ
@@ -366,6 +367,11 @@ int main(void){
       // ファイル作成
       tok=inputpath(line,tok);
       makef(tok);
+
+    }else if(strcmp(tok,"del")==0){
+      // ファイル削除
+      tok=inputpath(line,tok);
+      del(tok);
 
     }else if(strcmp(tok,"maked")==0){
       // ディレクトリ作成
