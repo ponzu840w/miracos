@@ -629,7 +629,28 @@ FUNC_FS_MAKE:
   pullmem16 FWK_REAL_SEC
   JSR RDSEC                 ; セクタ読み出し
   pullmem16 ZP_SDSEEK_VEC16
+  ; エントリがセクタ最終か分岐
+  LDA ZP_SDSEEK_VEC16
+  CMP #$E0
+  BNE @NOTSECLAST
+  LDA ZP_SDSEEK_VEC16+1
+  CMP #>SECBF512
+  BEQ @SECLAST
+  ; セクタ最終以外にエントリを書き込んだ場合、終端はその$20バイト先
+@NOTSECLAST:
+  LDA #0
+  LDY #$20
+  STA (ZP_SDSEEK_VEC16),Y
   JSR DIR_WRENT             ; 書き出し
+  BRA @CHECK_DIR
+  ; セクタ最終エントリを書き込んだ場合、終端は次のセクタ
+@SECLAST:
+  JSR DIR_WRENT             ; 書き出し
+  JSR NEXTSEC
+  JSR RDSEC
+  STZ SECBF512
+  JSR WRSEC                 ; 次のセクタに終端
+@CHECK_DIR:
   LDA #DIRATTR_DIRECTORY    ; ディレクトリかチェック
   BIT ATTR_WORK
   BNE @MAKED
@@ -661,6 +682,8 @@ FUNC_FS_MAKE:
   loadreg16 HEAD_SAV            ;
   JSR L_LD_AXS                  ;
   LDA ATTR_SAV                  ; 親ATTR回復
+  BRK
+  NOP
   STA FINFO_WK+FINFO::ATTR      ;
   LDA #32
   STA ZP_SDSEEK_VEC16
