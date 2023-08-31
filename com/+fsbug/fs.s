@@ -89,10 +89,20 @@ FUNC_FS_DELETE:
   ; ディレクトリか？
   BIT #DIRATTR_DIRECTORY
   BEQ @FILE
-  loadreg16 $DDDD
-  BRK ; dir!
-  NOP
+  ; ディレクトリ
+  JSR INTOPEN_FILE          ; 削除対象ディレクトリをFWKに開く
+  JSR INTOPEN_FILE_DIR_RSEC ; 対象の親ディレクトリ上のディレクトリエントリをFWKに控える
+  JSR RDSEC
+  loadmem16 ZP_SDSEEK_VEC16,SECBF512+$40 ; .と..の次に合わせる
+  JSR DIR_NEXTMATCH
+  CMP #$FF                  ; ディレクトリ終了
+  BEQ @DIRDELOK
   SEC
+  RTS
+@DIRDELOK:
+  JSR INTOPEN_FILE_DIR_RSEC ; 親ディレクトリを開く
+  JSR INTOPEN_PDIR
+  CLC
   RTS
 @FILE:
   ; FATを消し飛ばす
@@ -112,9 +122,6 @@ FUNC_FS_DELETE:
   DEY
   CPY #$FF
   BNE @CPLOOP
-  mem2AY16 ZP_LSRC0_VEC16
-  BRK
-  NOP
   ; 値変更 $00000000:未使用クラスタ
   LDY #3
   LDA #0
@@ -123,9 +130,6 @@ FUNC_FS_DELETE:
   DEY
   CPY #$FF
   BNE @STZLOOP
-  mem2AY16 ZP_LSRC0_VEC16
-  BRK
-  NOP
   JSR WRITE_CLUS                    ; write FAT2 and FAT1
   ; EOCチェック（控えたCUR_CLUSに対して）
   JSR CHECK_EOC
