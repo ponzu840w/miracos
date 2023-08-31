@@ -682,8 +682,6 @@ FUNC_FS_MAKE:
   loadreg16 HEAD_SAV            ;
   JSR L_LD_AXS                  ;
   LDA ATTR_SAV                  ; 親ATTR回復
-  BRK
-  NOP
   STA FINFO_WK+FINFO::ATTR      ;
   LDA #32
   STA ZP_SDSEEK_VEC16

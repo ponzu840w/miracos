@@ -42,6 +42,16 @@ INTOPEN_FILE:
 
 INTOPEN_ROOT:
   ; ルートディレクトリを開く
+  ; FINFOのHEADを0に設定する
+  ; 本当は2なのだが、MAKEでディレクトリ作った時に置く..がルートの時
+  ;   そのクラスタ番号は0とすべきだから
+  STZ FINFO_WK+FINFO::HEAD
+  STZ FINFO_WK+FINFO::HEAD+1
+  STZ FINFO_WK+FINFO::HEAD+2
+  STZ FINFO_WK+FINFO::HEAD+3
+  ; 同様にMAKEでディレクトリ作った時のためにディレクトリアトリビュート
+  LDA #$10
+  STA FINFO_WK+FINFO::ATTR
   loadreg16 DWK+DINFO::BPB_ROOTCLUS
 OPENCLUS:
   JSR HEAD2FWK
