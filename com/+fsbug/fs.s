@@ -80,13 +80,14 @@ FUNC_FS_DELETE:
   RTS
 @DEL_FINFO:
   ; 開かれているFINFOのファイルを削除する
+  JSR INTOPEN_FILE_DIR_RSEC ; 対象の親ディレクトリ上のディレクトリエントリをFWKに控える
+  ; 属性チェック
   LDA FINFO_WK+FINFO::ATTR
   BIT #(DIRATTR_READONLY|DIRATTR_SYSTEM)
   BEQ @DELOK                ; * 読み取り禁止かシステムファイルなら削除拒否
   LDA #ERR::FAILED_OPEN     ; |
   JMP ERR_REPORT            ; |
 @DELOK:
-  JSR INTOPEN_FILE_DIR_RSEC ; 対象の親ディレクトリ上のディレクトリエントリをFWKに控える
   ; ディレクトリか？
   BIT #DIRATTR_DIRECTORY
   BEQ @FILE
@@ -94,6 +95,9 @@ FUNC_FS_DELETE:
   JSR INTOPEN_FILE          ; 削除対象ディレクトリをFWKに開く
   JSR RDSEC
   loadmem16 ZP_SDSEEK_VEC16,SECBF512+$40 ; .と..の次に合わせる
+  ;mem2AY16 ZP_SDSEEK_VEC16
+  ;BRK
+  ;NOP
   JSR DIR_NEXTENT_ENT
   CMP #$FF                  ; ディレクトリ終了
   BEQ @DIRDELOK
