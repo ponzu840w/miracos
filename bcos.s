@@ -171,7 +171,8 @@ SYSCALL_TABLE:
   .WORD IRQ::FUNC_IRQ_SETHNDR_C   ; 25 CTRL+Cハンドラを設定
   .WORD FUNC_CON_IN_CHR_RPD       ; 26 無駄のないコンソール入力
   .WORD FS::FUNC_FS_WRITE         ; 27 ファイル書き込み
-  .WORD FS::FUNC_FS_MAKEF         ; 28 ファイル作成
+  .WORD FS::FUNC_FS_MAKE          ; 28 ファイル/ディレクトリ作成
+  .WORD FS::FUNC_FS_DELETE        ; 29 ファイル/ディレクトリ削除
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン

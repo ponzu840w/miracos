@@ -61,6 +61,122 @@ INIT:
   RTS
 
 ; -------------------------------------------------------------------
+;                         ファイル削除
+; -------------------------------------------------------------------
+; パスまたはFINFOポインタからファイルを削除する
+; input:AY=(path or FINFO)ptr
+; output:C=ERR
+; -------------------------------------------------------------------
+FUNC_FS_DELETE:
+  storeAY16 ZR2
+  LDA (ZR2)                 ; 先頭バイトを取得
+  CMP #$FF                  ; FINFOシグネチャ
+  BEQ @DEL_FINFO            ; FINFOが直接与えられればパス処理省略
+  JSR FUNC_FS_FPATH_ZR2S    ; フルパス取得
+  JSR PATH2FINFO            ; パスからファイルのFINFOを開く
+  BCC @DEL_FINFO            ; エラーハンドル
+@RT:
+  ; SEC
+  RTS
+@DEL_FINFO:
+  ; 開かれているFINFOのファイルを削除する
+  JSR INTOPEN_FILE_DIR_RSEC ; 対象の親ディレクトリ上のディレクトリエントリをFWKに控える
+  ; 属性チェック
+  LDA FINFO_WK+FINFO::ATTR
+  BIT #(DIRATTR_READONLY|DIRATTR_SYSTEM)
+  BEQ @DELOK                ; * 読み取り禁止かシステムファイルなら削除拒否
+  LDA #ERR::FAILED_OPEN     ; |
+  JMP ERR_REPORT            ; |
+@DELOK:
+  ; ディレクトリか？
+  BIT #DIRATTR_DIRECTORY
+  BEQ @FILE
+  ; ディレクトリ
+  JSR INTOPEN_FILE          ; 削除対象ディレクトリをFWKに開く
+  JSR RDSEC
+  loadmem16 ZP_SDSEEK_VEC16,SECBF512+$40 ; .と..の次に合わせる
+  ;mem2AY16 ZP_SDSEEK_VEC16
+  ;BRK
+  ;NOP
+  JSR DIR_NEXTENT_ENT
+  CMP #$FF                  ; ディレクトリ終了
+  BEQ @DIRDELOK
+  LDA #ERR::DIR_NOT_EMPTY
+  JMP ERR::REPORT           ; ディレクトリが空でなければエラー
+@DIRDELOK:
+  ;JSR INTOPEN_PDIR_SEEKONLY ; エントリを覗く
+  ;BRK
+  ;NOP
+  ;CLC
+  ;RTS
+@FILE:
+  ; FATを消し飛ばす
+  JSR INTOPEN_FILE                  ; set CUR_CLUS
+  loadreg16 (FWK_REAL_SEC)
+  JSR AX_DST                        ; setDST RSEC
+@NEXT_FAT:
+  JSR CUR_CLUS_2_LOGICAL_FAT        ; LFAT(CUR_CLUS) -> RSEC
+  loadreg16 DWK_FATSTART2
+  JSR L_ADD_AXS                     ; to FAT2
+  JSR OPEN_FAT                      ; open entry -> ZP_LSRC0_VEC16
+  ; CUR_CLUSに控える
+  LDY #3
+@CPLOOP:
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  CPY #$FF
+  BNE @CPLOOP
+  ; 値変更 $00000000:未使用クラスタ
+  LDY #3
+  LDA #0
+@STZLOOP:
+  STA (ZP_LSRC0_VEC16),Y
+  DEY
+  CPY #$FF
+  BNE @STZLOOP
+  JSR WRITE_CLUS                    ; write FAT2 and FAT1
+  ; EOCチェック（控えたCUR_CLUSに対して）
+  JSR CHECK_EOC
+  BCC @NEXT_FAT
+  ; 親ディレクトリを開く
+  ;JSR FINFO_WK_OPEN_DIRENT
+  ;JSR RDSEC                         ; セクタ読み取り
+  ;JSR FINFO_WK_SEEK_DIRENT
+  JSR INTOPEN_PDIR_SEEKONLY         ; エントリを覗く
+  ; 無効化
+  LDA #$E5
+  STA (ZP_SDSEEK_VEC16)
+  JSR WRSEC
+  CLC
+  RTS
+
+CHECK_EOC:
+  ; NEXT_SECにもあるが速度重視すぎて癒着している
+  LDY #3
+  LDA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  CMP #$0F
+  BNE @NOT_EOC
+  ; 上位バイトを見たところEOCの可能性あり
+  LDA FWK+FCTRL::CUR_CLUS,Y ; $0F[??]_????
+  DEY
+  AND FWK+FCTRL::CUR_CLUS,Y ; $0F??_[??]??
+  DEY
+  INC                       ; $FF++==0
+  BNE @NOT_EOC              ; 中位2バイトをみたらEOCじゃなかった
+  LDA FWK+FCTRL::CUR_CLUS,Y ; $0F??_??[??]
+  ORA #%111
+  INC                       ; $FF++==0
+  BNE @NOT_EOC              ; 最下位バイトを見たらEOCじゃなかった（そんなことある？）
+  ; EOC確定
+  SEC
+  RTS
+@NOT_EOC:
+  CLC
+  RTS
+
+; -------------------------------------------------------------------
 ;                         ファイル書き込み
 ; -------------------------------------------------------------------
 ; input :ZR1=fd, AY=len, ZR0=bfptr
@@ -446,55 +562,137 @@ FUNC_FS_FPATH_ZR2S:
 ;                            ファイル作成
 ; -------------------------------------------------------------------
 ; ドライブパスからファイルを作成してオープンする
-; input:AY=path ptr
+; input:AY=path ptr, ZR0=ファイルアトリビュート 00ad_vshr
 ; output:A=FD, X=ERR
 ; -------------------------------------------------------------------
-FUNC_FS_MAKEF:
-  STA ZR2
-  STY ZR2+1
-  JSR FUNC_UPPER_STR        ; 大文字にしておく
-@PATH:
+FUNC_FS_MAKE:
+  storeAY16 ZR2             ; パス->ZR2
+  LDA ZR0
+  BIT #%11001000            ; 属性バリデーション
+  BEQ @ATTRVALID            ; 先頭2bit、ボリューム名、LFNを拒否
+  SEC
+  RTS
+@ATTRVALID:
+  STA ATTR_WORK             ; 属性を一時保存する
+  JSR FUNC_FS_FPATH_ZR2S    ; フルパスを得る
   JSR P2F_PATH2DIRINFO      ; パスからディレクトリのFINFOを開く
   BCC @SKP_DIRPATHERR       ; エラーハンドル
   RTS
 @SKP_DIRPATHERR:
   ; ディレクトリは開けた状態
+  pushAY16                      ; ディレクトリ作成時、..を置くために
+  loadreg16 HEAD_SAV            ;   親HEADをセーブ
+  JSR AX_DST                    ;
+  loadreg16 FINFO_WK+FINFO::HEAD;
+  JSR L_LD_AXS                  ;
+  LDA FINFO_WK+FINFO::ATTR      ;   親ATTRをセーブ
+  STA ATTR_SAV                  ;
+  pullAY16
   JSR P2F_CHECKNEXT         ; 最終要素は開けるかな？
-  BCC @EXIST
-  ; ディレクトリは開けたが、最終要素が開けない
-  ; = ファイル作成の季節
+  ;BCC @EXIST                ; 最終要素あり->重複END
+  BCS @NOT_EXIST
+@EXIST:
+  LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ
+  JMP ERR::REPORT
+@NOT_EXIST:
+  ; ---------------------------------------------------------------
+  ;   ファイル作成
   ; FWK_REAL_SECとZP_SDSEEK_VEC16をスタックにプッシュ
   pushmem16 ZP_SDSEEK_VEC16
   pushmem16 FWK_REAL_SEC
   pushmem16 FWK_REAL_SEC+2
+  ; ---------------------------------------------------------------
+  ;   FINFO組み立て
+  ; FINFOをゼロリセットする
+  JSR CLEAR_FINFO
   ; FINFOに新規ファイル名を設定する
   loadmem16 ZR1,FINFO_WK+FINFO::NAME
   mem2mem16 ZR0,ZR2
   JSR M_CP
-  ; FINFOをゼロリセットする
-  LDA #0
-  TAX
-@FILLLOOP:
-  STA FINFO_WK+FINFO::ATTR,X
-  INX
-  CPX FINFO::DRV_NUM-FINFO::ATTR
-  BNE @FILLLOOP
+  ; FINFOに属性を指定する
+  LDA ATTR_WORK
+  STA FINFO_WK+FINFO::ATTR
   ; FINFOに割り当てクラスタを設定する
   JSR GET_EMPTY_CLUS        ; 新規クラスタを発見 ZR34に
+  ; GET_EMPTY_CLUSにより(ZP_SDSEEK_VEC16),YはFAT2該当エントリの最後のバイトを指す
+  ; $0FFF_FFFFを置く
+  LDA #$0F
+  STA (ZP_SDSEEK_VEC16),Y
+  LDA #$FF
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
+  DEY
+  STA (ZP_SDSEEK_VEC16),Y
   JSR WRITE_CLUS            ; FAT登録
   mem2mem16 FINFO_WK+FINFO::HEAD,ZR3
   mem2mem16 FINFO_WK+FINFO::HEAD+2,ZR4
+  ; ---------------------------------------------------------------
+  ;   ディスク反映
   ; ディレクトリエントリの書き込み先をスタックから回復
   pullmem16 FWK_REAL_SEC+2
   pullmem16 FWK_REAL_SEC
-  JSR RDSEC
+  JSR RDSEC                 ; セクタ読み出し
   pullmem16 ZP_SDSEEK_VEC16
-  JSR DIR_WRENT
-  ; ファイルをオープンする
+  ; エントリがセクタ最終か分岐
+  LDA ZP_SDSEEK_VEC16
+  CMP #$E0
+  BNE @NOTSECLAST
+  LDA ZP_SDSEEK_VEC16+1
+  CMP #>SECBF512
+  BEQ @SECLAST
+  ; セクタ最終以外にエントリを書き込んだ場合、終端はその$20バイト先
+@NOTSECLAST:
+  LDA #0
+  LDY #$20
+  STA (ZP_SDSEEK_VEC16),Y
+  JSR DIR_WRENT             ; 書き出し
+  BRA @CHECK_DIR
+  ; セクタ最終エントリを書き込んだ場合、終端は次のセクタ
+@SECLAST:
+  JSR DIR_WRENT             ; 書き出し
+  JSR NEXTSEC
+  JSR RDSEC
+  STZ SECBF512
+  JSR WRSEC                 ; 次のセクタに終端
+@CHECK_DIR:
+  LDA #DIRATTR_DIRECTORY    ; ディレクトリかチェック
+  BIT ATTR_WORK
+  BNE @MAKED
+  ; ---------------------------------------------------------------
+  ;   ファイルをオープンする
+@OPEN:
   BRA FINFO2FD
-@EXIST:
-  LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ
-  BRA ERR_REPORT
+
+  ; ---------------------------------------------------------------
+  ;   ディレクトリ：.と..
+@MAKED:
+  loadreg16 FINFO_WK+FINFO::HEAD  ; 新しく割り当てた内容の先頭クラスタ先頭セクタを
+  JSR HEAD2FWK                    ;   READSECに展開する
+  STZ SECBF512+64                 ; .と..の次が空になるように
+  ; .
+  LDA #'.'
+  STA FINFO_WK+FINFO::NAME
+  STZ FINFO_WK+FINFO::NAME+1
+  LDA #>SECBF512
+  STA ZP_SDSEEK_VEC16+1
+  STZ ZP_SDSEEK_VEC16
+  JSR DIR_WRENT_DRY
+  ; ..
+  LDA #'.'
+  STA FINFO_WK+FINFO::NAME+1
+  STZ FINFO_WK+FINFO::NAME+2
+  loadreg16 FINFO_WK+FINFO::HEAD; 親HEAD回復
+  JSR AX_DST                    ;
+  loadreg16 HEAD_SAV            ;
+  JSR L_LD_AXS                  ;
+  LDA ATTR_SAV                  ; 親ATTR回復
+  STA FINFO_WK+FINFO::ATTR      ;
+  LDA #32
+  STA ZP_SDSEEK_VEC16
+  JSR DIR_WRENT
+  RTS
 
 ; -------------------------------------------------------------------
 ; BCOS 5                  ファイルオープン
@@ -762,5 +960,15 @@ SPF_CON_WRITE:
 @END:
   mem2AY16 ZR1
   CLC
+  RTS
+
+CLEAR_FINFO:
+  LDA #0
+  TAX
+@FILLLOOP:
+  STA FINFO_WK,X
+  INX
+  CPX #.SIZEOF(FINFO)
+  BNE @FILLLOOP
   RTS
 

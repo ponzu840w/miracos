@@ -42,6 +42,16 @@ INTOPEN_FILE:
 
 INTOPEN_ROOT:
   ; ルートディレクトリを開く
+  ; FINFOのHEADを0に設定する
+  ; 本当は2なのだが、MAKEでディレクトリ作った時に置く..がルートの時
+  ;   そのクラスタ番号は0とすべきだから
+  STZ FINFO_WK+FINFO::HEAD
+  STZ FINFO_WK+FINFO::HEAD+1
+  STZ FINFO_WK+FINFO::HEAD+2
+  STZ FINFO_WK+FINFO::HEAD+3
+  ; 同様にMAKEでディレクトリ作った時のためにディレクトリアトリビュート
+  LDA #$10
+  STA FINFO_WK+FINFO::ATTR
   loadreg16 DWK+DINFO::BPB_ROOTCLUS
 OPENCLUS:
   JSR HEAD2FWK
@@ -304,19 +314,9 @@ DIR_GETENT:
 @EXT:
   RTS
 
-NEXTSEC:
-  ; ファイル構造体を更新し、次のセクタを開く
-  ;  output: C=1:EOC 単にエラーとするか新規クラスタを割り当てるかはあなた次第
-  ;               状態:CUR_SECは更新されている
-  ;                    REAL_SECとセクタバッファ、参照ベクタLSRC0はEOCを示すFAT領域を開いている
-  loadreg16 (FWK_REAL_SEC)
-  JSR AX_DST                    ; リアルセクタをDSTに
-  ; クラスタ内セクタ番号の更新
-  INC FWK+FCTRL::CUR_SEC
-  LDA FWK+FCTRL::CUR_SEC
-  CMP DWK+DINFO::BPB_SECPERCLUS ; クラスタ内最終セクタか
-  BNE @SKP_NEXTCLUS             ; まだならFATチェーン読み取りキャンセル
-  ; 次のクラスタの先頭セクタを開く
+CUR_CLUS_2_LOGICAL_FAT:
+  ; ---------------------------------------------------------------
+  ;   現在クラスタ番号{N}->FAT論理セクタ
   LDA FWK+FCTRL::CUR_CLUS       ; 現在クラスタ番号{N}->FAT論理セクタ
   ASL                           ; x4/512 : /128 : >>7 最下位バイトからはMSBしか採れない
   ; 0
@@ -334,13 +334,13 @@ NEXTSEC:
   ; 3
   STZ FWK_REAL_SEC+3
   ROL FWK_REAL_SEC+3
-  ; FATSTART加算
-  loadreg16 (DWK+DINFO::FATSTART)
-  JSR L_ADD_AXS
-  pushmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ退避 高速読み取り時に必要
-  ; FATロード
-  JSR RDSEC
-  ; 参照ベクタ作成
+  RTS
+
+OPEN_FAT:
+  ; ---------------------------------------------------------------
+  ;   FATエントリを展開
+  JSR RDSEC                       ; FATロード
+  ; 参照ベクタをZP_LSRC0_VEC16に作成
   LDA #>SECBF512                  ; ソース上位をSECBFに
   STA ZP_LSRC0_VEC16+1
   LDA FWK+FCTRL::CUR_CLUS         ; 現在クラスタ最下位バイト
@@ -350,6 +350,31 @@ NEXTSEC:
   INC ZP_LSRC0_VEC16+1            ; C=1 下部 $04
 @SKP_INCPAGE:
   STA ZP_LSRC0_VEC16
+  RTS
+
+NEXTSEC:
+  ; ファイル構造体を更新し、次のセクタを開く
+  ;  output: C=1:EOC 単にエラーとするか新規クラスタを割り当てるかはあなた次第
+  ;               状態:CUR_SECは更新されている
+  ;                    REAL_SECとセクタバッファ、参照ベクタLSRC0はEOCを示すFAT領域を開いている
+  loadreg16 (FWK_REAL_SEC)
+  JSR AX_DST                    ; リアルセクタをDSTに
+  ; クラスタ内セクタ番号の更新
+  INC FWK+FCTRL::CUR_SEC
+  LDA FWK+FCTRL::CUR_SEC
+  CMP DWK+DINFO::BPB_SECPERCLUS ; クラスタ内最終セクタか
+  BNE @SKP_NEXTCLUS             ; まだならFATチェーン読み取りキャンセル
+  ; 次のクラスタの先頭セクタを開く
+  JSR CUR_CLUS_2_LOGICAL_FAT    ; 現在クラスタ番号{N}->FAT論理セクタ
+  ; ---------------------------------------------------------------
+  ;   FAT論理セクタ->FAT実セクタ
+  loadreg16 (DWK+DINFO::FATSTART) ; FATSTART加算
+  JSR L_ADD_AXS
+  pushmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ退避 高速読み取り時に必要
+  ; ---------------------------------------------------------------
+  ;   FATエントリを展開
+  JSR OPEN_FAT
+
   ; 現在クラスタにFATからコピー
   ;  NOTE:開いたけどそこまでタイミングクリティカルじゃない？
   LDY #3
@@ -359,6 +384,7 @@ NEXTSEC:
   CMP #$0F
   BEQ @MIGHT_EOC                  ; EOCかもしれない
 @NOT_EOC:
+  ; FWK現在クラスタ更新
   LDA (ZP_LSRC0_VEC16),Y
   STA FWK+FCTRL::CUR_CLUS,Y
   DEY
@@ -431,7 +457,13 @@ INTOPEN_FILE_CLEAR_SEEK:
   RTS
 
 INTOPEN_PDIR:
-  ; 親ディレクトリを開く
+  ; FWKの自身のディレクトリエントリを見る
+  JSR INTOPEN_PDIR_SEEKONLY
+  ; FINFOに格納
+  JSR DIR_GETENT
+  RTS
+
+INTOPEN_PDIR_SEEKONLY:
   ;   セクタ
   loadreg16 FWK_REAL_SEC
   JSR AX_DST
@@ -446,8 +478,6 @@ INTOPEN_PDIR:
   PLA
   AND #%11110000
   JSR SEEK_DIRENT
-  ;   FINFOに格納
-  JSR DIR_GETENT
   RTS
 
 DIR_NEXTMATCH:
@@ -641,17 +671,6 @@ GET_EMPTY_CLUS:
 
 WRITE_CLUS:
   ; FAT2の着目箇所にクラスタ番号を書き込み、FAT1にも同様に書き込む
-  ; GET_EMPTY_CLUSにより(ZP_SDSEEK_VEC16),YはFAT2該当エントリの最後のバイトを指す
-  ; $0FFF_FFFFを置く
-  LDA #$0F
-  STA (ZP_SDSEEK_VEC16),Y
-  LDA #$FF
-  DEY
-  STA (ZP_SDSEEK_VEC16),Y
-  DEY
-  STA (ZP_SDSEEK_VEC16),Y
-  DEY
-  STA (ZP_SDSEEK_VEC16),Y
   ; FAT2に書き込む
   JSR WRSEC
   BCS @ERR                    ; C=1 ERR
@@ -673,6 +692,16 @@ DIR_WRENT:
   ; ディレクトリエントリを書き込む
   ; 要求: 該当セクタがバッファに展開されている、REALSECも正しい
   ;       ZP_SDSEEK_VEC16がエントリ先頭を指している
+  JSR DIR_WRENT_DRY
+  ; ライトバック
+  JSR WRSEC
+  SEC                                         ; C=1 ERR
+  BNE @ERR
+  CLC                                         ; C=0 OK
+@ERR:
+  RTS
+
+DIR_WRENT_DRY:
   ; 名前
   mem2AX16 ZP_SDSEEK_VEC16
   JSR AX_DST
@@ -722,12 +751,6 @@ DIR_WRENT:
   INX
   CPY #OFS_DIR_FILESIZE+3
   BNE @LOOP3
-  ; ライトバック
-  JSR WRSEC
-  SEC                                         ; C=1 ERR
-  BNE @ERR
-  CLC                                         ; C=0 OK
-@ERR:
   RTS
 
 WRSEC:
