@@ -588,6 +588,35 @@ FUNC_FS_MAKE:
   LDA FINFO_WK+FINFO::ATTR      ;   親ATTRをセーブ
   STA ATTR_SAV                  ;
   pullAY16
+  ; ---------------------------------------------------------------
+  ;   作成対象名バリデーション
+  storeAY16 ZR0
+  LDY #$FF
+@VLOOP:
+  INY
+  LDA (ZR0),Y
+  BEQ @VALID
+  BMI @VLOOP    ; $80以上（拡張文字）は適格
+  CMP #'!'
+  BCC @NOTVALID ; $20以下（制御文字とスペース）は不適格
+  CMP #'{'
+  BCS @HORYU    ; $7B以上はまちまちなのでブラックリスト任せ
+  CMP #'a'
+  BCS @NOTVALID ; $61以上（小文字）は不適格
+@HORYU:
+  LDX #17
+@BL_LOOP:
+  CMP SFN_BLACKLIST-1,X
+  BEQ @NOTVALID ; ブラックリストに引っ掛かったら不適格
+  DEX
+  BNE @BL_LOOP
+  BRA @VLOOP
+@NOTVALID:
+  LDA #ERR::ILLEGAL_PATH        ; ERR:ファイル名が不適格
+  JMP ERR::REPORT
+@VALID:
+  mem2AY16 ZR0
+  ; バリデーションここまで
   JSR P2F_CHECKNEXT         ; 最終要素は開けるかな？
   ;BCC @EXIST                ; 最終要素あり->重複END
   BCS @NOT_EXIST
@@ -663,7 +692,7 @@ FUNC_FS_MAKE:
   ; ---------------------------------------------------------------
   ;   ファイルをオープンする
 @OPEN:
-  BRA FINFO2FD
+  JMP FINFO2FD
 
   ; ---------------------------------------------------------------
   ;   ディレクトリ：.と..
@@ -694,6 +723,9 @@ FUNC_FS_MAKE:
   JSR DIR_WRENT
   CLC
   RTS
+
+SFN_BLACKLIST:
+  .BYTE $22,"*+,./:;<=>?[",$5C,"]|",$7F ; 17文字
 
 ; -------------------------------------------------------------------
 ; BCOS 5                  ファイルオープン
