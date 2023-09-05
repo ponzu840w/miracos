@@ -7,4 +7,5 @@ FAILED_CLOSE          = 4
 FAILED_OPEN           = 5
 FILE_EXISTS           = 6   ; ファイルが既に存在する makef失敗など
 BROKEN_FD             = 7   ; 不正なファイル記述子
+DIR_NOT_EMPTY         = 8   ; ディレクトリが空でないので消せない
 

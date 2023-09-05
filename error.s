@@ -53,6 +53,9 @@ EM_FILE_NOT_FOUND:            .BYT "File Not Found.",$0
 EM_NOT_DIR:                   .BYT "Not Directory.",$0
 EM_FAILED_CLOSE:              .BYT "Failed to CLOSE.",$0
 EM_FAILED_OPEN:               .BYT "Failed to OPEN.",$0
+EM_FILE_EXISTS:               .BYT "File Exists.",$0
+EM_BROKEN_FD:                 .BYT "Broken FD.",$0
+EM_DIR_NOT_EMPTY:             .BYT "Dir not empty.",$0
 
 STR_ERROR:                    .BYT "[BCOSERR] ",$0
 

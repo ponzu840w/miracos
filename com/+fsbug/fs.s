@@ -86,24 +86,25 @@ FUNC_FS_DELETE:
   LDA #ERR::FAILED_OPEN     ; |
   JMP ERR_REPORT            ; |
 @DELOK:
+  JSR INTOPEN_FILE_DIR_RSEC ; 対象の親ディレクトリ上のディレクトリエントリをFWKに控える
   ; ディレクトリか？
   BIT #DIRATTR_DIRECTORY
   BEQ @FILE
   ; ディレクトリ
   JSR INTOPEN_FILE          ; 削除対象ディレクトリをFWKに開く
-  JSR INTOPEN_FILE_DIR_RSEC ; 対象の親ディレクトリ上のディレクトリエントリをFWKに控える
   JSR RDSEC
   loadmem16 ZP_SDSEEK_VEC16,SECBF512+$40 ; .と..の次に合わせる
-  JSR DIR_NEXTMATCH
+  JSR DIR_NEXTENT_ENT
   CMP #$FF                  ; ディレクトリ終了
   BEQ @DIRDELOK
-  SEC
-  RTS
+  LDA #ERR::DIR_NOT_EMPTY
+  JMP ERR::REPORT           ; ディレクトリが空でなければエラー
 @DIRDELOK:
-  JSR INTOPEN_FILE_DIR_RSEC ; 親ディレクトリを開く
-  JSR INTOPEN_PDIR
-  CLC
-  RTS
+  ;JSR INTOPEN_PDIR_SEEKONLY ; エントリを覗く
+  ;BRK
+  ;NOP
+  ;CLC
+  ;RTS
 @FILE:
   ; FATを消し飛ばす
   JSR INTOPEN_FILE                  ; set CUR_CLUS
@@ -135,9 +136,10 @@ FUNC_FS_DELETE:
   JSR CHECK_EOC
   BCC @NEXT_FAT
   ; 親ディレクトリを開く
-  JSR FINFO_WK_OPEN_DIRENT
-  JSR RDSEC                         ; セクタ読み取り
-  JSR FINFO_WK_SEEK_DIRENT
+  ;JSR FINFO_WK_OPEN_DIRENT
+  ;JSR RDSEC                         ; セクタ読み取り
+  ;JSR FINFO_WK_SEEK_DIRENT
+  JSR INTOPEN_PDIR_SEEKONLY         ; エントリを覗く
   ; 無効化
   LDA #$E5
   STA (ZP_SDSEEK_VEC16)
