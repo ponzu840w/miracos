@@ -692,6 +692,7 @@ FUNC_FS_MAKE:
   LDA #32
   STA ZP_SDSEEK_VEC16
   JSR DIR_WRENT
+  CLC
   RTS
 
 ; -------------------------------------------------------------------
