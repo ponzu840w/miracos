@@ -575,6 +575,7 @@ FUNC_FS_MAKE:
 @ATTRVALID:
   STA ATTR_WORK             ; 属性を一時保存する
   JSR FUNC_FS_FPATH_ZR2S    ; フルパスを得る
+  storeAY16 ZR2
   JSR P2F_PATH2DIRINFO      ; パスからディレクトリのFINFOを開く
   BCC @SKP_DIRPATHERR       ; エラーハンドル
   RTS
