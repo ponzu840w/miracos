@@ -21,7 +21,16 @@
 .include "../syscall.mac"   ; 普段使ってるマクロ
 .endproc
 
-.export _coutc,_couts,_cins ; Cから呼び出せる関数名を宣言
+.IMPORT popa, popax
+.IMPORTZP sreg
+
+
+; Cから呼び出せる関数名を宣言
+.export _coutc
+.export _couts
+.export _cins
+.export _fs_find_fst
+.export _fs_find_nxt
 
 .CODE
 
@@ -56,5 +65,34 @@
   PLY
   syscall CON_IN_STR
   rts
+.endproc
+
+; -------------------------------------------------------------------
+;                            fs_find_fst
+; パス文字列から新たなFINFO構造体を得る
+; -------------------------------------------------------------------
+.proc _fs_find_fst: near          ; 引数: AX=パス文字列
+  PHX
+  PLY
+  syscall FS_FIND_FST
+  PHY
+  PLX
+  RTS
+.endproc
+
+; -------------------------------------------------------------------
+;                            fs_find_nxt
+; -------------------------------------------------------------------
+; void* fs_find_nxt(void* finfo, char* name)
+.proc _fs_find_nxt: near          ; 引数: AX=ファイル名, スタック=FINFO
+  STA $0
+  STX $0+1
+  JSR popax
+  PHX
+  PLY
+  syscall FS_FIND_NXT             ; 引数: AY=FINFO構造体 ZR0=ファイル名
+  PHY
+  PLX
+  RTS
 .endproc
 
