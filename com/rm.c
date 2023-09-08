@@ -32,6 +32,7 @@ char* put32(unsigned long toput){
 
 // FINFO表示
 void showFINFO(finfo_t* finfo){
+  if(finfo == NULL)return;
   printf("Name: %s\n",finfo->Name);
   printf("Attr: %02x\n",finfo->Attr);
   // 時間省いた
@@ -46,6 +47,8 @@ void showFINFO(finfo_t* finfo){
 
 int main(){
   finfo_t* finfo_p=fs_find_fst("TMP");
+  showFINFO(finfo_p);
+  finfo_p=fs_find_nxt(finfo_p,"TMP");
   showFINFO(finfo_p);
   return 0;
 }

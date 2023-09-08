@@ -77,6 +77,10 @@
   syscall FS_FIND_FST
   PHY
   PLX
+  BCC @FOUND
+  LDA #$0
+  TAX
+@FOUND:
   RTS
 .endproc
 
@@ -93,6 +97,10 @@
   syscall FS_FIND_NXT             ; 引数: AY=FINFO構造体 ZR0=ファイル名
   PHY
   PLX
+  BCC @FOUND
+  LDA #$0
+  TAX
+@FOUND:
   RTS
 .endproc
 

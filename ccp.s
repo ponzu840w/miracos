@@ -170,6 +170,7 @@ OCOM_FOUND:
   syscall FS_CLOSE                ; クローズ
   PLY                             ; 引数をロード
   PLA
+  storeAY16 ZR0                   ; C言語プログラム用に引数をZR0にも NOTE: アドホックであまり深く考えてない方法！
   JSR TPA                         ; コマンドを呼ぶ
   syscall CRTC_RETBASE            ; CRTCを基底状態に戻す
   LDY #0                          ; ゼロページを指定するとリセットされる
