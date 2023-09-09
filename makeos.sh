@@ -74,6 +74,7 @@ do
   # コンパイル
   if [ "${ex##*.}" = "c" ]; then
     cc65 -t none -O --cpu 65c02 -o "${td}/src.s" $comsrc
+    rm "${td}/asmfunc.o" -f
     find "${dn}/+${bn}/asmfunc.s" 2>/dev/null |
       xargs --no-run-if-empty ca65 --cpu 65c02 -I "./${dn}" -o "${td}/asmfunc.o"
     ca65  -g -I "./com" \
