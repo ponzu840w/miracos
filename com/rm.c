@@ -1,8 +1,13 @@
 /* rm.c
  * ファイル・ディレクトリ削除コマンド
  */
+
+#define MAX_ARGC 8
+
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 
 typedef struct{
   // FIB、ファイル詳細情報を取得し、検索などに利用
@@ -67,11 +72,54 @@ void searchEntriesToDelete(char* path){
   }while(finfo_p != NULL);
 }
 
+// コマンドライン引数パーサ
+void count_cmdarg(unsigned char* input, unsigned char* argc, unsigned char** argv){
+  unsigned char *token = strtok(input, " ");
+  unsigned char *tokens[32];
+  unsigned char i=0;
+
+  // 文字列をスペースでトークンに分解する。
+  while (token) {
+    tokens[*argc++] = token;
+    //printf("!token=%s\n",token);
+    token = strtok(NULL, " ");
+  }
+
+  printf("argc:%hhu\n",argc);
+
+  // getopt()で使用するためのargcとargvを作成する。
+  for (; i < *argc; i++) {
+    argv[i] = tokens[i];
+  }
+  *argv[*argc] = NULL;
+}
+
 int main(){
   unsigned int* zr0=(unsigned int*)0;       // ZR0を指す
   unsigned char* arg=(unsigned char*)*zr0;  // ZR0の指すところを指す コマンドライン引数
-  printf("ptr=%p, num=%p\n",zr0,arg);
-  printf("arg:%s",arg);
+  unsigned char argc=0;
+  unsigned char* argv[MAX_ARGC+1];
+  int opt;
+  bool opt_recursive = false;
+
+  printf("argc:%hu\n",&argc);
+  count_cmdarg(arg, &argc, argv);
+
+  // オプション処理
+  //while ((opt=getopt(argc,argv,"r"))!=-1){  // ハイフンオプションを取得
+  //getopt(argc,argv,"r");  // ハイフンオプションを取得
+  //  switch(opt){
+  //    case 'r':
+  //      opt_recursive = true;                // 再帰的削除
+  //      break;
+  //    default:
+  //    return -1;
+  //  }
+  //}
+  //
+
+  //printf("ptr=%p, num=%p\n",zr0,arg);
+  printf("argc:%hhu",&argc);
   searchEntriesToDelete(arg);
   return 0;
 }
