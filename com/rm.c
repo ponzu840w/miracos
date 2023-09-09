@@ -2,6 +2,7 @@
  * ファイル・ディレクトリ削除コマンド
  */
 #include <stdio.h>
+#include <string.h>
 
 typedef struct{
   // FIB、ファイル詳細情報を取得し、検索などに利用
@@ -45,15 +46,33 @@ void showFINFO(finfo_t* finfo){
   printf("     Ent: $%02x\n",finfo->Dir_Ent);
 }
 
+unsigned char* get_filename_from_path(unsigned char* path) {
+    // strrchr関数で最後の'/'の位置を探す
+    unsigned char *lastSlash = strrchr(path, '/');
+    if (lastSlash) {
+        // 最後の'/'の次の文字がファイル名の始まり
+        return lastSlash + 1;
+    }
+    return path;
+}
+
+void searchEntriesToDelete(char* path){
+  unsigned char* basename = get_filename_from_path(path);
+  finfo_t* finfo_p=fs_find_fst(path);
+  if(finfo_p == NULL)return;
+
+  do{
+    showFINFO(finfo_p);
+    finfo_p = fs_find_nxt(finfo_p,basename);
+  }while(finfo_p != NULL);
+}
+
 int main(){
-  unsigned int* ptr=(unsigned int*)0;
-  unsigned char* arg=(unsigned char*)*ptr;
-  //finfo_t* finfo_p=fs_find_fst("TMP");
-  //showFINFO(finfo_p);
-  //finfo_p=fs_find_nxt(finfo_p,"TMP");
-  //showFINFO(finfo_p);
-  printf("ptr=%p, num=%p\n",ptr,arg);
+  unsigned int* zr0=(unsigned int*)0;       // ZR0を指す
+  unsigned char* arg=(unsigned char*)*zr0;  // ZR0の指すところを指す コマンドライン引数
+  printf("ptr=%p, num=%p\n",zr0,arg);
   printf("arg:%s",arg);
+  searchEntriesToDelete(arg);
   return 0;
 }
 
