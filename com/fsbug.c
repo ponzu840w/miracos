@@ -168,7 +168,7 @@ void showDir(unsigned long sec){
         b=0;
         break;
       case 0xE5:  // 消された
-        printf("<Deleted>\n");
+        printf("<X>\n");
         break;
       default:    // 有効なエントリ
         if(dir_p[i].Attr==0x0F){
@@ -176,9 +176,9 @@ void showDir(unsigned long sec){
         }else{
           unsigned long fstclus = (dir_p[i].FstClusHI*0x100000000)+dir_p[i].FstClusLO;
           if(dir_p[i].Attr==0x10){
-            printf("<Dir>\n");
+            printf("<D>\n");
           }else{
-            printf("<File>\n");
+            printf("<F>\n");
           }
           printf("      Name   :%s\n",SFN_to_dot(dir_p[i].Name));
           printf("      FstClus:%s\n",put32(fstclus));

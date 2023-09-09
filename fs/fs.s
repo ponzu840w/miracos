@@ -71,13 +71,21 @@ FUNC_FS_DELETE:
   storeAY16 ZR2
   LDA (ZR2)                 ; 先頭バイトを取得
   CMP #$FF                  ; FINFOシグネチャ
-  BEQ @DEL_FINFO            ; FINFOが直接与えられればパス処理省略
+  BEQ @COPY_FINFO            ; FINFOが直接与えられればパス処理省略
   JSR FUNC_FS_FPATH_ZR2S    ; フルパス取得
   JSR PATH2FINFO            ; パスからファイルのFINFOを開く
   BCC @DEL_FINFO            ; エラーハンドル
 @RT:
   ; SEC
   RTS
+@COPY_FINFO:
+  ; FINFO_WKにコピー
+  LDY #.SIZEOF(FINFO)-1
+@DLFWK_LOOP:                          ; 与えられたFINFOをワークエリアにコピーするループ
+  LDA (ZR2),Y
+  STA FINFO_WK,Y
+  DEY
+  BPL @DLFWK_LOOP                     ; FINFOコピー終了
 @DEL_FINFO:
   ; 開かれているFINFOのファイルを削除する
   JSR INTOPEN_FILE_DIR_RSEC ; 対象の親ディレクトリ上のディレクトリエントリをFWKに控える

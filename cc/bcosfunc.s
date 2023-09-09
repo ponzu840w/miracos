@@ -31,6 +31,8 @@
 .export _cins
 .export _fs_find_fst
 .export _fs_find_nxt
+.export _fs_delete
+.export _err_print
 
 .CODE
 
@@ -101,6 +103,31 @@
   LDA #$0
   TAX
 @FOUND:
+  RTS
+.endproc
+
+; -------------------------------------------------------------------
+;                            fs_delete
+; -------------------------------------------------------------------
+; unsigned int fs_delete(void* finfo / path)
+.proc _fs_delete: near          ; 引数: AX=FINFOかPATH
+  PHX
+  PLY
+  syscall FS_DELETE             ; 引数: AY=FINFO構造体 ZR0=ファイル名
+  LDA #$0
+  BCC @NOERROR
+  INC
+@NOERROR:
+  RTS                           ; 戻り値: OK=0 ERROR=1
+.endproc
+
+; -------------------------------------------------------------------
+;                            err_print
+; -------------------------------------------------------------------
+; void err_print()
+.proc _err_print
+  syscall ERR_GET
+  syscall ERR_MES
   RTS
 .endproc
 

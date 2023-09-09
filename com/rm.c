@@ -2,12 +2,20 @@
  * ファイル・ディレクトリ削除コマンド
  */
 
-#define MAX_ARGC 8
-
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
+
+// ディレクトリエントリアトリビュート
+#define MAX_ARGC 8
+#define DIRATTR_READONLY   0x01
+#define DIRATTR_HIDDEN     0x02
+#define DIRATTR_SYSTEM     0x04
+#define DIRATTR_VOLUMEID   0x08
+#define DIRATTR_DIRECTORY  0x10
+#define DIRATTR_ARCHIVE    0x20
+#define DIRATTR_LONGNAME   0x0F
 
 typedef struct{
   // FIB、ファイル詳細情報を取得し、検索などに利用
@@ -25,10 +33,18 @@ typedef struct{
   unsigned char Dir_Ent;            // セクタ内エントリ番号（SDSEEKの下位を右に1シフトしてMSBが後半フラグ
 } finfo_t;
 
+extern void coutc(const char c);
+extern void couts(const char *str);
+
 extern finfo_t* fs_find_fst(const char* path);
 extern finfo_t* fs_find_nxt(finfo_t* finfo, char* name);
+extern char fs_delete(void* path_or_finfo);
+extern void err_print();
 
 unsigned char putnum_buf[11];
+finfo_t* finfo_p;
+finfo_t finfo_deep_ins;
+unsigned char basename[13];
 
 // $0123-4567形式で表示
 char* put32(unsigned long toput){
@@ -36,19 +52,19 @@ char* put32(unsigned long toput){
   return putnum_buf;
 }
 
-// FINFO表示
-void showFINFO(finfo_t* finfo){
-  if(finfo == NULL)return;
-  printf("Name: %s\n",finfo->Name);
-  printf("Attr: %02x\n",finfo->Attr);
+// FINFO_WK表示
+void showFINFO(finfo_t* ptr){
+  printf("Sig: %02x\n",ptr->Sig);
+  printf("Name: %s\n",ptr->Name);
+  printf("Attr: %02x\n",ptr->Attr);
   // 時間省いた
-  printf("Head: %s\n",put32(finfo->Head));
-  printf("Size: %s\n",put32(finfo->Siz));
+  printf("Head: %s\n",put32(ptr->Head));
+  printf("Size: %s\n",put32(ptr->Siz));
   printf("Dir:\n");
-  printf("  DrvNum: $%02x\n",finfo->Drv_Num);
-  printf("    Clus: %s\n",put32(finfo->Dir_Clus));
-  printf("     Sec: $%02x\n",finfo->Dir_Sec);
-  printf("     Ent: $%02x\n",finfo->Dir_Ent);
+  printf("  DrvNum: $%02x\n",ptr->Drv_Num);
+  printf("    Clus: %s\n",put32(ptr->Dir_Clus));
+  printf("     Sec: $%02x\n",ptr->Dir_Sec);
+  printf("     Ent: $%02x\n",ptr->Dir_Ent);
 }
 
 unsigned char* get_filename_from_path(unsigned char* path) {
@@ -62,64 +78,36 @@ unsigned char* get_filename_from_path(unsigned char* path) {
 }
 
 void searchEntriesToDelete(char* path){
-  unsigned char* basename = get_filename_from_path(path);
-  finfo_t* finfo_p=fs_find_fst(path);
+  unsigned char* basename_p = get_filename_from_path(path);
+  strcpy(basename, basename_p);
+  finfo_p = fs_find_fst(path);
+  finfo_deep_ins = *finfo_p;
   if(finfo_p == NULL)return;
-
   do{
-    showFINFO(finfo_p);
-    finfo_p = fs_find_nxt(finfo_p,basename);
+    printf("%s", finfo_p->Name);
+    if((finfo_p->Attr & (DIRATTR_READONLY|DIRATTR_VOLUMEID|DIRATTR_SYSTEM)) != 0){
+      couts(" is protected.\n");
+    }else{
+      coutc('\n');
+      if(fs_delete((void*)finfo_p)!=0){
+        err_print();
+        couts("error");
+      }else{
+        //couts("ok");
+      }
+    }
+    //printf("finfo_deep_ins:%s\n",&finfo_deep_ins.Name);
+    //showFINFO(&finfo_deep_ins);
+    finfo_p = fs_find_nxt(&finfo_deep_ins, basename); // TODO:与えるfinfoにのみ依存する建前に関わらず、deleteによって内部が壊れるのか連続削除できない
+    finfo_deep_ins = *finfo_p;
+    //printf("finfo_deep_ins:%s, basename=%s\n",&finfo_deep_ins.Name, basename);
+    //showFINFO(&finfo_deep_ins);
   }while(finfo_p != NULL);
-}
-
-// コマンドライン引数パーサ
-void count_cmdarg(unsigned char* input, unsigned char* argc, unsigned char** argv){
-  unsigned char *token = strtok(input, " ");
-  unsigned char *tokens[32];
-  unsigned char i=0;
-
-  // 文字列をスペースでトークンに分解する。
-  while (token) {
-    tokens[*argc++] = token;
-    //printf("!token=%s\n",token);
-    token = strtok(NULL, " ");
-  }
-
-  printf("argc:%hhu\n",argc);
-
-  // getopt()で使用するためのargcとargvを作成する。
-  for (; i < *argc; i++) {
-    argv[i] = tokens[i];
-  }
-  *argv[*argc] = NULL;
 }
 
 int main(){
   unsigned int* zr0=(unsigned int*)0;       // ZR0を指す
   unsigned char* arg=(unsigned char*)*zr0;  // ZR0の指すところを指す コマンドライン引数
-  unsigned char argc=0;
-  unsigned char* argv[MAX_ARGC+1];
-  int opt;
-  bool opt_recursive = false;
-
-  printf("argc:%hu\n",&argc);
-  count_cmdarg(arg, &argc, argv);
-
-  // オプション処理
-  //while ((opt=getopt(argc,argv,"r"))!=-1){  // ハイフンオプションを取得
-  //getopt(argc,argv,"r");  // ハイフンオプションを取得
-  //  switch(opt){
-  //    case 'r':
-  //      opt_recursive = true;                // 再帰的削除
-  //      break;
-  //    default:
-  //    return -1;
-  //  }
-  //}
-  //
-
-  //printf("ptr=%p, num=%p\n",zr0,arg);
-  printf("argc:%hhu",&argc);
   searchEntriesToDelete(arg);
   return 0;
 }
