@@ -46,10 +46,14 @@ void showFINFO(finfo_t* finfo){
 }
 
 int main(){
-  finfo_t* finfo_p=fs_find_fst("TMP");
-  showFINFO(finfo_p);
-  finfo_p=fs_find_nxt(finfo_p,"TMP");
-  showFINFO(finfo_p);
+  unsigned int* ptr=(unsigned int*)0;
+  unsigned char* arg=(unsigned char*)*ptr;
+  //finfo_t* finfo_p=fs_find_fst("TMP");
+  //showFINFO(finfo_p);
+  //finfo_p=fs_find_nxt(finfo_p,"TMP");
+  //showFINFO(finfo_p);
+  printf("ptr=%p, num=%p\n",ptr,arg);
+  printf("arg:%s",arg);
   return 0;
 }
 
