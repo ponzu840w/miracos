@@ -8,6 +8,9 @@
 
 .BSS
 
+.ZEROPAGE
+ZP_PADSTAT: .RES 2
+
 .DATA
 
 .CONSTRUCTOR INIT
@@ -16,9 +19,16 @@
 
 .INCLUDE "./+gui/chdz_basic.s"
 
+.EXPORT _pad
+
 ; コンストラクタ
 .SEGMENT "ONCE"
 INIT:
+  ; ポートの設定
+  LDA VIA::PAD_DDR         ; 0で入力、1で出力
+  ORA #(VIA::PAD_CLK|VIA::PAD_PTS)
+  AND #<~(VIA::PAD_DAT)
+  STA VIA::PAD_DDR
   JMP CHDZ_BASIC_INIT
 
 ; -------------------------------------------------------------------
@@ -27,9 +37,7 @@ INIT:
 ; 引数: ボタン番号（ビット位置）
 ; 押されている=1, 押されていない=0を返す
 ; -------------------------------------------------------------------
-PADSTAT:  .RES 2
 .PROC _pad
-  TAX
   ; P/S下げる
   LDA VIA::PAD_REG
   ORA #VIA::PAD_PTS
@@ -39,23 +47,26 @@ PADSTAT:  .RES 2
   AND #<~VIA::PAD_PTS
   STA VIA::PAD_REG
   ; 読み取りループ
-  INX
-@LOOP:
+  LDX #16
+LOOP:
   LDA VIA::PAD_REG        ; データ読み取り
   ; クロック下げる
   AND #<~VIA::PAD_CLK
   STA VIA::PAD_REG
-  ROR                     ; 値をCに出す
+  ; 16bit値として格納
+  ROR
+  ROL ZP_PADSTAT+1
+  ROL ZP_PADSTAT
   ; クロック上げる
   LDA VIA::PAD_REG        ; データ読み取り
   ORA #VIA::PAD_CLK
   STA VIA::PAD_REG
   DEX
-  BNE @LOOP
-  ; CをAに反映する C=0で押下
-  TXA
-  BCS @SKP_INX
-  INC
-@SKP_INX:
+  BNE LOOP
+  LDA ZP_PADSTAT
+  LDX ZP_PADSTAT+1
+  ; LOW   : 7|B,Y,SEL,STA,↑,↓,←,→|0
+  ; HIGH  : 7|A,X,L,R            |0
+  RTS
 .ENDPROC
 
