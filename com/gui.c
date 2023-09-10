@@ -9,7 +9,7 @@ extern void couts(const char *str);
 
 extern void disp(const unsigned char display_number);
 extern void gcls();
-extern void gput();
+extern void gput(const unsigned char x, const unsigned char y, const unsigned char* str);
 extern void rect(const unsigned char x1, const unsigned char y1, const unsigned char x2, const unsigned char y2);
 extern void box(const unsigned char x1, const unsigned char y1, const unsigned char x2, const unsigned char y2);
 extern void plot(const unsigned char x, const unsigned char y);
@@ -25,6 +25,7 @@ int main(){
   box(10/2,10,50/2,50);
   rect(100/2,10,150/2,50);
   plot(256/4,192/2);
+  gput(50/2,50,"hogehoge");
   return 0;
 }
 

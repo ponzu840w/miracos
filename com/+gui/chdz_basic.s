@@ -17,18 +17,24 @@ ZP_GR:        .RES 1
 ZP_COLOR:     .RES 1
 ZP_BAKCOL:    .RES 1
 ZP_FD:        .RES 1  ; ファイル記述子
-ZP_SVTXTPTR:  .RES 2  ; TXTPTRの控え
+ZP_TXTPTR:    .RES 2
 ZX1:          .RES 1
 ZY1:          .RES 1
 ZX2:          .RES 1
 ZY2:          .RES 1
 ZDX:          .RES 1
 ZDY:          .RES 1
-ZP_FLAG:      .RES 1  ; 7|GPUT,
 ZP_FONT_VEC16:  .RES 2
 ZP_FONT_SR:   .RES 2
 
 .CODE
+
+CHDZ_BASIC_INIT:
+  ; カーネルアドレス奪取
+  LDY #BCOS::BHY_GET_ADDR_font2048    ; FONT
+  syscall GET_ADDR
+  STY DRAW_TXT_LOOP+1
+  RTS
 
 ; -------------------------------------------------------------------
 ; DISP ステートメント
@@ -139,30 +145,6 @@ RET:
 .ENDPROC
 
 ; -------------------------------------------------------------------
-; PLOT ステートメント
-; 用法: plot(unsigned char x, unsigned char y)
-; 指定されたX,Y座標に前景色で点を打つ
-; -------------------------------------------------------------------
-_plot:
-  ;JSR GET_SCREEN_XY
-  PHA
-  JSR popa
-  TAX
-  PLY
-  JSR GRA_SETUP       ; グラフィクス画面への書き込みを設定
-  STX CRTC2::PTRX     ; 水平座標設定
-  STY CRTC2::PTRY     ; 垂直座標設定
-  LDA ZP_COLOR
-  STA CRTC2::WDAT     ; データ書き込み
-END_PLOT:             ; 汎用的お片付け
-  LDA #7
-  STA CRTC2::CHRH     ; 高さ8
-  LDA #CRTC2::WF      ; テキスト画面への書き込みを設定
-  STA CRTC2::CONF
-  STZ CRTC2::CHRW     ; キャラクタボックス有効、幅1
-  RTS
-
-; -------------------------------------------------------------------
 ; BOX ステートメント
 ; -------------------------------------------------------------------
 .PROC _box
@@ -205,6 +187,30 @@ BOX_LOOP:
 .ENDPROC
 
 ; -------------------------------------------------------------------
+; PLOT ステートメント
+; 用法: plot(unsigned char x, unsigned char y)
+; 指定されたX,Y座標に前景色で点を打つ
+; -------------------------------------------------------------------
+_plot:
+  ;JSR GET_SCREEN_XY
+  PHA
+  JSR popa
+  TAX
+  PLY
+  JSR GRA_SETUP       ; グラフィクス画面への書き込みを設定
+  STX CRTC2::PTRX     ; 水平座標設定
+  STY CRTC2::PTRY     ; 垂直座標設定
+  LDA ZP_COLOR
+  STA CRTC2::WDAT     ; データ書き込み
+END_PLOT:             ; 汎用的お片付け
+  LDA #7
+  STA CRTC2::CHRH     ; 高さ8
+  LDA #CRTC2::WF      ; テキスト画面への書き込みを設定
+  STA CRTC2::CONF
+  STZ CRTC2::CHRW     ; キャラクタボックス有効、幅1
+  RTS
+
+; -------------------------------------------------------------------
 ; RECT ステートメント
 ; -------------------------------------------------------------------
 .PROC _rect
@@ -232,26 +238,31 @@ BOX_LOOP:
 
 ; -------------------------------------------------------------------
 ; GPUT ステートメント
+; 用法: gput(unsigned char x, unsigned char y, unsigned char* str);
 ; グラフィック画面に文字列を印字する
 ; PRINTに準ずる
 ; -------------------------------------------------------------------
 .PROC _gput
-  ;PHA
-  ;JSR popa
-  ;TAX
-  ;PLY
-  ;STX CRTC2::PTRX     ; 水平座標設定
-  ;STY CRTC2::PTRY     ; 垂直座標設定
+  storeAX16 ZP_TXTPTR
+  JSR popa
+  STA CRTC2::PTRY     ; 垂直座標設定
+  JSR popa
+  STA CRTC2::PTRX     ; 水平座標設定
   ;JSR CHRGET          ; 歩を進める
-  ;JSR GRA_SETUP       ; グラフィクス画面への書き込みを設定
-  ;LDA #7
-  ;STA CRTC2::CHRH     ; 高さ8
-  ;LDA #3
-  ;STA CRTC2::CHRW     ; キャラクタボックス有効、幅1
-  ;SMB7 ZP_FLAG        ; GPUTフラグを立てる
-  ;JSR PRINT2          ; PRINTステートメントを流用して描画
-  ;RMB7 ZP_FLAG        ; GPUTフラグを折る
-  ;JMP END_PLOT
+  JSR GRA_SETUP       ; グラフィクス画面への書き込みを設定
+  LDA #7
+  STA CRTC2::CHRH     ; 高さ8
+  LDA #3
+  STA CRTC2::CHRW     ; キャラクタボックス有効、幅1
+  LDY #0
+@LOOP:
+  LDA (ZP_TXTPTR),Y
+  BEQ END_PLOT
+  PHY
+  JSR GR_OUT_CHR
+  PLY
+  INY
+  BRA @LOOP
 .ENDPROC
 
 ; -------------------------------------------------------------------

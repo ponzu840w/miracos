@@ -10,16 +10,16 @@
 
 .DATA
 
-;.CONSTRUCTOR INIT
+.CONSTRUCTOR INIT
 
 .CODE
 
 .INCLUDE "./+gui/chdz_basic.s"
 
 ; コンストラクタ
-;.SEGMENT "ONCE"
-;INIT:
-;  RTS
+.SEGMENT "ONCE"
+INIT:
+  JMP CHDZ_BASIC_INIT
 
 ; -------------------------------------------------------------------
 ; PAD()関数
