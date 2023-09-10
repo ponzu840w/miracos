@@ -23,5 +23,6 @@ START:
 
 STR_HELLO:
   .INCBIN "cat.txt"
-  .BYT $0
+  .BYT $B3,$9C,$96,$9C,$A3,$3A,$20,$74,$79,$70,$65,$20,$DA,$EF,$FD,$E4,$BE
+  .BYT $A,$0
 
