@@ -27,10 +27,14 @@
 #define PAD_ARROW_R 0b0000000000000001
 #define PAD_ALL     (PAD_A|PAD_X|PAD_L|PAD_R|PAD_B|PAD_Y|PAD_SELECT|PAD_START|PAD_ARROW_U|PAD_ARROW_D|PAD_ARROW_L|PAD_ARROW_R)
 
-typedef struct{
-  unsigned char name[16];
-  unsigned char path[32];
-} entry_t;
+typedef struct ENTRY entry_t;
+struct ENTRY{
+  unsigned char name[16];       // 表示する文字列
+  const entry_t *submenu_ptr;   // サブメニューへのポインタ（NULLならシェルコマンド）
+  unsigned char cmd[32];        // CCPに渡すコマンド
+  unsigned char char_color;     // 文字色
+  unsigned char back_color;     // 背景色
+};
 
 extern void coutc(const char c);
 extern void couts(const char *str);
@@ -46,18 +50,34 @@ extern void col(const unsigned char color, const unsigned char backcolor);
 extern void gr(const unsigned char display_number);
 extern unsigned int pad();
 
+const entry_t info_menu[ENTRY_CNT] ={
+//{name,      submenu, cmd, char_color, back_color}
+  {"SYSTEM",  NULL,    "", 0xFF, 0x77},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00}
+};
+
 const entry_t main_menu[ENTRY_CNT] ={
-  {"INFO", ""},
-  {"GAMES", ""},
-  {"MOVIE", ""},
+//{name,      submenu,  cmd, char_color, back_color}
+  {"SETUMEI", &info_menu[0],"", 0xFF, 0x77},
+  {"GAMES",   NULL,     "", 0xFF, 0x00},
+  {"MOVIE",   NULL,     "", 0xFF, 0x00},
 
-  {"PHOTO", ""},
-  {"MUSIC", ""},
-  {"BASIC", ""},
+  {"PHOTO",   NULL,     "", 0xFF, 0x00},
+  {"MUSIC",   NULL,     "", 0xFF, 0x00},
+  {"BASIC",   NULL,     "", 0xFF, 0x00},
 
-  {"DOS", ""},
-  {"", ""},
-  {"", ""}
+  {"BAS",     NULL,     "", 0xFF, 0x00},
+  {"",        NULL,     "", 0xFF, 0x00},
+  {"",        NULL,     "", 0xFF, 0x00},
 };
 
 void initDisplay(){
