@@ -17,7 +17,7 @@
 #define PAD_X       0b0100000000000000
 #define PAD_L       0b0010000000000000
 #define PAD_R       0b0001000000000000
-#define PAD_B       0b0000100000000000
+#define PAD_B       0b0000000010000000
 #define PAD_Y       0b0000000001000000
 #define PAD_SELECT  0b0000000000100000
 #define PAD_START   0b0000000000010000
@@ -25,6 +25,7 @@
 #define PAD_ARROW_D 0b0000000000000100
 #define PAD_ARROW_L 0b0000000000000010
 #define PAD_ARROW_R 0b0000000000000001
+#define PAD_ALL     (PAD_A|PAD_X|PAD_L|PAD_R|PAD_B|PAD_Y|PAD_SELECT|PAD_START|PAD_ARROW_U|PAD_ARROW_D|PAD_ARROW_L|PAD_ARROW_R)
 
 typedef struct{
   unsigned char name[16];
@@ -93,18 +94,50 @@ void drawCur(unsigned char idx, unsigned char color){
   box(x1,y1,x2,y2);
 }
 
+// PADの押下を取得
+unsigned int waitNewPadPush(){
+  unsigned int padstat, padstat_old, diff, found;
+  padstat = (~pad())&PAD_ALL;
+  do{
+    padstat_old = padstat;
+    padstat = (~pad())&PAD_ALL;
+    diff = padstat ^ padstat_old;
+    found = diff & padstat;
+  }while(found==0);
+  return found;
+}
+
+unsigned char nextidx(unsigned char idx, unsigned int button){
+  switch(button){
+  case PAD_ARROW_R:
+    if(idx!=ENTRY_CNT-1)idx++;
+    break;
+  case PAD_ARROW_L:
+    if(idx!=0)idx--;
+    break;
+  case PAD_ARROW_U:
+    if((idx/ENTRY_CNT_X)!=0)idx-=ENTRY_CNT_X;
+    break;
+  case PAD_ARROW_D:
+    if((idx/ENTRY_CNT_X)!=ENTRY_CNT_Y-1)idx+=ENTRY_CNT_X;
+    break;
+  }
+  return idx;
+}
+
 int main(){
-  unsigned char idx=0;
+  unsigned char idx=0, newidx;
   initDisplay();
   drawMenu(main_menu);
   drawCur(idx,0x88);
   while(1){
-    unsigned int padstat = ~pad();
-    printf("%ux\n", padstat);
-    if((padstat&PAD_ARROW_R)!=0){
-      drawCur(idx++,0xFF);
-      drawCur(idx,0x88);
+    newidx=nextidx(idx,waitNewPadPush());
+    //printf("%u\n", waitNewPadPush());
+    if(idx!=newidx){
+      drawCur(idx,0xFF);
+      drawCur(newidx,0x88);
     }
+    idx=newidx;
   }
   return 0;
 }
