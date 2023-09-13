@@ -115,6 +115,11 @@ START:
   CLI
   JSR TITLE
 GAME:
+  SEI
+  LDA #60
+  STA ZP_GEAR_FOR_SEC
+  LDA ZP_VB_PAR_TICK
+  STA ZP_GEAR_FOR_TICK
   LDA #SE_START_NUMBER
   JSR PLAY_SE                         ; ゲーム開始音
   JSR CLEAR_TXTVRAM                   ; 画面クリア
@@ -187,6 +192,7 @@ GAME:
   JSR DRAW_ALLLINE                    ; 全部描画
   ; 初期リンゴ
   JSR GEN_APPLE
+  CLI
 @LOOP:
   ; wasd
   LDA #BCOS::BHA_CON_RAWIN_NoWaitNoEcho
