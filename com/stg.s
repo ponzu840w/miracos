@@ -86,7 +86,7 @@ MAX_STARS = 32        ; 星屑の最大数
   .INCLUDE "./+stg/ymzq.s"
   .INCLUDE "./+stg/infobox.s"
   .INCLUDE "./+stg/dmk.s"
-  ;.INCLUDE "./+stg/se.s"
+  .INCLUDE "./+stg/se.s"
   .INCLUDE "./+stg/enem.s"
   .INCLUDE "./+stg/title.s"
   .INCLUDE "./+stg/str88.s"
@@ -130,6 +130,7 @@ INIT_GENERAL:
   STA VIA::PAD_DDR
   JMP INIT_TITLE            ; タイトルに飛ぶ
 INIT_GAME:
+  SEI
   ; ---------------------------------------------------------------
   ;   YMZ
   JSR MUTE_ALL
@@ -158,8 +159,8 @@ INIT_GAME:
   STA ZP_PLAYER_Y
   ; ---------------------------------------------------------------
   ;   効果音の初期化
-  ;init_se
   init_ymzq
+  init_se
   init_str88
   LDX #0
   loadAY16 BGM_FIELD_A
@@ -196,7 +197,6 @@ INIT_GAME:
   STA CRTC2::DISP           ; 表示フレームを全てFB1に
   ; ---------------------------------------------------------------
   ;   割り込みハンドラの登録
-  SEI
   loadAY16 VBLANK
   syscall IRQ_SETHNDR_VB
   storeAY16 ZP_VB_STUB
@@ -370,8 +370,8 @@ KILL_PLAYER:
   ; 無敵ならキャンセル
   BBS0 ZP_PL_STAT_FLAG,@SKP_KILL
   ; 効果音
-  ;LDA #SE2_NUMBER
-  ;JSR PLAY_SE               ; 撃破効果音
+  LDA #SE2_NUMBER
+  JSR PLAY_SE               ; 撃破効果音
   ; 残機処理
   DEC ZP_ZANKI              ; 残機減少
   LDA ZP_ZANKI
@@ -677,8 +677,8 @@ TICK_PAD:
   LDA #PLAYER_SHOOTRATE
   STA ZP_PL_COOLDOWN          ; クールダウン更新
   make_pl_blt                 ; PL弾生成
-  ;LDA #SE_PLSHOT_NUMBER
-  ;JSR PLAY_SE                 ; 発射音再生
+  LDA #SE_PLSHOT_NUMBER
+  JSR PLAY_SE                 ; 発射音再生
 @SKP_B:
   BBS6 ZP_PADSTAT,@SKP_Y      ; Y button 敵召喚
   DEC ZP_PL_COOLDOWN          ; クールダウンチェック
@@ -711,7 +711,7 @@ TICK:
   tick_dmk1
   tick_enem
   term_blacklist              ; ブラックリスト終端
-  ;tick_se                     ; 効果音
+  tick_se                     ; 効果音
   tick_ymzq                   ; PSGシーケンサ
   tick_infobox                ; 情報画面
   exchange_frame              ; フレーム交換

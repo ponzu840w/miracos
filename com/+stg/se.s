@@ -23,6 +23,11 @@ SE_PLSHOT_LENGTH = 5
 ; -------------------------------------------------------------------
 .macro init_se
   STZ ZP_SE_STATE           ; サウンドの初期化
+  ;LDA ZP_CH_ENABLE
+  ;ORA #%00000100
+  ;STA ZP_CH_ENABLE
+  ;LDA #%11111011
+  ;STA ZP_CH_NOTREST
 .endmac
 
 ; -------------------------------------------------------------------
@@ -60,7 +65,13 @@ TICK_SE_RETURN:         ; ここに帰ってくる
   DEC ZP_SE_TIMER       ; タイマー減算
   BNE TICK_SE_END
   ; 0になった
-  set_ymzreg #YMZ::IA_MIX,#%00111111
+  ;set_ymzreg #YMZ::IA_MIX,#%00111111
+  LDA #YMZ::IA_MIX
+  STA YMZ::ADDR
+  LDA ZP_CH_ENABLE
+  AND #%00000011
+  EOR #$FF
+  STA YMZ::DATA
   STZ ZP_SE_STATE
 TICK_SE_END:
 .endmac
@@ -86,13 +97,19 @@ SE1_TICK:
   LDA ZP_SE_TIMER
   CMP #SE1_LENGTH
   BNE @a
-  set_ymzreg #YMZ::IA_MIX,#%00111110
-  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/800)
-  set_ymzreg #YMZ::IA_FRQ,#<(125000/800)
-  set_ymzreg #YMZ::IA_VOL,#$0F
+  ;set_ymzreg #YMZ::IA_MIX,#%00111110
+  LDA #YMZ::IA_MIX
+  STA YMZ::ADDR
+  LDA ZP_CH_ENABLE
+  ORA #%00000100
+  EOR #$FF
+  STA YMZ::DATA
+  set_ymzreg #YMZ::IA_FRQ+4+1,#>(125000/800)
+  set_ymzreg #YMZ::IA_FRQ+4,#<(125000/800)
+  set_ymzreg #YMZ::IA_VOL+2,#$0F
   JMP TICK_SE_RETURN
 @a:
-  LDX #YMZ::IA_VOL
+  LDX #YMZ::IA_VOL+2
   STX YMZ::ADDR
   ASL                       ; タイマーの左シフト、最大8
   ADC #4
@@ -100,22 +117,34 @@ SE1_TICK:
   JMP TICK_SE_RETURN
 
 SE2_TICK:
-  set_ymzreg #YMZ::IA_MIX,#%00110111
+  ;set_ymzreg #YMZ::IA_MIX,#%00110111
+  LDA #YMZ::IA_MIX
+  STA YMZ::ADDR
+  LDA ZP_CH_ENABLE
+  ORA #%00100000
+  EOR #$FF
+  STA YMZ::DATA
   set_ymzreg #YMZ::IA_NOISE_FRQ,#>(125000/400)
-  set_ymzreg #YMZ::IA_VOL,#$0F
+  set_ymzreg #YMZ::IA_VOL+2,#$0F
   JMP TICK_SE_RETURN
 
 SE_PLSHOT_TICK:
   LDA ZP_SE_TIMER
   CMP #SE1_LENGTH
   BNE @a
-  set_ymzreg #YMZ::IA_MIX,#%00111110
-  set_ymzreg #YMZ::IA_FRQ+1,#>(125000/1600)
-  set_ymzreg #YMZ::IA_FRQ,#<(125000/1600)
-  set_ymzreg #YMZ::IA_VOL,#$0F
+  ;set_ymzreg #YMZ::IA_MIX,#%00111110
+  LDA #YMZ::IA_MIX
+  STA YMZ::ADDR
+  LDA ZP_CH_ENABLE
+  ORA #%00000100
+  EOR #$FF
+  STA YMZ::DATA
+  set_ymzreg #YMZ::IA_FRQ+4+1,#>(125000/1600)
+  set_ymzreg #YMZ::IA_FRQ+4,#<(125000/1600)
+  set_ymzreg #YMZ::IA_VOL+2,#$0F
   JMP TICK_SE_RETURN
 @a:
-  LDX #YMZ::IA_VOL
+  LDX #YMZ::IA_VOL+2
   STX YMZ::ADDR
   ASL                       ; タイマーの左シフト、最大8
   ADC #4

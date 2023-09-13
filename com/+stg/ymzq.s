@@ -68,6 +68,18 @@
 
 .SEGMENT "LIB"
 
+.INCLUDE "./ymzq_skins.s"
+
+; -------------------------------------------------------------------
+;                            簡略化マクロ
+; -------------------------------------------------------------------
+.macro x2skin_state_ptr
+  LDA SKIN_STATE_STRUCT_TABLE_L,X
+  STA ZP_SKIN_STATE_PTR
+  LDA SKIN_STATE_STRUCT_TABLE_H,X
+  STA ZP_SKIN_STATE_PTR+1
+.endmac
+
 ; -------------------------------------------------------------------
 ;                             初期化処理
 ; -------------------------------------------------------------------
@@ -83,12 +95,11 @@
   ;STA SKIN_PTR_H
   ; 有効チャンネルなし
   STZ ZP_CH_ENABLE
-  LDA #YMZ::IA_MIX
-  STA YMZ::ADDR
-  LDA #$FF
-  STA YMZ::DATA
 .endmac
 
+; -------------------------------------------------------------------
+;                            トラック再生
+; -------------------------------------------------------------------
 ; input AY=楽譜 X=ch
 PLAY:
   ; 楽譜ポインタ登録
@@ -109,6 +120,10 @@ PLAY:
   STA ZP_LEN_CNT_A,X    ; LENは1で即時
   RTS
 
+; -------------------------------------------------------------------
+;                            ティック処理
+; -------------------------------------------------------------------
+; カウントダウン・次ノートトリガ・音色ドライブ
 .macro swap_zr          ; ゼロページレジスタを退避
   LDA ZR0
   STA ZP_ZRSAVE
@@ -117,7 +132,6 @@ PLAY:
   LDA ZR0+2
   STA ZP_ZRSAVE+2
 .endmac
-
 .macro restore_zr       ; ゼロページレジスタを復帰
   LDA ZP_ZRSAVE
   STA ZR0
@@ -126,11 +140,6 @@ PLAY:
   LDA ZP_ZRSAVE+2
   STA ZR0+2
 .endmac
-
-; -------------------------------------------------------------------
-;                            ティック処理
-; -------------------------------------------------------------------
-; カウントダウン・次ノートトリガ・音色ドライブ
 .macro tick_ymzq
 @TICK_YMZQ:
   swap_zr
@@ -235,13 +244,6 @@ PLAY:
   restore_zr
 .endmac
 
-.macro x2skin_state_ptr
-  LDA SKIN_STATE_STRUCT_TABLE_L,X
-  STA ZP_SKIN_STATE_PTR
-  LDA SKIN_STATE_STRUCT_TABLE_H,X
-  STA ZP_SKIN_STATE_PTR+1
-.endmac
-
 ; -------------------------------------------------------------------
 ;                           楽譜プロセッサ
 ; -------------------------------------------------------------------
@@ -322,13 +324,18 @@ SPCNOTE_REST:
   EOR #$FF
   AND ZP_CH_NOTREST
   STA ZP_CH_NOTREST
+  RMB0 ZP_TICK_SKIN_SR
   ; VOL0
+MUTE:
   TXA
   CLC
   ADC #YMZ::IA_VOL
   STA YMZ::ADDR
   STZ YMZ::DATA
   BRA SET_NEXT_TIMER
+  ;CMP #YMZ::IA_VOL+2      ;
+  ;BNE SET_NEXT_TIMER      ;
+  ;LDA #YMZ::IA
 
 ; テンポ変更
 SPCNOTE_TEMPO:
@@ -383,97 +390,14 @@ SPCNOTE_ENDNOISE:
   ORA #%00000100          ; CH_Cのノイズ有効化
   BRA SPCNOTE_SETNOISE1
 
-; -------------------------------------------------------------------
-; SKIN0                         BETA
-; -------------------------------------------------------------------
-; ベタに、指定周波数が最大音量で出るだけ
-; -------------------------------------------------------------------
-SKIN0_BETA:
-  BBS0 ZP_FLAG,@END           ; 初回以外スキップ
-  LDA #15
-  LDY #SKIN_STATE::VOL
-  STA (ZP_SKIN_STATE_PTR),Y
-  DEC ZP_FLAG                 ; 0をDECして$FF
-@END:
-  RTS
-
-; -------------------------------------------------------------------
-; SKIN1                        PIANO
-; -------------------------------------------------------------------
-; 徐々に音量が減衰する、ピアノ風
-; VOLはTの関数である
-; -------------------------------------------------------------------
-SKIN1_PIANO:
-  ; 終了フラグを見て分岐
-  BBS7 ZP_FLAG,@END
-  ; 経過時間取得
-  SMB7 ZP_FLAG                ; とりあえず終了フラグを立てる、上書きされる
-  ;LDY #SKIN_STATE::TIME
-  LDA (ZP_SKIN_STATE_PTR)
-  CMP #(15*4+1)
-  BEQ @END                    ; 終了タイミングでは飛び、上書きされない
-  ; TからVOLを算出する
-  LSR                         ; 1/4T
-  LSR
-  EOR #$FF                    ; 反転で負数に
-  SEC
-  ADC #15                     ; newVol=15+(-1/4T)
-  LDY #SKIN_STATE::VOL
-  STA (ZP_SKIN_STATE_PTR),Y
-  LDA #%00000011              ; FRQ,VOLともに更新
-  STA ZP_FLAG
-@END:
-  RTS
-
-; -------------------------------------------------------------------
-; SKIN2                       VIBRATO
-; -------------------------------------------------------------------
-; 周波数を小刻みに変化させる
-; -------------------------------------------------------------------
-SKIN2_VIBRATO:
-  BBS0 ZP_FLAG,@TICK           ; 初回以外スキップ
-  ; VOL=MAX
-  LDA #15
-  LDY #SKIN_STATE::VOL
-  STA (ZP_SKIN_STATE_PTR),Y
-  ; FRQ
-  LDY #SKIN_STATE::FRQ
-  LDA (ZP_SKIN_STATE_PTR),Y
-  INC
-  STA (ZP_SKIN_STATE_PTR),Y
-  DEC ZP_FLAG                 ; 0をDECして$FF
-  RTS
-@TICK:
-  ; TIME bit0 に応じたFRQ揺らし
-  ;LDY #SKIN_STATE::TIME
-  LDA (ZP_SKIN_STATE_PTR)
-  ROR A                       ; C=TIME bit0
-  LDY #SKIN_STATE::FRQ
-  LDA (ZP_SKIN_STATE_PTR),Y
-  BCS @CS
-  ADC #2
-  BRA @CC
-@CS:
-  SBC #2
-@CC:
-  STA (ZP_SKIN_STATE_PTR),Y
-@END:
-  RTS
-
-; -------------------------------------------------------------------
-; SKIN3                         NOISE
-; -------------------------------------------------------------------
-; ノイズ
-; -------------------------------------------------------------------
-SKIN3_NOISE:
-  BBS0 ZP_FLAG,@END           ; 初回以外スキップ
-  LDA #15
-  LDY #SKIN_STATE::VOL
-  STA (ZP_SKIN_STATE_PTR),Y
-  DEC ZP_FLAG                 ; 0をDECして$FF
-@END:
-  RTS
-
+; チャンネル終了
+SPCNOTE_STOP:
+  LDX ZP_CH
+  LDA ONEHOT_TABLE,X    ; 有効化ch
+  EOR #$FF
+  AND ZP_CH_ENABLE
+  STA ZP_CH_ENABLE
+  JMP SPCNOTE_REST
 
 ; -------------------------------------------------------------------
 ;                          ポインタテーブル
@@ -498,18 +422,7 @@ SPCNOTE_TABLE:
   .WORD SPCNOTE_JMP       ; 3 ジャンプ
   .WORD SPCNOTE_SETNOISE  ; 4 ノイズ有効化
   .WORD SPCNOTE_ENDNOISE  ; 5 ノイズ無効化
-
-SKIN_TABLE_L:
-  .BYTE <SKIN0_BETA
-  .BYTE <SKIN1_PIANO
-  .BYTE <SKIN2_VIBRATO
-  .BYTE <SKIN3_NOISE
-
-SKIN_TABLE_H:
-  .BYTE >SKIN0_BETA
-  .BYTE >SKIN1_PIANO
-  .BYTE >SKIN2_VIBRATO
-  .BYTE >SKIN3_NOISE
+  .WORD SPCNOTE_STOP      ; 6 チャンネルストップ
 
 ; -------------------------------------------------------------------
 ;                           データテーブル
