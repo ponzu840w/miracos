@@ -76,6 +76,7 @@ MAX_STARS = 32        ; 星屑の最大数
   ZP_PL_STAT_FLAG:    .RES 1        ; 7|???? ?,画面フラッシュ,自動前進,無敵|0
   ZP_STARS_OFFSET:    .RES 1
   ZP_CMD_STACK_IDX:   .RES 1        ; ステージコマンド制御スタックのポインタ
+  HOGE: .RES 1                      ; デバッグ用
 
 ; -------------------------------------------------------------------
 ;                           実行用ライブラリ
@@ -202,9 +203,25 @@ INIT_GAME:
   storeAY16 ZP_VB_STUB
   CLI
   ; 完全垂直同期割り込み駆動？
+  STZ HOGE
 MAIN:
   ; 無限ループ
   ; 実際には下記の割り込みが走る
+  LDA HOGE  ; HOGEがVB中に変更されたらブレイクする
+  BEQ MAIN
+  PHA
+  PHX
+  PHY
+  mem2AY16 ZP_VB_STUB
+  syscall IRQ_SETHNDR_VB
+  PLY
+  PLX
+  PLA
+  BRK
+  NOP
+  STZ HOGE
+  loadAY16 VBLANK
+  syscall IRQ_SETHNDR_VB
   BRA MAIN
 
 ; -------------------------------------------------------------------
@@ -542,10 +559,13 @@ TICK_CMD:
   ;   ループ開始
 @LOOP_START:
   ; アドレスのpush
+  CLC
   LDA ZP_CMD_PTR
+  ADC #2
   STA CMD_STACK,X
-  INX
   LDA ZP_CMD_PTR+1
+  ADC #0
+  INX
   STA CMD_STACK,X
   INX
   ; ループ回数のpush
@@ -562,7 +582,7 @@ TICK_CMD:
   ;   ループ終焉
 @LOOP_END:
   ; ループ回数のデクリメント
-  DEC CMD_STACK,X
+  DEC CMD_STACK-1,X
   BEQ @LOOP_EXIT
   ; ループ:スタック上の戻りアドレスを参照して戻る
   LDA CMD_STACK-2,X
@@ -919,7 +939,7 @@ CHAR_DAT_DMK1:
 
 ; 回数ループ終焉
 .macro lpe
-  .BYTE CMD_EXT::LOOP_END
+  .BYTE CMD_EXT::LOOP_END,$0
 .endmac
 
 ; ステージエンド
@@ -1003,6 +1023,7 @@ YOKOGIRYA_SIMPLE_LOOP2:
     wait 15
   lpe
 YOKOGIRYA_LOOP:
+  lp 5
   wait 200
   .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN,3
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*1),257-3
@@ -1024,8 +1045,6 @@ YOKOGIRYA_LOOP:
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*3),257-3
   .BYTE ENEM_CODE_1_YOKOGIRYA,0,  TOP_MARGIN+(8*4),2
   .BYTE ENEM_CODE_1_YOKOGIRYA,255,TOP_MARGIN+(8*5),257-2
-  lp 100
-    .WORD YOKOGIRYA_LOOP
   lpe
   end
 
