@@ -93,6 +93,7 @@ MAX_STARS = 32        ; 星屑の最大数
   .INCLUDE "./+stg/se.s"
   .INCLUDE "./+stg/enem.s"
   .INCLUDE "./+stg/title.s"
+  .INCLUDE "./+stg/gameover.s"
 
 ; -------------------------------------------------------------------
 ;                              変数領域
@@ -399,7 +400,7 @@ KILL_PLAYER:
   LDA ZP_ZANKI
   CMP #$FF
   BNE @SKP_TITLE
-  JMP INIT_TITLE
+  JMP GAMEOVER
 @SKP_TITLE:
   SMB0 ZP_INFO_FLAG_P       ; 残機再描画フラグを立てる
   ; 死亡無敵処理
@@ -632,7 +633,8 @@ TICK_CMD:
   ;   終了
 @STOP:
   CMP #CMD_EXT::END
-  BEQ @END_TICK_CMD
+  BNE @SPAWN_ENEM
+  JMP GAMEOVER
   ; ---------------------------------------------------------------
   ;   敵をコードと引数からスポーン
 @SPAWN_ENEM:
@@ -913,7 +915,7 @@ PAD_READ:
   RTS
 
 MUTE_ALL:
-  ;set_ymzreg #YMZ::IA_MIX,#%00111111
+  set_ymzreg #YMZ::IA_MIX,#%00111111
   RTS
 
 ; -------------------------------------------------------------------
