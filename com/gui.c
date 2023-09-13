@@ -49,6 +49,7 @@ extern void gcls();
 extern void col(const unsigned char color, const unsigned char backcolor);
 extern void gr(const unsigned char display_number);
 extern unsigned int pad();
+extern void system(unsigned char* commandline);
 
 const entry_t main_menu[];
 const entry_t info_menu[];
@@ -145,10 +146,16 @@ int main(){
     if(button&(PAD_ARROW_R|PAD_ARROW_L|PAD_ARROW_U|PAD_ARROW_D)){
       // 十字キーでカーソル移動
       newidx=nextidx(idx, button);
-    }else if((button & PAD_A) && (current_menu[idx].submenu_ptr != NULL)){
+    }else if(button & PAD_A){
       // Aボタンで遷移
-      current_menu=current_menu[idx].submenu_ptr;
-      openMenu(&idx, current_menu);
+      if(current_menu[idx].submenu_ptr != NULL){
+        // サブメニュー
+        current_menu=current_menu[idx].submenu_ptr;
+        openMenu(&idx, current_menu);
+      }else if(current_menu[idx].cmd[0] != '\0'){
+        // システムコマンド
+        system(current_menu[idx].cmd);
+      }
     }
     // idxに変化があればカーソルを更新
     if(idx!=newidx){
@@ -186,7 +193,7 @@ const entry_t main_menu[ENTRY_CNT] ={
     0x00, 0x33},
   {"BASIC",
     NULL,
-    "BASIC",
+    "BASIC\n",
     0x00, 0xFF},
 
   {"DOS\xDC\xCA\xF9",     // DOSシェル
@@ -244,7 +251,10 @@ const entry_t movie_menu[ENTRY_CNT] ={
 
 const entry_t photo_menu[ENTRY_CNT] ={
 //{name,      submenu, cmd, char_color, back_color}
-  {"SNAKE",  NULL,    "", 0xFF, 0x77},
+  {"\x91\x9B\xBE\xB4\x96\xD5\xD3\xF1",     // あさ゛やかオウム
+    NULL,
+    "PICT A:/DOC/PRT1.IM4\n",
+    0xFF, 0x44},
   {"",        NULL,    "", 0xFF, 0x00},
   {"",        NULL,    "", 0xFF, 0x00},
 

@@ -10,6 +10,7 @@
 
 .ZEROPAGE
 ZP_PADSTAT: .RES 2
+ZP_STRPTR:  .RES 2
 
 .DATA
 
@@ -19,7 +20,7 @@ ZP_PADSTAT: .RES 2
 
 .INCLUDE "./+gui/chdz_basic.s"
 
-.EXPORT _pad
+.EXPORT _pad,_system
 
 ; コンストラクタ
 .SEGMENT "ONCE"
@@ -69,4 +70,24 @@ LOOP:
   ; HIGH  : 7|A,X,L,R            |0
   RTS
 .ENDPROC
+
+; -------------------------------------------------------------------
+; void system(unsigned char* commandline)
+; -------------------------------------------------------------------
+_system:
+  PHX
+  PLY
+  storeAY16 ZP_STRPTR
+  LDY #0
+@LOOP:
+  LDA (ZP_STRPTR),Y
+  BEQ @END
+  PHY
+  syscall CON_INTERRUPT_CHR
+  PLY
+  INY
+  BRA @LOOP
+@END:
+  syscall CRTC_RETBASE
+  JMP $5000
 
