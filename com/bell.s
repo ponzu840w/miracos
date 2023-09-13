@@ -58,13 +58,16 @@ INIT:
   loadAY16 NOTES
   JSR PLAY
 
-  LDX #1
-  loadAY16 NOISE_NOTES
-  JSR PLAY
+  ;LDX #1
+  ;loadAY16 NOISE_NOTES
+  ;JSR PLAY
   CLI
 
 MAIN:
-  BRA MAIN
+  LDA ZP_CH_ENABLE
+  AND #%1
+  BNE MAIN
+  RTS
 
 ; -------------------------------------------------------------------
 ;                          垂直同期割り込み
@@ -130,6 +133,7 @@ NOTE1:
 .BYTE 48,1
 .BYTE 44,1
 .BYTE 46,6
+.BYTE 128+6     ; stop
 
 .BYTE 128+1,10
 .BYTE 128+2,1   ; ピアノ

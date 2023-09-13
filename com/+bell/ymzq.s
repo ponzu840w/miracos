@@ -326,6 +326,7 @@ SPCNOTE_REST:
   STA ZP_CH_NOTREST
   RMB0 ZP_TICK_SKIN_SR
   ; VOL0
+MUTE:
   TXA
   CLC
   ADC #YMZ::IA_VOL
@@ -389,6 +390,15 @@ SPCNOTE_ENDNOISE:
   ORA #%00000100          ; CH_Cのノイズ有効化
   BRA SPCNOTE_SETNOISE1
 
+; チャンネル終了
+SPCNOTE_STOP:
+  LDX ZP_CH
+  LDA ONEHOT_TABLE,X    ; 有効化ch
+  EOR #$FF
+  AND ZP_CH_ENABLE
+  STA ZP_CH_ENABLE
+  JMP SPCNOTE_REST
+
 ; -------------------------------------------------------------------
 ;                          ポインタテーブル
 ; -------------------------------------------------------------------
@@ -412,6 +422,7 @@ SPCNOTE_TABLE:
   .WORD SPCNOTE_JMP       ; 3 ジャンプ
   .WORD SPCNOTE_SETNOISE  ; 4 ノイズ有効化
   .WORD SPCNOTE_ENDNOISE  ; 5 ノイズ無効化
+  .WORD SPCNOTE_STOP      ; 6 チャンネルストップ
 
 ; -------------------------------------------------------------------
 ;                           データテーブル
