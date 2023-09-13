@@ -2,6 +2,44 @@ INFO_TOP_MARGIN = 2
 INFO_RL_MARGIN = 2
 
 ; -------------------------------------------------------------------
+;                              スコア描画
+; -------------------------------------------------------------------
+.macro draw_score
+  ; [0]000
+  LDA ZP_SCORE+1
+  LSR
+  LSR
+  LSR
+  LSR
+  CLC
+  ADC #'0'
+  STA SCORE_STR
+  ; 0[0]00
+  LDA ZP_SCORE+1
+  AND #$0F
+  CLC
+  ADC #'0'
+  STA SCORE_STR+1
+  ; 00[0]0
+  LDA ZP_SCORE
+  LSR
+  LSR
+  LSR
+  LSR
+  CLC
+  ADC #'0'
+  STA SCORE_STR+2
+  ; 000[0]
+  LDA ZP_SCORE
+  AND #$0F
+  CLC
+  ADC #'0'
+  STA SCORE_STR+3
+  STZ SCORE_STR+4
+  str88_puts 1+(4*6),2,SCORE_STR
+.endmac
+
+; -------------------------------------------------------------------
 ;                              残機描画
 ; -------------------------------------------------------------------
 ; 塗りつぶしてから、左から一機一機描いていく
@@ -70,10 +108,14 @@ INFO_RL_MARGIN = 2
 ;                         フラグに従って描画
 ; -------------------------------------------------------------------
 DRAW_INFO_LIST:
-  STA ZR0
-  BBS0 ZR0,@NOTSKP_ZANKI
-  RTS
-@NOTSKP_ZANKI:
+  STA ZP_INFOBOX_WORK
+  BBS0 ZP_INFOBOX_WORK,@ZANKI
+  JMP @SCORE
+@ZANKI:
   draw_zanki
+@SCORE:
+  BBR1 ZP_INFOBOX_WORK,@END
+  draw_score
+@END:
   RTS
 

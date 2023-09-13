@@ -69,13 +69,15 @@ MAX_STARS = 32        ; 星屑の最大数
   ZP_CMD_PTR:         .RES 2        ; ステージコマンドのポインタ
   ZP_CMD_WAIT_CNT:    .RES 1
   ZP_ZANKI:           .RES 1        ; 残機
-  ZP_INFO_FLAG_P:     .RES 1        ; INFO描画箇所フラグ 7|???? ???,残機|0
+  ZP_INFO_FLAG_P:     .RES 1        ; INFO描画箇所フラグ 7|???? ??,スコア,残機|0
   ZP_INFO_FLAG_S:     .RES 1        ; セカンダリ
   ZP_DEATH_MUTEKI:    .RES 1        ; 死亡時ティックカウンタを記録し、255ティックの範囲で無敵時間を調整
   ZP_DEATH_FLASH:     .RES 1        ; 死亡時ティックカウンタを記録し、?ティックの範囲でフラッシュ時間を調整
   ZP_PL_STAT_FLAG:    .RES 1        ; 7|???? ?,画面フラッシュ,自動前進,無敵|0
   ZP_STARS_OFFSET:    .RES 1
   ZP_CMD_STACK_IDX:   .RES 1        ; ステージコマンド制御スタックのポインタ
+  ZP_SCORE:           .RES 2        ; スコア
+  ZP_INFOBOX_WORK:    .RES 1
   HOGE: .RES 1                      ; デバッグ用
 
 ; -------------------------------------------------------------------
@@ -84,18 +86,19 @@ MAX_STARS = 32        ; 星屑の最大数
   .PROC IMF
     .INCLUDE "./+stg/imf.s"
   .ENDPROC
+  .INCLUDE "./+stg/str88.s"
   .INCLUDE "./+stg/ymzq.s"
   .INCLUDE "./+stg/infobox.s"
   .INCLUDE "./+stg/dmk.s"
   .INCLUDE "./+stg/se.s"
   .INCLUDE "./+stg/enem.s"
   .INCLUDE "./+stg/title.s"
-  .INCLUDE "./+stg/str88.s"
 
 ; -------------------------------------------------------------------
 ;                              変数領域
 ; -------------------------------------------------------------------
 .BSS
+  SCORE_STR:      .RES 5
   FD_SAV:         .RES 1  ; ファイル記述子
   FINFO_SAV:      .RES 2  ; FINFO
   ; ブラックに塗りつぶすべき座標のリスト（命名がわるい
@@ -158,6 +161,8 @@ INIT_GAME:
   STA ZP_PLAYER_X           ; プレイヤー初期座標
   LDA #PLAYER_Y
   STA ZP_PLAYER_Y
+  STZ ZP_SCORE
+  STZ ZP_SCORE+1
   ; ---------------------------------------------------------------
   ;   効果音の初期化
   init_ymzq
