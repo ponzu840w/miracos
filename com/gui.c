@@ -26,6 +26,7 @@
 #define PAD_ARROW_L 0b0000000000000010
 #define PAD_ARROW_R 0b0000000000000001
 #define PAD_ALL     (PAD_A|PAD_X|PAD_L|PAD_R|PAD_B|PAD_Y|PAD_SELECT|PAD_START|PAD_ARROW_U|PAD_ARROW_D|PAD_ARROW_L|PAD_ARROW_R)
+#define RETNAME     "\xC1\xB3\xA4\xBE\xB9"
 
 typedef struct ENTRY entry_t;
 struct ENTRY{
@@ -198,7 +199,7 @@ const entry_t main_menu[ENTRY_CNT] ={
 
   {"DOS\xDC\xCA\xF9",     // DOSシェル
     NULL,
-    "",
+    "nogui\n",
     0xFF, 0x44},
   {"", NULL, "", 0xFF, 0x00},
   {"", NULL, "", 0xFF, 0x00},
@@ -216,14 +217,23 @@ const entry_t info_menu[ENTRY_CNT] ={
 
   {"",        NULL,    "", 0xFF, 0x00},
   {"",        NULL,    "", 0xFF, 0x00},
-  {"return",  &main_menu[0],    "", 0xFF, 0x00}
+  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00}
 };
 
 const entry_t game_menu[ENTRY_CNT] ={
 //{name,      submenu, cmd, char_color, back_color}
-  {"SNAKE",  NULL,    "", 0xFF, 0x77},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
+  {"\xAD\xEB\xBE\x20\xD9\xBE\x90\xF1",     // ヘビゲーム
+    NULL,
+    "snake\n",
+    0x00, 0xDD},
+  {"\xD5\xDE\xFB",     // オセロ
+    NULL,
+    "othello\n",
+    0x00, 0xDD},
+  {"\xDC\xCD\x90\xE3\xC8\xFD\xD8\xBE",     // SHOOTING
+    NULL,
+    "stg\n",
+    0x00, 0xDD},
 
   {"",        NULL,    "", 0xFF, 0x00},
   {"",        NULL,    "", 0xFF, 0x00},
@@ -231,7 +241,7 @@ const entry_t game_menu[ENTRY_CNT] ={
 
   {"",        NULL,    "", 0xFF, 0x00},
   {"",        NULL,    "", 0xFF, 0x00},
-  {"return",  &main_menu[0],    "", 0xFF, 0x00}
+  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00}
 };
 
 const entry_t movie_menu[ENTRY_CNT] ={
@@ -264,7 +274,7 @@ const entry_t movie_menu[ENTRY_CNT] ={
 
   {"",        NULL,    "", 0xFF, 0x00},
   {"",        NULL,    "", 0xFF, 0x00},
-  {"return",  &main_menu[0],    "", 0xFF, 0x00}
+  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00}
 };
 
 const entry_t photo_menu[ENTRY_CNT] ={
@@ -294,7 +304,7 @@ const entry_t photo_menu[ENTRY_CNT] ={
 
   {"",        NULL,    "", 0xFF, 0x00},
   {"",        NULL,    "", 0xFF, 0x00},
-  {"return",  &main_menu[0],    "", 0xFF, 0x00}
+  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00}
 };
 
 const entry_t music_menu[ENTRY_CNT] ={
@@ -309,5 +319,5 @@ const entry_t music_menu[ENTRY_CNT] ={
 
   {"",        NULL,    "", 0xFF, 0x00},
   {"",        NULL,    "", 0xFF, 0x00},
-  {"return",  &main_menu[0],    "", 0xFF, 0x00}
+  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00}
 };
