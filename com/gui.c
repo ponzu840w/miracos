@@ -238,28 +238,28 @@ const entry_t movie_menu[ENTRY_CNT] ={
 //{name,      submenu, cmd, char_color, back_color}
   {"\xD1\xD2\xE4\xBE\xF9 MV",     // アイドル MV
     NULL,
-    "PICT A:/DOC/IDOL.MV4\n",
+    "MOVIE A:/DOC/IDOL.MV4\n",
     0xFF, 0x44},
   {"AESTHETIC",     // AESTHETIC
     NULL,
-    "PICT A:/DOC/MAC.MV4\n",
+    "MOVIE A:/DOC/MAC.MV4\n",
     0xFF, 0x44},
   {"LAIN OP",     // LAIN OP
     NULL,
-    "PICT A:/DOC/LAINOP.MV4\n",
+    "MOVIE A:/DOC/LAINOP.MV4\n",
     0xFF, 0x44},
 
   {"\xB5\xB9\xB5\xB8\x33\x97\x31\xBC",     // ゆるゆり3き1わ
     NULL,
-    "PICT A:/DOC/YRYR31.MV4\n",
+    "MOVIE A:/DOC/YRYR31.MV4\n",
     0xFF, 0x44},
   {"\xBB\xBD\xB8\x98\x93\x98\xBE\xBD",     // ろんりくうぐん
     NULL,
-    "PICT A:/DOC/LOGICAF.MV4\n",
+    "MOVIE A:/DOC/LOGICAF.MV4\n",
     0xFF, 0x44},
   {"\x9A\xBE\xA1\x93\x9B\x33\x97\x4F\x50",     // こ゛ちうさ3きOP
     NULL,
-    "PICT A:/DOC/TKCAFE.MV4\n",
+    "MOVIE A:/DOC/TKCAFE.MV4\n",
     0xFF, 0x44},
 
   {"",        NULL,    "", 0xFF, 0x00},
