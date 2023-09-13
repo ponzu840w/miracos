@@ -27,6 +27,8 @@ IMAGE_BUFFER_SECS = 24 ; 何セクタをバッファに使うか？ 48の約数
   ZP_VMAV:        .RES 1
   ZP_FINFO_SAV:   .RES 2  ; FINFO
   ZP_4:           .RES 1
+  ZP_PADSTAT:     .RES 2
+  ZP_PADSTAT_OLD: .RES 2
 
 ; -------------------------------------------------------------------
 ;                              変数領域
@@ -104,9 +106,23 @@ CLOSE_AND_EXIT:
   LDA FD_SAV
   syscall FS_CLOSE                ; クローズ
   BCS BCOS_ERROR
-  ; キー待機
-  LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho  ; キー入力待機
+  JSR PAD
+@LOOP:
+  LDA ZP_PADSTAT
+  STA ZP_PADSTAT_OLD
+  LDA ZP_PADSTAT+1
+  STA ZP_PADSTAT_OLD+1
+  JSR PAD
+  LDA ZP_PADSTAT
+  CMP ZP_PADSTAT_OLD
+  BNE @EXT
+  LDA ZP_PADSTAT+1
+  CMP ZP_PADSTAT_OLD+1
+  BNE @EXT
+  LDA #BCOS::BHA_CON_RAWIN_NoWaitNoEcho
   syscall CON_RAWIN
+  BEQ @LOOP
+@EXT:
   RTS
 
 BCOS_ERROR:
@@ -263,6 +279,47 @@ FILL_LOOP_H:
   BNE FILL_LOOP_H
   DEY
   BNE FILL_LOOP_V
+  RTS
+
+; -------------------------------------------------------------------
+; PAD()関数
+; ゲームパッドのボタン押下状況を取得する
+; 引数: ボタン番号（ビット位置）
+; 押されている=1, 押されていない=0を返す
+; -------------------------------------------------------------------
+PAD:
+  ; P/S下げる
+  LDA VIA::PAD_REG
+  ORA #VIA::PAD_PTS
+  STA VIA::PAD_REG
+  ; P/S下げる
+  LDA VIA::PAD_REG
+  AND #<~VIA::PAD_PTS
+  STA VIA::PAD_REG
+  ; 読み取りループ
+  LDX #16
+@LOOP:
+  LDA VIA::PAD_REG        ; データ読み取り
+  ; クロック下げる
+  AND #<~VIA::PAD_CLK
+  STA VIA::PAD_REG
+  ; 16bit値として格納
+  ROR
+  ROL ZP_PADSTAT+1
+  ROL ZP_PADSTAT
+  ; クロック上げる
+  LDA VIA::PAD_REG        ; データ読み取り
+  ORA #VIA::PAD_CLK
+  STA VIA::PAD_REG
+  DEX
+  BNE @LOOP
+  LDA ZP_PADSTAT+1
+  AND #$F0
+  STA ZP_PADSTAT+1
+  TAX
+  LDA ZP_PADSTAT
+  ; LOW   : 7|B,Y,SEL,STA,↑,↓,←,→|0
+  ; HIGH  : 7|A,X,L,R            |0
   RTS
 
 STR_NOTFOUND:
