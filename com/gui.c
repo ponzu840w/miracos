@@ -187,11 +187,11 @@ const entry_t main_menu[ENTRY_CNT] ={
     &photo_menu[0],
     "",
     0x00, 0x77},
-  {"\x95\xBD\xC5\x98",
+  {"\x95\xBD\xC5\x98",    // おんがく
     &music_menu[0],
     "",
     0x00, 0x33},
-  {"BASIC",
+  {"BASIC",               // BASIC
     NULL,
     "BASIC\n",
     0x00, 0xFF},
@@ -236,13 +236,31 @@ const entry_t game_menu[ENTRY_CNT] ={
 
 const entry_t movie_menu[ENTRY_CNT] ={
 //{name,      submenu, cmd, char_color, back_color}
-  {"SNAKE",  NULL,    "", 0xFF, 0x77},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
+  {"\xD1\xD2\xE4\xBE\xF9 MV",     // アイドル MV
+    NULL,
+    "PICT A:/DOC/IDOL.MV4\n",
+    0xFF, 0x44},
+  {"AESTHETIC",     // AESTHETIC
+    NULL,
+    "PICT A:/DOC/MAC.MV4\n",
+    0xFF, 0x44},
+  {"LAIN OP",     // LAIN OP
+    NULL,
+    "PICT A:/DOC/LAINOP.MV4\n",
+    0xFF, 0x44},
 
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
+  {"\xB5\xB9\xB5\xB8\x33\x97\x31\xBC",     // ゆるゆり3き1わ
+    NULL,
+    "PICT A:/DOC/YRYR31.MV4\n",
+    0xFF, 0x44},
+  {"\xBB\xBD\xB8\x98\x93\x98\xBE\xBD",     // ろんりくうぐん
+    NULL,
+    "PICT A:/DOC/LOGICAF.MV4\n",
+    0xFF, 0x44},
+  {"\x9A\xBE\xA1\x93\x9B\x33\x97\x4F\x50",     // こ゛ちうさ3きOP
+    NULL,
+    "PICT A:/DOC/TKCAFE.MV4\n",
+    0xFF, 0x44},
 
   {"",        NULL,    "", 0xFF, 0x00},
   {"",        NULL,    "", 0xFF, 0x00},
@@ -255,11 +273,23 @@ const entry_t photo_menu[ENTRY_CNT] ={
     NULL,
     "PICT A:/DOC/PRT1.IM4\n",
     0xFF, 0x44},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
+  {"\x9E\xA0\xC5\xB4\xD7\xCC\xFD\xEA\xBF\xDD",     // せたがやキャンパス
+    NULL,
+    "PICT A:/DOC/3GOKAN.IM4\n",
+    0xFF, 0x44},
+  {"\xD1\xFD\xE5\xA1\x8C\xBD",     // アンナちゃん
+    NULL,
+    "PICT A:/DOC/ANNA1.IM4\n",
+    0xFF, 0x44},
 
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
+  {"\xBC\xAC\x98\xF0\xD8",     // わふくミク
+    NULL,
+    "PICT A:/DOC/MIKU1.IM4\n",
+    0xFF, 0x44},
+  {"\xE1\xE9\xA4\xDA\xDA\xD1",     // チノとココア
+    NULL,
+    "PICT A:/DOC/GU1.IM4\n",
+    0xFF, 0x44},
   {"",        NULL,    "", 0xFF, 0x00},
 
   {"",        NULL,    "", 0xFF, 0x00},

@@ -24,6 +24,7 @@ TPA = $0700
 ZP_ATTR:          .RES 1  ; 属性バイトをシフトして遊ぶ
 
 .BSS
+GUI_FLAG:         .RES 1  ; 1=GUI強制
 COMMAND_BUF:      .RES 64 ; コマンド入力バッファ
 
 ; -------------------------------------------------------------------
@@ -34,6 +35,8 @@ COMMAND_BUF:      .RES 64 ; コマンド入力バッファ
 ;                           シェルスタート
 ; -------------------------------------------------------------------
 START:
+  LDA #1
+  STA GUI_FLAG
   loadAY16 STR_INITMESSAGE
   syscall CON_OUT_STR             ; タイトル表示
 
@@ -175,6 +178,8 @@ OCOM_FOUND:
   syscall CRTC_RETBASE            ; CRTCを基底状態に戻す
   LDY #0                          ; ゼロページを指定するとリセットされる
   syscall IRQ_SETHNDR_C           ; CTRL+Cハンドラをリセット
+  LDA GUI_FLAG
+  BNE GUI
   JMP LOOP
 
 COMMAND_NOTFOUND:
@@ -183,6 +188,18 @@ COMMAND_NOTFOUND:
   PLA
   loadAY16 STR_COMNOTFOUND
   syscall CON_OUT_STR
+  JMP LOOP
+
+GUI:
+  ; GUI
+  LDA #'g'
+  syscall CON_INTERRUPT_CHR
+  LDA #'u'
+  syscall CON_INTERRUPT_CHR
+  LDA #'i'
+  syscall CON_INTERRUPT_CHR
+  LDA #$A
+  syscall CON_INTERRUPT_CHR
   JMP LOOP
 
 ; -------------------------------------------------------------------
@@ -214,6 +231,10 @@ ICOM_CD:
 ICOM_TEST:
   storeAY16 ZR0                   ; C言語プログラム用に引数をZR0にも NOTE: アドホックであまり深く考えてない方法！
   JSR TPA
+  JMP LOOP
+
+ICOM_NOGUI:
+  STZ GUI_FLAG
   JMP LOOP
 
 ; -------------------------------------------------------------------
@@ -358,6 +379,7 @@ ICOMNAMES:        ;.ASCIIZ "EXIT"        ; 0
                   .ASCIIZ "TEST"        ; 5
                   ;.ASCIIZ "LS"          ; 6
                   .ASCIIZ "DONKI"       ; 7
+                  .ASCIIZ "NOGUI"
                   .BYT $0
 
 ICOMVECS:         ;.WORD ICOM_EXIT
@@ -368,4 +390,5 @@ ICOMVECS:         ;.WORD ICOM_EXIT
                   .WORD ICOM_TEST
                   ;.WORD ICOM_LS
                   .WORD ICOM_DONKI
+                  .WORD ICOM_NOGUI
 
