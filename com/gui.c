@@ -50,35 +50,12 @@ extern void col(const unsigned char color, const unsigned char backcolor);
 extern void gr(const unsigned char display_number);
 extern unsigned int pad();
 
-const entry_t info_menu[ENTRY_CNT] ={
-//{name,      submenu, cmd, char_color, back_color}
-  {"SYSTEM",  NULL,    "", 0xFF, 0x77},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00}
-};
-
-const entry_t main_menu[ENTRY_CNT] ={
-//{name,      submenu,  cmd, char_color, back_color}
-  {"SETUMEI", &info_menu[0],"", 0xFF, 0x77},
-  {"GAMES",   NULL,     "", 0xFF, 0x00},
-  {"MOVIE",   NULL,     "", 0xFF, 0x00},
-
-  {"PHOTO",   NULL,     "", 0xFF, 0x00},
-  {"MUSIC",   NULL,     "", 0xFF, 0x00},
-  {"BASIC",   NULL,     "", 0xFF, 0x00},
-
-  {"BAS",     NULL,     "", 0xFF, 0x00},
-  {"",        NULL,     "", 0xFF, 0x00},
-  {"",        NULL,     "", 0xFF, 0x00},
-};
+const entry_t main_menu[];
+const entry_t info_menu[];
+const entry_t game_menu[];
+const entry_t movie_menu[];
+const entry_t photo_menu[];
+const entry_t music_menu[];
 
 void initDisplay(){
   disp(0b01010101);
@@ -88,9 +65,9 @@ void initDisplay(){
 }
 
 void drawEntry(unsigned char base_x, unsigned char base_y, const entry_t* entry){
-  col(0x44,0xFF);
+  col(entry->back_color,entry->char_color);
   rect(base_x/2+1, base_y+1, (base_x+ENTRY_W)/2-2, base_y+ENTRY_H-2);
-  col(0xFF,0x44);
+  col(entry->char_color,entry->back_color);
   gput(base_x/2+2, base_y+2, entry->name);
 }
 
@@ -145,20 +122,152 @@ unsigned char nextidx(unsigned char idx, unsigned int button){
   return idx;
 }
 
-int main(){
-  unsigned char idx=0, newidx;
+void openMenu(unsigned char* idx, const entry_t* menu){
+  *idx=0;
   initDisplay();
-  drawMenu(main_menu);
-  drawCur(idx,0x88);
+  drawMenu(menu);
+  drawCur(*idx,0x88);
+}
+
+int main(){
+  unsigned char idx=0, newidx=0;
+  unsigned int button;
+  const entry_t* current_menu=&main_menu[0];
+
+  // メインメニューを開く
+  openMenu(&idx,current_menu);
+
+  // メインループ ボタン駆動
   while(1){
-    newidx=nextidx(idx,waitNewPadPush());
-    //printf("%u\n", waitNewPadPush());
+    // 押下ボタン取得
+    button=waitNewPadPush();
+    // ボタンごとの処理
+    if(button&(PAD_ARROW_R|PAD_ARROW_L|PAD_ARROW_U|PAD_ARROW_D)){
+      // 十字キーでカーソル移動
+      newidx=nextidx(idx, button);
+    }else if((button & PAD_A) && (current_menu[idx].submenu_ptr != NULL)){
+      // Aボタンで遷移
+      current_menu=current_menu[idx].submenu_ptr;
+      openMenu(&idx, current_menu);
+    }
+    // idxに変化があればカーソルを更新
     if(idx!=newidx){
       drawCur(idx,0xFF);
       drawCur(newidx,0x88);
     }
     idx=newidx;
   }
+
   return 0;
 }
 
+const entry_t main_menu[ENTRY_CNT] ={
+//{name,      submenu,  cmd, char_color, back_color}
+  {"\x9E\xA2\xB2\x92",    // せつめい
+    &info_menu[0],
+    "",
+    0x00, 0xBB },
+  {"\xD9\xBE\x90\xF1",    // ゲーム
+    &game_menu[0],
+    "",
+    0x00, 0xDD },
+  {"\xA4\xBE\x93\xC5",    // と゛うが
+    &movie_menu[0],
+    "",
+    0xBB, 0x99 },
+
+  {"\x9C\x8C\x9C\xBD",    // しゃしん
+    &photo_menu[0],
+    "",
+    0x00, 0x77},
+  {"\x95\xBD\xC5\x98",
+    &music_menu[0],
+    "",
+    0x00, 0x33},
+  {"BASIC",
+    NULL,
+    "BASIC",
+    0x00, 0xFF},
+
+  {"DOS\xDC\xCA\xF9",     // DOSシェル
+    NULL,
+    "",
+    0xFF, 0x44},
+  {"", NULL, "", 0xFF, 0x00},
+  {"", NULL, "", 0xFF, 0x00},
+};
+
+const entry_t info_menu[ENTRY_CNT] ={
+//{name,      submenu, cmd, char_color, back_color}
+  {"SYSTEM",  NULL,    "", 0xFF, 0x77},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"return",  &main_menu[0],    "", 0xFF, 0x00}
+};
+
+const entry_t game_menu[ENTRY_CNT] ={
+//{name,      submenu, cmd, char_color, back_color}
+  {"SNAKE",  NULL,    "", 0xFF, 0x77},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"return",  &main_menu[0],    "", 0xFF, 0x00}
+};
+
+const entry_t movie_menu[ENTRY_CNT] ={
+//{name,      submenu, cmd, char_color, back_color}
+  {"SNAKE",  NULL,    "", 0xFF, 0x77},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"return",  &main_menu[0],    "", 0xFF, 0x00}
+};
+
+const entry_t photo_menu[ENTRY_CNT] ={
+//{name,      submenu, cmd, char_color, back_color}
+  {"SNAKE",  NULL,    "", 0xFF, 0x77},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"return",  &main_menu[0],    "", 0xFF, 0x00}
+};
+
+const entry_t music_menu[ENTRY_CNT] ={
+//{name,      submenu, cmd, char_color, back_color}
+  {"SNAKE",  NULL,    "", 0xFF, 0x77},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00},
+  {"return",  &main_menu[0],    "", 0xFF, 0x00}
+};
