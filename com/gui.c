@@ -51,6 +51,7 @@ extern void col(const unsigned char color, const unsigned char backcolor);
 extern void gr(const unsigned char display_number);
 extern unsigned int pad();
 extern void system(unsigned char* commandline);
+extern void play_se(unsigned char se_num);
 
 const entry_t main_menu[];
 const entry_t info_menu[];
@@ -147,7 +148,9 @@ int main(){
     if(button&(PAD_ARROW_R|PAD_ARROW_L|PAD_ARROW_U|PAD_ARROW_D)){
       // 十字キーでカーソル移動
       newidx=nextidx(idx, button);
+      play_se(2);
     }else if(button & PAD_A){
+      play_se(4);
       // Aボタンで遷移
       if(current_menu[idx].submenu_ptr != NULL){
         // サブメニュー

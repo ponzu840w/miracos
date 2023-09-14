@@ -11,6 +11,7 @@
 .ZEROPAGE
 ZP_PADSTAT: .RES 2
 ZP_STRPTR:  .RES 2
+ZP_VB_STUB: .RES 2
 
 .DATA
 
@@ -19,8 +20,9 @@ ZP_STRPTR:  .RES 2
 .CODE
 
 .INCLUDE "./+gui/chdz_basic.s"
+.INCLUDE "./+gui/se.s"
 
-.EXPORT _pad,_system
+.EXPORT _pad,_system,_play_se
 
 ; コンストラクタ
 .SEGMENT "ONCE"
@@ -30,7 +32,20 @@ INIT:
   ORA #(VIA::PAD_CLK|VIA::PAD_PTS)
   AND #<~(VIA::PAD_DAT)
   STA VIA::PAD_DDR
+  ; se
+  init_se
+  ; 割り込みハンドラの登録
+  SEI
+  loadAY16 VBLANK
+  syscall IRQ_SETHNDR_VB
+  storeAY16 ZP_VB_STUB
+  CLI
   JMP CHDZ_BASIC_INIT
+
+.CODE
+VBLANK:
+  tick_se
+  JMP (ZP_VB_STUB)           ; 片付けはBCOSにやらせる
 
 ; -------------------------------------------------------------------
 ; PAD()関数
@@ -89,5 +104,16 @@ _system:
   BRA @LOOP
 @END:
   syscall CRTC_RETBASE
+  ; 大政奉還コード
+  ; 割り込みハンドラの登録抹消
+  SEI
+  mem2AY16 ZP_VB_STUB
+  syscall IRQ_SETHNDR_VB
+  CLI
   JMP $5000
+
+; play_se(unsigned char se_num)
+_play_se:
+  JSR PLAY_SE
+  RTS
 
