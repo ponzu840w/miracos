@@ -150,7 +150,7 @@ int main(){
       newidx=nextidx(idx, button);
       play_se(2);
     }else if(button & PAD_A){
-      play_se(4);
+      play_se(6);
       // Aボタンで遷移
       if(current_menu[idx].submenu_ptr != NULL){
         // サブメニュー
