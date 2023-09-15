@@ -3,6 +3,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 
 #define SCRN_W 256
 #define SCRN_H 192
@@ -30,11 +31,12 @@
 
 typedef struct ENTRY entry_t;
 struct ENTRY{
-  unsigned char name[16];       // 表示する文字列
+  unsigned char name[11];       // 表示する文字列
   const entry_t *submenu_ptr;   // サブメニューへのポインタ（NULLならシェルコマンド）
   unsigned char cmd[32];        // CCPに渡すコマンド
   unsigned char char_color;     // 文字色
   unsigned char back_color;     // 背景色
+  unsigned char thm_file[9];    // サムネファイル
 };
 
 extern void coutc(const char c);
@@ -52,6 +54,10 @@ extern void gr(const unsigned char display_number);
 extern unsigned int pad();
 extern void system(unsigned char* commandline);
 extern void play_se(unsigned char se_num);
+extern unsigned char put_thumbnail(unsigned char x, unsigned char y, unsigned char* path);
+
+char thm_base[10+8+4+1] = "A:/DOC/TH/";
+const char thm_ext[] = ".THM";
 
 const entry_t main_menu[];
 const entry_t info_menu[];
@@ -72,6 +78,13 @@ void drawEntry(unsigned char base_x, unsigned char base_y, const entry_t* entry)
   rect(base_x/2+1, base_y+1, (base_x+ENTRY_W)/2-2, base_y+ENTRY_H-2);
   col(entry->char_color,entry->back_color);
   gput(base_x/2+2, base_y+2, entry->name);
+  if(entry->thm_file[0]!='\0'){
+    strcat(thm_base,entry->thm_file);
+    strcat(thm_base,thm_ext);
+    //couts(thm_base);
+    put_thumbnail(base_x/2+10,base_y+10,thm_base);
+    thm_base[10]='\0'; //A:/DOC/TH/* <-10
+  }
 }
 
 void drawMenu(const entry_t* menu){
@@ -177,50 +190,64 @@ const entry_t main_menu[ENTRY_CNT] ={
   {"\x9E\xA2\xB2\x92",    // せつめい
     &info_menu[0],
     "",
-    0x00, 0xBB },
+    0x00, 0xBB,
+    ""
+  },
   {"\xD9\xBE\x90\xF1",    // ゲーム
     &game_menu[0],
     "",
-    0x00, 0xDD },
+    0x00, 0xDD,
+    "GAME"
+  },
   {"\xA4\xBE\x93\xC5",    // と゛うが
     &movie_menu[0],
     "",
-    0xBB, 0x99 },
+    0xBB, 0x99,
+    ""
+  },
 
   {"\x9C\x8C\x9C\xBD",    // しゃしん
     &photo_menu[0],
     "",
-    0x00, 0x77},
+    0x00, 0x77,
+    ""
+  },
   {"\x95\xBD\xC5\x98",    // おんがく
     &music_menu[0],
     "",
-    0x00, 0x33},
+    0x00, 0x33,
+    ""
+  },
   {"BASIC",               // BASIC
     NULL,
     "BASIC\n",
-    0x00, 0xFF},
+    0x00, 0xFF,
+    ""
+  },
 
   {"DOS\xDC\xCA\xF9",     // DOSシェル
     NULL,
     "nogui\n",
-    0xFF, 0x44},
-  {"", NULL, "", 0xFF, 0x00},
-  {"", NULL, "", 0xFF, 0x00},
+    0xFF, 0x44,
+    ""
+  },
+  {"", NULL, "", 0xFF, 0x00, ""},
+  {"", NULL, "", 0xFF, 0x00, ""},
 };
 
 const entry_t info_menu[ENTRY_CNT] ={
 //{name,      submenu, cmd, char_color, back_color}
-  {"SYSTEM",  NULL,    "", 0xFF, 0x77},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
+  {"SYSTEM",  NULL,    "", 0xFF, 0x77, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
 
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
 
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00}
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00, ""}
 };
 
 const entry_t game_menu[ENTRY_CNT] ={
@@ -228,23 +255,29 @@ const entry_t game_menu[ENTRY_CNT] ={
   {"\xAD\xEB\xBE\x20\xD9\xBE\x90\xF1",     // ヘビゲーム
     NULL,
     "snake\n",
-    0x00, 0xDD},
+    0x00, 0xDD,
+    ""
+  },
   {"\xD5\xDE\xFB",     // オセロ
     NULL,
     "othello\n",
-    0x00, 0xDD},
+    0x00, 0xDD,
+    ""
+  },
   {"\xDC\xCD\x90\xE3\xC8\xFD\xD8\xBE",     // SHOOTING
     NULL,
     "stg\n",
-    0x00, 0xDD},
+    0x00, 0xDD,
+    ""
+  },
 
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
 
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00}
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00, ""}
 };
 
 const entry_t movie_menu[ENTRY_CNT] ={
@@ -252,32 +285,44 @@ const entry_t movie_menu[ENTRY_CNT] ={
   {"\xD1\xD2\xE4\xBE\xF9 MV",     // アイドル MV
     NULL,
     "MOVIE A:/DOC/IDOL.MV4\n",
-    0xFF, 0x44},
+    0xFF, 0x44,
+    ""
+  },
   {"AESTHETIC",     // AESTHETIC
     NULL,
     "MOVIE A:/DOC/MAC.MV4\n",
-    0xFF, 0x44},
+    0xFF, 0x44,
+    ""
+  },
   {"LAIN OP",     // LAIN OP
     NULL,
     "MOVIE A:/DOC/LAINOP.MV4\n",
-    0xFF, 0x44},
+    0xFF, 0x44,
+    ""
+  },
 
   {"\xB5\xB9\xB5\xB8\x33\x97\x31\xBC",     // ゆるゆり3き1わ
     NULL,
     "MOVIE A:/DOC/YRYR31.MV4\n",
-    0xFF, 0x44},
+    0xFF, 0x44,
+    ""
+  },
   {"\xBB\xBD\xB8\x98\x93\x98\xBE\xBD",     // ろんりくうぐん
     NULL,
     "MOVIE A:/DOC/LOGICAF.MV4\n",
-    0xFF, 0x44},
+    0xFF, 0x44,
+    ""
+  },
   {"\x9A\xBE\xA1\x93\x9B\x33\x97\x4F\x50",     // こ゛ちうさ3きOP
     NULL,
     "MOVIE A:/DOC/TKCAFE.MV4\n",
-    0xFF, 0x44},
+    0xFF, 0x44,
+    ""
+  },
 
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00}
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00, ""}
 };
 
 const entry_t photo_menu[ENTRY_CNT] ={
@@ -285,42 +330,53 @@ const entry_t photo_menu[ENTRY_CNT] ={
   {"\x91\x9B\xBE\xB4\x96\xD5\xD3\xF1",     // あさ゛やかオウム
     NULL,
     "PICT A:/DOC/PRT1.IM4\n",
-    0xFF, 0x44},
+    0xFF, 0x44,
+    ""
+  },
   {"\x9E\xA0\xC5\xB4\xD7\xCC\xFD\xEA\xBF\xDD",     // せたがやキャンパス
     NULL,
     "PICT A:/DOC/3GOKAN.IM4\n",
-    0xFF, 0x44},
+    0xFF, 0x44,
+    ""
+  },
   {"\xD1\xFD\xE5\xA1\x8C\xBD",     // アンナちゃん
     NULL,
     "PICT A:/DOC/ANNA1.IM4\n",
-    0xFF, 0x44},
+    0xFF, 0x44,
+    ""
+  },
 
   {"\xBC\xAC\x98\xF0\xD8",     // わふくミク
     NULL,
     "PICT A:/DOC/MIKU1.IM4\n",
-    0xFF, 0x44},
+    0xFF, 0x44,
+    ""
+  },
   {"\xE1\xE9\xA4\xDA\xDA\xD1",     // チノとココア
     NULL,
     "PICT A:/DOC/GU1.IM4\n",
-    0xFF, 0x44},
-  {"",        NULL,    "", 0xFF, 0x00},
+    0xFF, 0x44,
+    ""
+  },
+  {"",        NULL,    "", 0xFF, 0x00, ""},
 
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00}
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00, ""}
 };
 
 const entry_t music_menu[ENTRY_CNT] ={
 //{name,      submenu, cmd, char_color, back_color}
-  {"SNAKE",  NULL,    "", 0xFF, 0x77},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
+  {"SNAKE",  NULL,    "", 0xFF, 0x77, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
 
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
 
-  {"",        NULL,    "", 0xFF, 0x00},
-  {"",        NULL,    "", 0xFF, 0x00},
-  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00}
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00, ""}
 };
+

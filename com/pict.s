@@ -90,7 +90,7 @@ CHECK_FILE_EXT:
   BCS @NOTFOUND2                  ; 見つからなかったらあきらめる
   storeAY16 ZP_FINFO_SAV          ; FINFOを格納
   syscall FS_OPEN                 ; ファイルをオープン
-  BCS @NOTFOUND2                    ; オープンできなかったらあきらめる
+  BCS @NOTFOUND2                  ; オープンできなかったらあきらめる
   STA FD_SAV                      ; ファイル記述子をセーブ
 .endmac
 

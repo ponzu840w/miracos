@@ -6,12 +6,21 @@
 .ENDPROC
 .INCLUDE "../syscall.mac"
 
+BUFFER_SIZE=30
+THUMBNAIL_W=30 ; x2=60px
+THUMBNAIL_H=44
+
 .BSS
+THUMBNAIL_LINE_BUF: .RES BUFFER_SIZE
+FD_SAV: .RES 1
 
 .ZEROPAGE
 ZP_PADSTAT: .RES 2
 ZP_STRPTR:  .RES 2
 ZP_VB_STUB: .RES 2
+ZP_ITR:     .RES 1
+ZP_FINFO_SAV: .RES 1
+ZP_XSAV:    .RES 1
 
 .DATA
 
@@ -22,7 +31,7 @@ ZP_VB_STUB: .RES 2
 .INCLUDE "./+gui/chdz_basic.s"
 .INCLUDE "./+gui/se.s"
 
-.EXPORT _pad,_system,_play_se
+.EXPORT _pad,_system,_play_se,_put_thumbnail
 
 ; コンストラクタ
 .SEGMENT "ONCE"
@@ -115,5 +124,76 @@ _system:
 ; play_se(unsigned char se_num)
 _play_se:
   JSR PLAY_SE
+  RTS
+
+; -------------------------------------------------------------------
+; char put_thumbnail(unsigned char x, unsigned char y, unsigned char* path)
+; 指定座標に60x44の画像を設置する
+; 返り値0で正常終了
+; -------------------------------------------------------------------
+_put_thumbnail:
+  ; ---------------------------------------------------------------
+  ;   nullチェック
+  storeAX16 ZR0
+  LDA (ZR0)
+  BNE @SKP_NOTFOUND
+@NOTFOUND2:
+  JMP NOTFOUND
+@SKP_NOTFOUND:
+  ; ---------------------------------------------------------------
+  ;   オープン
+  mem2AY16 ZR0
+  syscall FS_FIND_FST             ; 検索
+  BCS @NOTFOUND2                  ; 見つからなかったらあきらめる
+  storeAY16 ZP_FINFO_SAV          ; FINFOを格納
+  syscall FS_OPEN                 ; ファイルをオープン
+  BCS @NOTFOUND2                  ; オープンできなかったらあきらめる
+  STA FD_SAV                      ; ファイル記述子をセーブ
+  ; ---------------------------------------------------------------
+  ;  表示初期化
+  JSR GRA_SETUP
+  LDA #THUMBNAIL_W-1             ; 画像サイズ
+  STA CRTC2::CHRW
+  LDA #THUMBNAIL_H-1
+  STA CRTC2::CHRH
+  JSR popa                       ; 書き込み座標
+  STA CRTC2::PTRY
+  JSR popa
+  STA ZP_XSAV
+  ; ---------------------------------------------------------------
+  ;  ロード
+  LDA #(THUMBNAIL_W*THUMBNAIL_H)/BUFFER_SIZE
+  STA ZP_ITR
+@BUF_LOOP:
+  LDA FD_SAV
+  STA ZR1                         ; 規約、ファイル記述子はZR1！
+  loadmem16 ZR0,THUMBNAIL_LINE_BUF; 書き込み先
+  loadAY16 BUFFER_SIZE
+  syscall FS_READ_BYTS            ; ロード
+  ; ---------------------------------------------------------------
+  ;  表示
+  LDA ZP_XSAV
+  STA CRTC2::PTRX
+  LDX #0
+@WDAT_LOOP:
+  LDA THUMBNAIL_LINE_BUF,X
+  STA CRTC2::WDAT
+  INX
+  LDA THUMBNAIL_LINE_BUF,X
+  STA CRTC2::WDAT
+  INX
+  LDA THUMBNAIL_LINE_BUF,X
+  STA CRTC2::WDAT
+  INX
+  CPX #BUFFER_SIZE
+  BNE @WDAT_LOOP
+  ; ---------------------------------------------------------------
+  DEC ZP_ITR
+  BNE @BUF_LOOP
+  LDA #0
+  RTS
+
+NOTFOUND:
+  LDA #1
   RTS
 
