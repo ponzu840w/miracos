@@ -81,8 +81,9 @@ void drawEntry(unsigned char base_x, unsigned char base_y, const entry_t* entry)
   if(entry->thm_file[0]!='\0'){
     strcat(thm_base,entry->thm_file);
     strcat(thm_base,thm_ext);
+    if(put_thumbnail(base_x/2+10,base_y+10,thm_base)==1)coutc('!');
     //couts(thm_base);
-    put_thumbnail(base_x/2+10,base_y+10,thm_base);
+    //coutc('\n');
     thm_base[10]='\0'; //A:/DOC/TH/* <-10
   }
 }
@@ -191,7 +192,7 @@ const entry_t main_menu[ENTRY_CNT] ={
     &info_menu[0],
     "",
     0x00, 0xBB,
-    ""
+    "info"
   },
   {"\xD9\xBE\x90\xF1",    // ゲーム
     &game_menu[0],
@@ -203,33 +204,33 @@ const entry_t main_menu[ENTRY_CNT] ={
     &movie_menu[0],
     "",
     0xBB, 0x99,
-    ""
+    "movie"
   },
 
   {"\x9C\x8C\x9C\xBD",    // しゃしん
     &photo_menu[0],
     "",
     0x00, 0x77,
-    ""
+    "photo"
   },
   {"\x95\xBD\xC5\x98",    // おんがく
     &music_menu[0],
     "",
     0x00, 0x33,
-    ""
+    "music"
   },
   {"BASIC",               // BASIC
     NULL,
     "BASIC\n",
     0x00, 0xFF,
-    ""
+    "basic"
   },
 
   {"DOS\xDC\xCA\xF9",     // DOSシェル
     NULL,
     "nogui\n",
     0xFF, 0x44,
-    ""
+    "dos"
   },
   {"", NULL, "", 0xFF, 0x00, ""},
   {"", NULL, "", 0xFF, 0x00, ""},
@@ -331,7 +332,7 @@ const entry_t photo_menu[ENTRY_CNT] ={
     NULL,
     "PICT A:/DOC/PRT1.IM4\n",
     0xFF, 0x44,
-    ""
+    "photo"
   },
   {"\x9E\xA0\xC5\xB4\xD7\xCC\xFD\xEA\xBF\xDD",     // せたがやキャンパス
     NULL,

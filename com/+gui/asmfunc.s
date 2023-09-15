@@ -170,6 +170,7 @@ _put_thumbnail:
   loadmem16 ZR0,THUMBNAIL_LINE_BUF; 書き込み先
   loadAY16 BUFFER_SIZE
   syscall FS_READ_BYTS            ; ロード
+  BCS NOTFOUND
   ; ---------------------------------------------------------------
   ;  表示
   LDA ZP_XSAV
@@ -190,10 +191,15 @@ _put_thumbnail:
   ; ---------------------------------------------------------------
   DEC ZP_ITR
   BNE @BUF_LOOP
+  LDA FD_SAV
+  syscall FS_CLOSE
+  BCS NOTFOUND
+  JSR END_PLOT
   LDA #0
   RTS
 
 NOTFOUND:
+  JSR END_PLOT
   LDA #1
   RTS
 
