@@ -90,6 +90,8 @@ void drawEntry(unsigned char base_x, unsigned char base_y, const entry_t* entry)
 
 void drawMenu(const entry_t* menu){
   unsigned char x=0, y=0, cnt=0;
+  col(0x0,0xFF);
+  gput(1,1,"8bit Computer FxT-65 Easy GUI");
   for(; y<ENTRY_CNT_Y ; y++){
     for(x=0; x<ENTRY_CNT_X ; x++){
       drawEntry(ENTRY_W*x, ENTRY_H*y+TOP_H, &menu[cnt++]);
@@ -188,12 +190,12 @@ int main(){
 
 const entry_t main_menu[ENTRY_CNT] ={
 //{name,      submenu,  cmd, char_color, back_color}
-  {"\x9E\xA2\xB2\x92",    // せつめい
-    &info_menu[0],
-    "",
-    0x00, 0xBB,
-    "info"
-  },
+  //{"\x9E\xA2\xB2\x92",    // せつめい
+  //  &info_menu[0],
+  //  "",
+  //  0x00, 0xBB,
+  //  "info"
+  //},
   {"\xD9\xBE\x90\xF1",    // ゲーム
     &game_menu[0],
     "",
@@ -236,20 +238,20 @@ const entry_t main_menu[ENTRY_CNT] ={
   {"", NULL, "", 0xFF, 0x00, ""},
 };
 
-const entry_t info_menu[ENTRY_CNT] ={
-//{name,      submenu, cmd, char_color, back_color}
-  {"SYSTEM",  NULL,    "", 0xFF, 0x77, ""},
-  {"",        NULL,    "", 0xFF, 0x00, ""},
-  {"",        NULL,    "", 0xFF, 0x00, ""},
-
-  {"",        NULL,    "", 0xFF, 0x00, ""},
-  {"",        NULL,    "", 0xFF, 0x00, ""},
-  {"",        NULL,    "", 0xFF, 0x00, ""},
-
-  {"",        NULL,    "", 0xFF, 0x00, ""},
-  {"",        NULL,    "", 0xFF, 0x00, ""},
-  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00, ""}
-};
+//const entry_t info_menu[ENTRY_CNT] ={
+////{name,      submenu, cmd, char_color, back_color}
+//  {"SYSTEM",  NULL,    "", 0xFF, 0x77, ""},
+//  {"",        NULL,    "", 0xFF, 0x00, ""},
+//  {"",        NULL,    "", 0xFF, 0x00, ""},
+//
+//  {"",        NULL,    "", 0xFF, 0x00, ""},
+//  {"",        NULL,    "", 0xFF, 0x00, ""},
+//  {"",        NULL,    "", 0xFF, 0x00, ""},
+//
+//  {"",        NULL,    "", 0xFF, 0x00, ""},
+//  {"",        NULL,    "", 0xFF, 0x00, ""},
+//  {RETNAME,  &main_menu[0],    "", 0xFF, 0x00, ""}
+//};
 
 const entry_t game_menu[ENTRY_CNT] ={
 //{name,      submenu, cmd, char_color, back_color}
@@ -257,7 +259,7 @@ const entry_t game_menu[ENTRY_CNT] ={
     NULL,
     "snake\n",
     0x00, 0xDD,
-    ""
+    "snake"
   },
   {"\xD5\xDE\xFB",     // オセロ
     NULL,
@@ -269,7 +271,7 @@ const entry_t game_menu[ENTRY_CNT] ={
     NULL,
     "stg\n",
     0x00, 0xDD,
-    ""
+    "stg"
   },
 
   {"",        NULL,    "", 0xFF, 0x00, ""},
@@ -368,8 +370,18 @@ const entry_t photo_menu[ENTRY_CNT] ={
 
 const entry_t music_menu[ENTRY_CNT] ={
 //{name,      submenu, cmd, char_color, back_color}
-  {"SNAKE",  NULL,    "", 0xFF, 0x77, ""},
-  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"Menuet G",     // Menuet
+    NULL,
+    "MENUET\n",
+    0xFF, 0x44,
+    ""
+  },
+  {"\x9A\x92\x92\xBB\xEF\xDC\xBE\xCF\xD8",     // こいいろマシ゛ック
+    NULL,
+    "KOIIRO\n",
+    0xFF, 0x44,
+    ""
+  },
   {"",        NULL,    "", 0xFF, 0x00, ""},
 
   {"",        NULL,    "", 0xFF, 0x00, ""},
