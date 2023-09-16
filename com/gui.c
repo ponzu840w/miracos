@@ -81,7 +81,7 @@ void drawEntry(unsigned char base_x, unsigned char base_y, const entry_t* entry)
   if(entry->thm_file[0]!='\0'){
     strcat(thm_base,entry->thm_file);
     strcat(thm_base,thm_ext);
-    if(put_thumbnail(base_x/2+10,base_y+10,thm_base)==1)coutc('!');
+    if(put_thumbnail((base_x+((ENTRY_W-4-60)/2))/2+1,base_y+12,thm_base)==1)coutc('!');
     //couts(thm_base);
     //coutc('\n');
     thm_base[10]='\0'; //A:/DOC/TH/* <-10

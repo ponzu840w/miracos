@@ -6,7 +6,7 @@
 .ENDPROC
 .INCLUDE "../syscall.mac"
 
-BUFFER_SIZE=30
+BUFFER_SIZE=30*4
 THUMBNAIL_W=30 ; x2=60px
 THUMBNAIL_H=44
 
@@ -119,6 +119,11 @@ _system:
   mem2AY16 ZP_VB_STUB
   syscall IRQ_SETHNDR_VB
   CLI
+  ; ミュート
+  LDA #YMZ::IA_VOL
+  STA YMZ::ADDR
+  STZ YMZ::DATA
+  ; 実行
   JMP $5000
 
 ; play_se(unsigned char se_num)
@@ -177,6 +182,9 @@ _put_thumbnail:
   STA CRTC2::PTRX
   LDX #0
 @WDAT_LOOP:
+  LDA THUMBNAIL_LINE_BUF,X
+  STA CRTC2::WDAT
+  INX
   LDA THUMBNAIL_LINE_BUF,X
   STA CRTC2::WDAT
   INX
