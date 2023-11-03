@@ -332,7 +332,7 @@ const entry_t movie_menu[ENTRY_CNT] ={
     0xFF, 0x44,
     ""
   },
-  {"16bit 65535",     // 16bit 65535
+  {"16bit65535",     // 16bit65535
     NULL,
     "MOVIE A:/DOC/65535.MV4\n",
     0xFF, 0x44,
