@@ -111,12 +111,6 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
   .PROC FS
     .INCLUDE "fs/fs.s"
   .ENDPROC
-  .PROC GCHR
-    .INCLUDE "gcon/gchr.s"
-  .ENDPROC
-  .PROC GCON
-    .INCLUDE "gcon/gcon.s"
-  .ENDPROC
   .PROC BCOS_UART ; 単にUARTとするとアドレス宣言とかぶる
     .INCLUDE "uart.s"
   .ENDPROC
@@ -126,6 +120,12 @@ ZP_CONINBF_LEN  = ROMZ::ZP_INPUT_BF_LEN
   .ENDPROC
   .PROC IRQ
     .INCLUDE "interrupt.s"
+  .ENDPROC
+  .PROC GCHR
+    .INCLUDE "gcon/gchr.s"
+  .ENDPROC
+  .PROC GCON
+    .INCLUDE "gcon/gcon.s"
   .ENDPROC
 BCOS_ENT_DONKI:
   .PROC DONKI
