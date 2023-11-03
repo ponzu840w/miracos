@@ -261,18 +261,21 @@ const entry_t game_menu[ENTRY_CNT] ={
     0x00, 0xDD,
     "snake"
   },
+  /*
   {"\xD5\xDE\xFB",     // オセロ
     NULL,
     "othello\n",
     0x00, 0xDD,
     ""
   },
+  */
   {"\xDC\xCD\x90\xE3\xC8\xFD\xD8\xBE",     // SHOOTING
     NULL,
     "stg\n",
     0x00, 0xDD,
     "stg"
   },
+  {"",        NULL,    "", 0xFF, 0x00, ""},
 
   {"",        NULL,    "", 0xFF, 0x00, ""},
   {"",        NULL,    "", 0xFF, 0x00, ""},
@@ -323,8 +326,18 @@ const entry_t movie_menu[ENTRY_CNT] ={
     ""
   },
 
-  {"",        NULL,    "", 0xFF, 0x00, ""},
-  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"\xB5\xB5\x9C\x97\x4F\x50",     // ゆゆしきOP
+    NULL,
+    "MOVIE A:/DOC/SE-NO.MV4\n",
+    0xFF, 0x44,
+    ""
+  },
+  {"16bit 65535",     // 16bit 65535
+    NULL,
+    "MOVIE A:/DOC/65535.MV4\n",
+    0xFF, 0x44,
+    ""
+  },
   {RETNAME,  &main_menu[0],    "", 0xFF, 0x00, ""}
 };
 
@@ -349,6 +362,12 @@ const entry_t photo_menu[ENTRY_CNT] ={
     ""
   },
 
+  {"\xD1\xFD\xE5 10/31",     // アンナ 10/31
+    NULL,
+    "PICT A:/DOC/ANNA2.IM4\n",
+    0xFF, 0x44,
+    ""
+  },
   {"\xBC\xAC\x98\xF0\xD8",     // わふくミク
     NULL,
     "PICT A:/DOC/MIKU1.IM4\n",
@@ -361,7 +380,6 @@ const entry_t photo_menu[ENTRY_CNT] ={
     0xFF, 0x44,
     ""
   },
-  {"",        NULL,    "", 0xFF, 0x00, ""},
 
   {"",        NULL,    "", 0xFF, 0x00, ""},
   {"",        NULL,    "", 0xFF, 0x00, ""},
