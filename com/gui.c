@@ -33,7 +33,7 @@ typedef struct ENTRY entry_t;
 struct ENTRY{
   unsigned char name[11];       // 表示する文字列
   const entry_t *submenu_ptr;   // サブメニューへのポインタ（NULLならシェルコマンド）
-  unsigned char cmd[32];        // CCPに渡すコマンド
+  unsigned char cmd[64];        // CCPに渡すコマンド
   unsigned char char_color;     // 文字色
   unsigned char back_color;     // 背景色
   unsigned char thm_file[9];    // サムネファイル
@@ -275,7 +275,12 @@ const entry_t game_menu[ENTRY_CNT] ={
     0x00, 0xDD,
     "stg"
   },
-  {"",        NULL,    "", 0xFF, 0x00, ""},
+  {"PONG",
+    NULL,
+    "basic\nload\"doc/bas/gpt/pong2.bas\"\nrun\n",
+    0x00, 0xDD,
+    ""
+  },
 
   {"",        NULL,    "", 0xFF, 0x00, ""},
   {"",        NULL,    "", 0xFF, 0x00, ""},
