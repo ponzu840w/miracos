@@ -78,6 +78,12 @@ MAIN:
   LDA ZP_CH_ENABLE
   AND #%1
   BNE MAIN
+  ; ---------------------------------------------------------------
+  ;   割り込みハンドラの解除
+  SEI
+  mem2AY16 ZP_VB_STUB
+  syscall IRQ_SETHNDR_VB
+  CLI
   RTS
 
 PATH_PICT:
