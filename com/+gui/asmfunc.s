@@ -102,6 +102,12 @@ _system:
   PHX
   PLY
   storeAY16 ZP_STRPTR
+  ; バッファクリア
+@RAWIN:
+  LDA #$1 ;nowaitnoecho
+  syscall CON_RAWIN
+  BNE @RAWIN
+  ; コマンドラインをバッファに押し込む
   LDY #0
 @LOOP:
   LDA (ZP_STRPTR),Y
