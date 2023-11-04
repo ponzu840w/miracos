@@ -38,7 +38,8 @@ BACK_CURSOR:
   RTS
 
 PUTC:
-  STZ CRTC2::CHRW           ; キャラクタボックス有効、幅1
+  LDX #(CRTC2::WF|0)        ; 第0フレーム
+  STX CRTC2::CONF
   ; コンソールに一文字表示する
   ; ---------------------------------------------------------------
   ;   改行コードの場合
@@ -53,8 +54,7 @@ PUTC:
   JSR SCROLL_DOWN
   DEC CURSOR_Y
 @SKP_SCROLL:
-  LDA #%10000000
-  STA CRTC2::CHRW           ; キャラクタボックス無効
+  JSR DISABLE_BOX
   RTS
 @SKP_LF:
   ; ---------------------------------------------------------------
@@ -74,8 +74,7 @@ PUTC:
   LDA #' '              ; 一つ戻ってスペースを書き込む
   JSR PUTC
   JSR BACK_CURSOR       ; カーソルを戻す
-  LDA #%10000000
-  STA CRTC2::CHRW           ; キャラクタボックス無効
+  JSR DISABLE_BOX
   RTS
 @SKP_BS:
   PHA
@@ -125,8 +124,7 @@ PUTC:
 ;EDIT_NL:                ; マスクした結果ゼロになったらば
 ;  INC CURSOR_Y          ; カーソル下降
 ;SKP_INC_EDY:
-  LDA #%10000000
-  STA CRTC2::CHRW           ; キャラクタボックス無効
+  JSR DISABLE_BOX
   RTS
 
 SCROLL_DOWN:
@@ -166,5 +164,10 @@ SCROLL_DOWN:
   BNE @LASTLOOP
   JSR GCHR::DRAW_ALLLINE                ; 新生ChDzはそんなに狂わない、今こそアプリにモード権限を委譲
   ;JSR GCHR::ENTER_TXTMODE             ; CHDZがすぐ狂うので初期化処理まで含める
+  RTS
+
+DISABLE_BOX:
+  LDA #(CRTC2::WF|1)        ; 第1フレーム
+  STA CRTC2::CONF
   RTS
 
