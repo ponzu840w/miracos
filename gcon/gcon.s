@@ -38,6 +38,7 @@ BACK_CURSOR:
   RTS
 
 PUTC:
+  STZ CRTC2::CHRW           ; キャラクタボックス有効、幅1
   ; コンソールに一文字表示する
   ; ---------------------------------------------------------------
   ;   改行コードの場合
@@ -52,6 +53,8 @@ PUTC:
   JSR SCROLL_DOWN
   DEC CURSOR_Y
 @SKP_SCROLL:
+  LDA #%10000000
+  STA CRTC2::CHRW           ; キャラクタボックス無効
   RTS
 @SKP_LF:
   ; ---------------------------------------------------------------
@@ -71,6 +74,8 @@ PUTC:
   LDA #' '              ; 一つ戻ってスペースを書き込む
   JSR PUTC
   JSR BACK_CURSOR       ; カーソルを戻す
+  LDA #%10000000
+  STA CRTC2::CHRW           ; キャラクタボックス無効
   RTS
 @SKP_BS:
   PHA
@@ -120,6 +125,8 @@ PUTC:
 ;EDIT_NL:                ; マスクした結果ゼロになったらば
 ;  INC CURSOR_Y          ; カーソル下降
 ;SKP_INC_EDY:
+  LDA #%10000000
+  STA CRTC2::CHRW           ; キャラクタボックス無効
   RTS
 
 SCROLL_DOWN:
