@@ -85,6 +85,8 @@ ZP_VB_ON:           .RES 1
 START:
   TSX
   STX ZP_SP
+  LDX #(CRTC2::WF|0)        ; 第0フレーム
+  STX CRTC2::CONF
   mem2mem16 ZP_PRE_PADSTAT,ZP_PADSTAT ; 表示するときすなわち状態変化があったとき、前回状態更新
   ; 汎用ポートの設定
   LDA VIA::PAD_DDR          ; 0で入力、1で出力
