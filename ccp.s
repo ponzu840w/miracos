@@ -5,6 +5,7 @@
 ; COSアプリケーションはCCPを食いつぶすことがあり、ウォームブートでカードからリロードされる
 ; つまり特権的地位を持つかもしれないCOSアプリケーションである
 ; -------------------------------------------------------------------
+MODE_GUI = 0
 .INCLUDE "FXT65.inc"
 ;.INCLUDE "generic.mac"   ; BCOSと抱き合わせアセンブルするとダブる
 .INCLUDE "fs/structfs.s"
@@ -24,7 +25,9 @@ TPA = $0700
 ZP_ATTR:          .RES 1  ; 属性バイトをシフトして遊ぶ
 
 .BSS
-GUI_FLAG:         .RES 1  ; 1=GUI強制
+.IF MODE_GUI
+  GUI_FLAG:         .RES 1  ; 1=GUI強制
+.ENDIF
 COMMAND_BUF:      .RES 64 ; コマンド入力バッファ
 
 ; -------------------------------------------------------------------
@@ -35,8 +38,10 @@ COMMAND_BUF:      .RES 64 ; コマンド入力バッファ
 ;                           シェルスタート
 ; -------------------------------------------------------------------
 START:
+.IF MODE_GUI
   LDA #1
   STA GUI_FLAG
+.ENDIF
   loadAY16 STR_INITMESSAGE
   syscall CON_OUT_STR             ; タイトル表示
 
@@ -178,8 +183,10 @@ OCOM_FOUND:
   syscall CRTC_RETBASE            ; CRTCを基底状態に戻す
   LDY #0                          ; ゼロページを指定するとリセットされる
   syscall IRQ_SETHNDR_C           ; CTRL+Cハンドラをリセット
+.IF MODE_GUI
   LDA GUI_FLAG
   BNE GUI
+.ENDIF
   JMP LOOP
 
 COMMAND_NOTFOUND:
@@ -190,6 +197,7 @@ COMMAND_NOTFOUND:
   syscall CON_OUT_STR
   JMP LOOP
 
+.IF MODE_GUI
 GUI:
   ; GUI
   LDA #'g'
@@ -201,6 +209,7 @@ GUI:
   LDA #$A
   syscall CON_INTERRUPT_CHR
   JMP LOOP
+.ENDIF
 
 ; -------------------------------------------------------------------
 ;                        DONKIデバッガ起動
@@ -233,9 +242,11 @@ ICOM_TEST:
   JSR TPA
   JMP LOOP
 
+.IF MODE_GUI
 ICOM_NOGUI:
   STZ GUI_FLAG
   JMP LOOP
+.ENDIF
 
 ; -------------------------------------------------------------------
 ;                          汎用関数群
@@ -379,7 +390,9 @@ ICOMNAMES:        ;.ASCIIZ "EXIT"        ; 0
                   .ASCIIZ "TEST"        ; 5
                   ;.ASCIIZ "LS"          ; 6
                   .ASCIIZ "DONKI"       ; 7
+                  .IF MODE_GUI
                   .ASCIIZ "NOGUI"
+                  .ENDIF
                   .BYT $0
 
 ICOMVECS:         ;.WORD ICOM_EXIT
@@ -390,5 +403,7 @@ ICOMVECS:         ;.WORD ICOM_EXIT
                   .WORD ICOM_TEST
                   ;.WORD ICOM_LS
                   .WORD ICOM_DONKI
+                  .IF MODE_GUI
                   .WORD ICOM_NOGUI
+                  .ENDIF
 
