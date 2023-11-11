@@ -152,8 +152,13 @@ IMF:
 
 IM4:
   ; CRTCを初期化
+  NOP
+  LDA #(CRTC2::WF|0)              ; 第0フレーム
+  STA CRTC2::CONF
+  NOP
   LDA #(CRTC2::TT|0)              ; 16色モード
   STA CRTC2::CONF
+  NOP
   LDA #%00011011                  ; f0123表示
   STA CRTC2::DISP
   LDA #%10000000                  ; ChrBox off
