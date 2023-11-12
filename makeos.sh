@@ -72,8 +72,10 @@ do
   mkdir ./bin/MCOS/${dn^^} -p
   # アセンブル/コンパイル 本番
   # コンパイル
+  warnings=""
   if [ "${ex##*.}" = "c" ]; then
-    cc65 -t none -O --cpu 65c02 -o "${td}/src.s" $comsrc
+    warnings=$(cc65 -t none -O --cpu 65c02 -o "${td}/src.s" $comsrc 2>&1 |
+      awk '/Warning/ {printf("w")} {next}')
     rm "${td}/asmfunc.o" -f
     find "${dn}/+${bn}/asmfunc.s" 2>/dev/null |
       xargs --no-run-if-empty ca65 --cpu 65c02 -I "./${dn}" -o "${td}/asmfunc.o"
@@ -111,9 +113,10 @@ do
     END{
       zpp=zp/(0x100-0x40)
       sizep=size/(strtonum(ccp)-strtonum(tpa))
-      printf("\t%16-s\tZP:$%2X(%2.1f%%)\tTPA:$%4X = %2.3fK (%2.1f%%)\n",name,zp,zpp*100,size,size/1000,sizep*100)
+      printf("\t%16-s\tZP:$%2X(%2.1f%%)\tTPA:$%4X = %2.3fK (%2.1f%%)",name,zp,zpp*100,size,size/1000,sizep*100)
     }
   '
+  echo ${warnings}
 done
 
 # 不要なオブジェクトファイル削除
