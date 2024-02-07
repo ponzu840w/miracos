@@ -84,7 +84,6 @@ void purseCommand(){
     // left
     if(command[0] == ','){
       cl_left = 1;
-      cmd_index = 1;
     }else{
       cl_left = super_atoi();
       // 数値スキップ
