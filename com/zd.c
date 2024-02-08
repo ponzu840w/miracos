@@ -129,7 +129,8 @@ unsigned int makeGap(char* to, char* from){
 }
 
 /* バッファのギャップを埋める */
-unsigned int closeGap(){
+unsigned int closeGap(char* to, char* from){
+  
 }
 
 /* i,a,c共通部分 */
@@ -196,6 +197,9 @@ int main(void){
         for(i=cl_left; i <= cl_right; i++){
           put_line(getLine(i));
         }
+        break;
+      case 'd':  /* delete */
+
         break;
       case 'i': /* insert */
         insertLine(cl_right);
