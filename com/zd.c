@@ -6,7 +6,8 @@
  -------------------------------------------------------------------
 */
 
-#define BUFFER_SIZE 1024
+#define TEXT_BUFFER_SIZE 1024
+#define LINE_BUFFER_SIZE 256
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,8 +17,9 @@
 extern void coutc(const char c);
 extern void cins(const char *str);
 
-// テキストバッファ
-char text_buffer[BUFFER_SIZE];
+// グローバル変数
+char text_buffer[TEXT_BUFFER_SIZE]; /* テキストバッファ */
+char line_buffer[LINE_BUFFER_SIZE]; /* ラインバッファ */
 char command[64];
 unsigned int cl, cl_left, cl_right, lastl;
 unsigned char cmd_index, cmd_verb_index;
@@ -103,16 +105,44 @@ void purseCommand(){
     }
 }
 
+/* バッファにギャップを作る */
+unsigned int makeGap(char* to, char* from){
+  unsigned int length = strlen(from);
+  unsigned int i = length;
+  char* to_work = to+length;
+  char* from_work = from+length;
+
+  /* バッファ超過エラー */
+  if(from_work > &text_buffer[TEXT_BUFFER_SIZE-1])
+    return 0;
+
+  /* 移動先が移動元より前にあるエラー */
+  if(to <= from)
+    return 0;
+
+  do{
+    *(to_work--) = *(from_work--);
+  }while(--i == 0);
+  return 1;
+}
+
+/* バッファのギャップを埋める */
+unsigned int closeGap(){
+}
+
 int main(void){
   //char* line_ptr;
   char verb;
-  unsigned int i;
+  unsigned int i, len;
 
   // テスト用テキストでバッファを初期化
   strcpy(text_buffer,"Line1. This is Text Buffer.\nLine2. New Line\nLine3.\nLine4. Good Bye.");
 
   printf("sample_text:\n%s\n",text_buffer);
   printf("text_buffer:%d\n",&text_buffer);
+
+  makeGap(getLine(3),getLine(2));
+  printf("gaped_text:\n%s\n",text_buffer);
 
   cl = 1;
   lastl = 4;
@@ -135,10 +165,14 @@ int main(void){
     // コマンド実行
     verb = command[cmd_verb_index];
     switch(verb){
-      case 'p':
+      case 'p': /* print */
         for(i=cl_left;i<=cl_right;i++){
           put_line(getLine(i));
         }
+        break;
+      case 'a': /* append */
+        cins(line_buffer);
+        strlen(line_buffer);
         break;
     }
 
