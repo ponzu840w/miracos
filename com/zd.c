@@ -39,7 +39,7 @@ char* getLine(unsigned int line_num){
   char* ptr = text_buffer;
 
   // 空バッファチェック
-  if(text_buffer[0] == '\0')return NULL;
+  if(text_buffer[0] == '\0')return ptr;
 
   // 1行目
   if(line_num == 1)return ptr;
@@ -79,6 +79,7 @@ void purseCommand(){
     cmd_index = 0;
     while(!('A' <= command[cmd_index] && command[cmd_index] <= 'Z' ||
           'a' <= command[cmd_index] && command[cmd_index] <= 'z' ||
+          command[cmd_index] == '=' ||
           command[cmd_index] == '\0'))cmd_index++;
     cmd_verb_index = cmd_index;
     // 対象行取得
@@ -109,7 +110,6 @@ void purseCommand(){
 /* バッファにギャップを作る */
 unsigned int makeGap(char* to, char* from){
   unsigned int length = strlen(from);
-  unsigned int i = length;
   char* to_work = to+length;
   char* from_work = from+length;
 
@@ -119,18 +119,25 @@ unsigned int makeGap(char* to, char* from){
 
   /* 移動先が移動元より前にあるエラー */
   if(to <= from)
-    return 2;
+    return 0;
 
   do{
     //printf("len=%u, from:%d, from_work:%d, char=%c\n",length,from,from_work,*from_work);
     *(to_work--) = *(from_work--);
-  }while(i-- > 0);
+  }while(length-- > 0);
   return 1;
 }
 
 /* バッファのギャップを埋める */
 unsigned int closeGap(char* to, char* from){
-  
+  /* 移動先が移動元より前にあるエラー */
+  if(from <= to)
+    return 0;
+
+  do{
+    *(to++) = *from;
+  }while(*from++ != '\0');
+  return 1;
 }
 
 /* i,a,c共通部分 */
@@ -144,8 +151,8 @@ void insertLine(unsigned int line){
   /* 末尾でなければスキマを作る */
   if(line <= lastl){
     makeGap(ptr+len, ptr);
-  }else{
-    *(ptr++) = '\n';  /* 末尾ならEOTを改行にしてポインタを進める */
+  }else if(line != 1){  /* 前に行があるときの末尾 */
+    *(ptr++) = '\n';    /*  EOTを改行にしてポインタを進める */
   }
 
   /* スキマに入力をコピー */
@@ -162,6 +169,7 @@ void insertLine(unsigned int line){
 int main(void){
   char verb;
   unsigned int i;
+  unsigned int line_cnt;
 
   // テスト用テキストでバッファを初期化
   strcpy(text_buffer,"Line1. This is Text Buffer.\nLine2. New Line\nLine3.\nLine4. Good Bye.");
@@ -182,13 +190,21 @@ int main(void){
     cins(command);
     coutc('\n');
     purseCommand();
-    printf("purse left:%u, right %u, verb_index %u\n",cl_left,cl_right,cmd_verb_index);
+    //printf("[DBG]purse left:%u, right %u, verb_index %u\n",cl_left,cl_right,cmd_verb_index);
 
     // 例外処理:範囲指定がひっくり返ってる
     if(cl_left > cl_right){
       printf("[ERROR] left > right.\n");
       continue;
     }
+
+    // 例外処理:最終行を突破
+    if(cl_right > lastl){
+      printf("[ERROR] Over range.\n");
+      continue;
+    }
+
+    line_cnt = cl_right - cl_left +1;
 
     // コマンド実行
     verb = command[cmd_verb_index];
@@ -198,18 +214,34 @@ int main(void){
           put_line(getLine(i));
         }
         break;
-      case 'd':  /* delete */
-
+      case 'd': /* delete */
+        closeGap(getLine(cl_left), getLine(cl_right+1));
+        lastl -= line_cnt;      /* 最終行繰り上がり */
+        cl_right = cl_left;
         break;
       case 'i': /* insert */
+        if(cl_right == 0)cl_right = 1;
         insertLine(cl_right);
+        coutc('\n');
         break;
       case 'a': /* append */
         insertLine(cl_right+1);
+        if(cl_right == 0)cl_right = 1;
+        coutc('\n');
+        break;
+      case '=': /* 指定行番号表示 */
+        /* デフォルトは$ */
+        if(cmd_verb_index == 0){
+          i = lastl;
+        }else{
+          i = cl_right;
+        }
+        printf("%u\n", i);
         break;
     }
 
     cl = cl_right;
+    if(cl > lastl)cl = lastl;
   }
   return 0;
 }
