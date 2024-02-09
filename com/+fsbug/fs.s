@@ -673,6 +673,9 @@ FUNC_FS_MAKE:
   pullmem16 FWK_REAL_SEC
   JSR RDSEC                 ; セクタ読み出し
   pullmem16 ZP_SDSEEK_VEC16
+  ; セクタ内エントリ番号をFINFO_WKに展開する
+  JSR MAKE_DIR_ENT
+  JSR MAKE_DIR_RSEC ; それをFWKのRSECに登録
   ; エントリがセクタ最終か分岐
   LDA ZP_SDSEEK_VEC16
   CMP #$E0
@@ -701,7 +704,10 @@ FUNC_FS_MAKE:
   ; ---------------------------------------------------------------
   ;   ファイルをオープンする
 @OPEN:
-  JMP FINFO2FD
+  JSR FD_OPEN1
+  BCS FINFO2FD_ERR
+  CLC
+  RTS
 
   ; ---------------------------------------------------------------
   ;   ディレクトリ：.と..
@@ -730,11 +736,18 @@ FUNC_FS_MAKE:
   LDA #32
   STA ZP_SDSEEK_VEC16
   JSR DIR_WRENT
+X0RTS2:
   CLC
   RTS
 
-SFN_BLACKLIST:
-  .BYTE $22,"*+,./:;<=>?[",$5C,"]|",$7F ; 17文字
+FINFO2FD:
+  ; 開かれているFINFOからFDを作成して帰る
+  JSR FD_OPEN
+  BCC X0RTS2                ; エラーハンドル
+FINFO2FD_ERR:
+  LDA #ERR::FAILED_OPEN
+ERR_REPORT:
+  JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
 
 ; -------------------------------------------------------------------
 ; BCOS 5                  ファイルオープン
@@ -777,14 +790,6 @@ FUNC_FS_OPEN_RAWPATH:
   BCC FINFO2FD              ; エラーハンドル
   RTS
 OPEN_RAWPATH_SPF=@SPF_PATH
-FINFO2FD:
-  ; 開かれているFINFOからFDを作成して帰る
-  JSR FD_OPEN
-  BCC X0RTS                 ; エラーハンドル
-FINFO2FD_ERR:
-  LDA #ERR::FAILED_OPEN
-ERR_REPORT:
-  JMP ERR::REPORT           ; ERR:ディレクトリとかでオープンできない
 
 ; -------------------------------------------------------------------
 ;                        特殊ファイル番号取得
@@ -851,6 +856,7 @@ FD_OPEN:
   RTS
 @SKP_DIRERR:                ; 以下、ディレクトリではない
   JSR INTOPEN_FILE_DIR_RSEC ; 破壊的なので先にFINFOから親ディレクトリ情報をコピー
+FD_OPEN1:
   JSR INTOPEN_FILE          ; FINFOからファイルを開く
   JSR INTOPEN_FILE_SIZ      ; サイズ情報も展開
   JSR INTOPEN_FILE_CLEAR_SEEK ; シーク位置をリセット
@@ -1013,4 +1019,7 @@ CLEAR_FINFO:
   CPX #.SIZEOF(FINFO)-1
   BNE @FILLLOOP
   RTS
+
+SFN_BLACKLIST:
+  .BYTE $22,"*+,./:;<=>?[",$5C,"]|",$7F ; 17文字
 

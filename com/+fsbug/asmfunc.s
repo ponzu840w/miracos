@@ -171,6 +171,10 @@ INIT:
   PLY
   STZ ZR0
   JSR FS::FUNC_FS_MAKE
+  BCC @END
+  syscall ERR_GET
+  syscall ERR_MES
+@END:
   RTS
 .ENDPROC
 

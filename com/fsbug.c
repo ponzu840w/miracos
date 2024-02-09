@@ -63,7 +63,7 @@ extern void setGCONoff();
 extern void restoreGCON();
 extern void cins(const char *str);
 //extern unsigned char* path2finfo(unsigned char* path);
-extern unsigned char* makef(unsigned char* path);
+extern unsigned char makef(unsigned char* path);
 extern void maked(unsigned char* path);
 extern unsigned char open(unsigned char* path);
 extern unsigned int read(unsigned char fd, unsigned char *buf, unsigned int count);
@@ -302,7 +302,7 @@ int main(void){
 
     }else if(strcmp(tok,"table")==0){
       showFDtable();
-      printf("FCTRL_RES start:$%02X",&fctrl_res);
+      printf("FCTRL_RES start:$%02X\n",&fctrl_res);
 
     }else if(strcmp(tok,"work")==0){
       printf("\nFWK:\n");
@@ -366,7 +366,7 @@ int main(void){
     }else if(strcmp(tok,"makef")==0){
       // ファイル作成
       tok=inputpath(line,tok);
-      makef(tok);
+      fd=makef(tok);
 
     }else if(strcmp(tok,"del")==0){
       // ファイル削除
