@@ -195,6 +195,7 @@ void delete(){
 
 int main(void){
   char verb;
+  unsigned char n_switch;
 
   // テスト用テキストでバッファを初期化
   strcpy(text_buffer,"Line1. This is Text Buffer.\nLine2. New Line\nLine3.\nLine4. Good Bye.");
@@ -211,7 +212,7 @@ int main(void){
   // REPL
   while(1){
     // コマンドライン取得
-    coutc('*');
+    coutc('@');
     cins(command);
     coutc('\n');
     purseCommand();
@@ -233,10 +234,15 @@ int main(void){
 
     // コマンド実行
     verb = command[cmd_verb_index];
+    n_switch = 0;
     switch(verb){
+      case 'n': /* number */
+        n_switch = 1;
       case 'p': /* print */
         cl = cl_left;
         do{
+          if(n_switch)
+            printf("%-3u|",cl);
           put_line(getLine(cl));
         }while(cl++ < cl_right);
         break;
