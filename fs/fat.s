@@ -256,15 +256,7 @@ DIR_GETENT:
   DEX
   BPL @CLUSLOOP
   ; セクタ内エントリ番号の登録
-  LDA ZP_SDSEEK_VEC16+1         ; シーク位置の上位
-  CMP #>SECBF512                ; バッファの上位と同じか
-  CLC
-  BEQ @SKP_8
-  SEC
-@SKP_8:                         ; シークがセクタ前半ならC=0、後半ならC=1
-  LDA ZP_SDSEEK_VEC16           ; シーク位置の下位、32bitアライメント
-  ROR ; 16                      ; キャリーを巻き込む
-  STA FINFO_WK+FINFO::DIR_ENT   ; セクタ内エントリ番号を登録
+  JSR MAKE_DIR_ENT
   LDY #OFS_DIR_ATTR
   LDA (ZP_SDSEEK_VEC16),Y
   STA FINFO_WK+FINFO::ATTR      ; 一応LFNであったとしても属性は残しておく
@@ -312,6 +304,19 @@ DIR_GETENT:
   STA FINFO_WK+FINFO::HEAD+3
   LDA #1                       ; 成功コード
 @EXT:
+  RTS
+
+; ZP_SDSEEK_VEC16からセクタ内エントリ番号を作る
+MAKE_DIR_ENT:
+  LDA ZP_SDSEEK_VEC16+1         ; シーク位置の上位
+  CMP #>SECBF512                ; バッファの上位と同じか
+  CLC
+  BEQ @SKP_8
+  SEC
+@SKP_8:                         ; シークがセクタ前半ならC=0、後半ならC=1
+  LDA ZP_SDSEEK_VEC16           ; シーク位置の下位、32bitアライメント
+  ROR ; 16                      ; キャリーを巻き込む
+  STA FINFO_WK+FINFO::DIR_ENT   ; セクタ内エントリ番号を登録
   RTS
 
 CUR_CLUS_2_LOGICAL_FAT:
@@ -438,6 +443,7 @@ INTOPEN_FILE_SIZ:
 
 INTOPEN_FILE_DIR_RSEC:
   JSR FINFO_WK_OPEN_DIRENT        ; FINFOの親をFWKに
+MAKE_DIR_RSEC:
   ; fwk::rsec<=realsec
   loadreg16 FWK+FCTRL::DIR_RSEC
   JSR AX_DST
