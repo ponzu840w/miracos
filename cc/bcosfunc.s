@@ -39,6 +39,7 @@
 .export _fs_close
 .export _fs_read
 .export _fs_write
+.export _fs_makef
 
 .CODE
 
@@ -199,6 +200,21 @@
 @END:
   PHY
   PLX
+  RTS
+.ENDPROC
+
+; -------------------------------------------------------------------
+;                              fs_makef
+; -------------------------------------------------------------------
+; unsigned char fs_makef(char* path);
+.PROC _fs_makef
+  PHX
+  PLY
+  STZ BCOS::ZR0
+  syscall FS_MAKE
+  BCC @END
+  LDA #$FF                        ; エラーコード255
+@END:
   RTS
 .ENDPROC
 
