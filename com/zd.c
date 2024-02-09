@@ -22,6 +22,7 @@ char text_buffer[TEXT_BUFFER_SIZE]; /* テキストバッファ */
 char line_buffer[LINE_BUFFER_SIZE]; /* ラインバッファ */
 char command[64];
 unsigned int cl, cl_left, cl_right, lastl;
+unsigned int line_cnt;
 unsigned char cmd_index, cmd_verb_index;
 
 // 1行表示
@@ -142,10 +143,16 @@ unsigned int closeGap(char* to, char* from){
 
 /* i,a,c共通部分 */
 /* 0 <= line <= lastl+1 */
-void insertLine(unsigned int line){
+/* 終了で偽を返す */
+unsigned char insertLine(unsigned int line){
   unsigned int len;
   char* ptr = getLine(line);    /* 操作対象行 */
   cins(line_buffer);            /* 入力バッファに入力 */
+
+  /* 終了チェック */
+  if(line_buffer[0] == '.' && line_buffer[1] == '\0')
+    return 0;
+
   len = strlen(line_buffer)+1;
 
   /* 末尾でなければスキマを作る */
@@ -164,12 +171,30 @@ void insertLine(unsigned int line){
 
   /* 1行増えたので最終行を増加 */
   lastl++;
+
+  /* カレント行更新 */
+  cl = line;
+
+  return 1;
+}
+
+/* 編集モード */
+void edit(unsigned int line){
+  unsigned int flag;
+  do{
+    flag = insertLine(line++);
+    coutc('\n');
+  }while(flag == 1);
+}
+
+/* 削除 */
+void delete(){
+  closeGap(getLine(cl_left), getLine(cl_right+1));
+  lastl -= line_cnt;      /* 最終行繰り上がり */
 }
 
 int main(void){
   char verb;
-  unsigned int i;
-  unsigned int line_cnt;
 
   // テスト用テキストでバッファを初期化
   strcpy(text_buffer,"Line1. This is Text Buffer.\nLine2. New Line\nLine3.\nLine4. Good Bye.");
@@ -186,7 +211,7 @@ int main(void){
   // REPL
   while(1){
     // コマンドライン取得
-    coutc('@');
+    coutc('*');
     cins(command);
     coutc('\n');
     purseCommand();
@@ -210,37 +235,38 @@ int main(void){
     verb = command[cmd_verb_index];
     switch(verb){
       case 'p': /* print */
-        for(i=cl_left; i <= cl_right; i++){
-          put_line(getLine(i));
-        }
+        cl = cl_left;
+        do{
+          put_line(getLine(cl));
+        }while(cl++ < cl_right);
         break;
       case 'd': /* delete */
-        closeGap(getLine(cl_left), getLine(cl_right+1));
-        lastl -= line_cnt;      /* 最終行繰り上がり */
-        cl_right = cl_left;
+        delete();
+        cl = cl_left;
         break;
       case 'i': /* insert */
         if(cl_right == 0)cl_right = 1;
-        insertLine(cl_right);
-        coutc('\n');
+        edit(cl_right);
         break;
       case 'a': /* append */
-        insertLine(cl_right+1);
-        if(cl_right == 0)cl_right = 1;
-        coutc('\n');
+        edit(cl_right+1);
+        break;
+      case 'c': /* change */
+        delete();
+        edit(cl_right);
         break;
       case '=': /* 指定行番号表示 */
         /* デフォルトは$ */
         if(cmd_verb_index == 0){
-          i = lastl;
+          cl = lastl;
         }else{
-          i = cl_right;
+          cl = cl_right;
         }
-        printf("%u\n", i);
+        printf("%u\n", cl);
         break;
     }
 
-    cl = cl_right;
+    /* カレント行が間違っても最終行を超えないように。 */
     if(cl > lastl)cl = lastl;
   }
   return 0;
