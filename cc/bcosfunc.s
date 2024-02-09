@@ -19,6 +19,8 @@
   ;CON_IN_STR          = 7
   ; --- 抜粋ここまで ---
 .include "../syscall.mac"   ; 普段使ってるマクロ
+.include "../generic.mac"
+.include "../zr.inc"
 .endproc
 
 .IMPORT popa, popax
@@ -33,6 +35,10 @@
 .export _fs_find_nxt
 .export _fs_delete
 .export _err_print
+.export _fs_open
+.export _fs_close
+.export _fs_read
+.export _fs_write
 
 .CODE
 
@@ -113,7 +119,7 @@
 .proc _fs_delete: near          ; 引数: AX=FINFOかPATH
   PHX
   PLY
-  syscall FS_DELETE             ; 引数: AY=FINFO構造体 ZR0=ファイル名
+  syscall FS_DELETE             ; 引数: AY=FINFOかPATH
   LDA #$0
   BCC @NOERROR
   INC
@@ -130,4 +136,69 @@
   syscall ERR_MES
   RTS
 .endproc
+
+; -------------------------------------------------------------------
+;                              fs_open
+; -------------------------------------------------------------------
+; unsigned char fs_open(void* finfo / path)
+.PROC _fs_open                    ; 引数: AX=FINFOかPATH
+  PHX
+  PLY
+  syscall FS_OPEN                 ; 引数: AY=FINFOかPATH
+  BCC @END
+  LDA #$FF                        ; エラーコード255
+@END:
+  RTS
+.ENDPROC
+
+; -------------------------------------------------------------------
+;                              fs_close
+; -------------------------------------------------------------------
+; void fs_close(unsigned char fd)
+.PROC _fs_close
+  syscall FS_CLOSE
+  RTS
+.ENDPROC
+
+; -------------------------------------------------------------------
+;                              fs_read
+; -------------------------------------------------------------------
+; unsigned int fs_read(unsigned char fd, unsigned char *buf, unsigned int count);
+.PROC _fs_read
+  pushAX16
+  JSR popax
+  storeAX16 BCOS::ZR0
+  JSR popa
+  STA BCOS::ZR1
+  pullAY16
+  syscall FS_READ_BYTS
+  BCC @END
+  LDA #$FF                          ; エラーコード65535
+  TAY
+@END:
+  PHY
+  PLX
+  RTS
+.ENDPROC
+
+; -------------------------------------------------------------------
+;                              fs_write
+; -------------------------------------------------------------------
+; unsigned int fs_write(unsigned char fd, unsigned char *buf, unsigned int count);
+.PROC _fs_write
+  pushAX16
+  JSR popax
+  storeAX16 BCOS::ZR0
+  JSR popa
+  STA BCOS::ZR1
+  pullAY16
+  syscall FS_WRITE
+  BCC @END
+  LDA #$FF                          ; エラーコード65535
+  TAY
+@END:
+  PHY
+  PLX
+  RTS
+.ENDPROC
 
