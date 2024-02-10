@@ -50,28 +50,31 @@ void put_line(char* str){
 
 /* 行番号から行のポインタを得る */
 /* 最終行+1を指定するとEOTの場所が返る */
-/* 副作用として何行目まで数えたかがline_numに残る */
+/* 副作用として何行目まで数えたかがline_cntに残る */
 char* getLine(unsigned int line_num){
   char* ptr = text_buffer;
   line_cnt = 0;
 
   // 空バッファチェック
-  if(text_buffer[0] == '\0')return ptr;
+  if(text_buffer[0] == '\0') return ptr;
 
   line_cnt++;
 
   // 1行目
-  if(line_num == 1)return ptr;
+  if(line_num == 1) return ptr;
 
   // 1文字ずつのループ
   do{
     if(*ptr == '\n'){
-      if(line_num == ++line_cnt)
-        return ++ptr;
+      if(line_num == ++line_cnt) return ++ptr;
     }
-  }while(*(ptr++)!='\0');
+  }while(*(ptr++) != '\0');
 
-  return --ptr;
+  /* 改行即EOFは行数に含まない */
+  if(*(--ptr -1) == '\n') --line_cnt;
+
+  /* EOFの位置を返す */
+  return ptr;
 }
 
 // なんか都合のいいatoi
@@ -178,16 +181,19 @@ unsigned char insertLine(unsigned int line){
   /* 末尾でなければスキマを作る */
   if(line <= lastl){
     makeGap(ptr+len, ptr);
-  }else if(line != 1){  /* 前に行があるときの末尾 */
-    *(ptr++) = '\n';    /*  EOTを改行にしてポインタを進める */
+  }else if(*(ptr-1) != '\n' && line != 1){
+    /* NOEOLな末尾（1行目でない） */
+    *(ptr++) = '\n';  /*  改行してEOTの次までポインタを進める */
   }
 
   /* スキマに入力をコピー */
   strcpy(ptr, line_buffer);
 
-  /* 末尾でなければ挿入の終端を改行にする */
-  if(line <= lastl)
-    *(ptr+len-1) = '\n';
+  /* 挿入の終端を改行にする */
+  *(ptr+len-1) = '\n';
+
+  /* 末尾なら終端する */
+  if(line > lastl) *(ptr+len) = '\0';
 
   /* 1行増えたので最終行を増加 */
   lastl++;
@@ -277,6 +283,8 @@ int main(void){
   char verb;
   unsigned char n_switch;
   unsigned int load_cnt;
+  char* eff_addr_left;
+  unsigned int write_size;
 
   // テスト用テキストでバッファを初期化
   strcpy(text_buffer,"Line1. This is Text Buffer.\nLine2. New Line\nLine3.\nLine4. Good Bye.");
@@ -334,7 +342,7 @@ int main(void){
               cl = addr_left;
               break;
     case 'i': /* insert */
-              if(addr_right == 0)addr_right = 1;
+              if(addr_right == 0) addr_right = 1;
               edit(addr_right);
               break;
     case 'a': /* append */
@@ -381,8 +389,20 @@ int main(void){
               cl = lastl;
               break;
     case 'w': /* write */
-              if(!openFile(O_ALLOW_NEW_FILE|O_TRUNCATE_0SIZE)) continue;
-              load_cnt = fs_write(fd, text_buffer, getLine(65535u) - text_buffer -1);
+              /* デフォルトは1,$ */
+              if(cmd_verb_index == 0){
+                addr_left = 1;
+                addr_right = lastl;
+              }
+              if(!openFile(O_ALLOW_NEW_FILE | O_TRUNCATE_0SIZE)) continue;
+              load_cnt = 0;
+              if(addr_right != 0 && addr_left != 0){ /* 0行目があれば空ファイル生成にとどまる */
+                eff_addr_left = getLine(addr_left);
+                write_size = getLine(addr_right +1) - eff_addr_left;
+                printf("[DBG]eff_addr_left=%u, write_size=%u\n", eff_addr_left, write_size);
+                load_cnt = fs_write(fd, eff_addr_left, write_size);
+              }
+              printf("%u bytes wrote.\n", load_cnt);
               fs_close(fd);
               break;
     default:
@@ -390,7 +410,7 @@ int main(void){
     }
 
     /* カレント行が間違っても最終行を超えないように。 */
-    if(cl > lastl)cl = lastl;
+    if(cl > lastl) cl = lastl;
   }
   return 0;
 }
