@@ -8,6 +8,8 @@
 
 #define TEXT_BUFFER_SIZE 4096
 #define LINE_BUFFER_SIZE 256
+#define COMMAND_BUF_SIZE 64
+#define FILENAME_BUF_SIZ 16
 /* openFile()でファイルを開くときのフラグ */
 #define O_TRUNCATE_0SIZE 1  /* 開くときに既存の内容を捨てる */
 #define O_UPDATE_DEFAULT 2  /* デフォルトファイルを上書きする */
@@ -30,8 +32,8 @@ extern void err_print();
 // グローバル変数
 char text_buffer[TEXT_BUFFER_SIZE]; /* テキストバッファ */
 char line_buffer[LINE_BUFFER_SIZE]; /* ラインバッファ */
-char command[64];
-char default_filename[64];
+char command[COMMAND_BUF_SIZE];
+char default_filename[FILENAME_BUF_SIZ];
 unsigned int cl, addr_left, addr_right, lastl;
 unsigned int addr_lines;
 unsigned int line_cnt;
@@ -352,7 +354,7 @@ int main(void){
               printf("%u\n", cl);
               break;
     case 'e': /* edit */
-              if(!openFile(O_UPDATE_DEFAULT))continue;
+              if(!openFile(O_UPDATE_DEFAULT)) continue;
               load_cnt = fs_read(fd, text_buffer, TEXT_BUFFER_SIZE);
               fs_close(fd);
 
@@ -379,8 +381,7 @@ int main(void){
               cl = lastl;
               break;
     case 'w': /* write */
-              if(!openFile(O_ALLOW_NEW_FILE|O_TRUNCATE_0SIZE))
-                continue;
+              if(!openFile(O_ALLOW_NEW_FILE|O_TRUNCATE_0SIZE)) continue;
               load_cnt = fs_write(fd, text_buffer, getLine(65535u) - text_buffer -1);
               fs_close(fd);
               break;
