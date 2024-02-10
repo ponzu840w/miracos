@@ -103,22 +103,20 @@ void purseCommand(){
     // コマンドのインデックス取得
     cmd_index = 0;
     while(!('A' <= command[cmd_index] && command[cmd_index] <= 'Z' ||
-          'a' <= command[cmd_index] && command[cmd_index] <= 'z' ||
-          command[cmd_index] == '=' ||
-          command[cmd_index] == '\0'))cmd_index++;
+            'a' <= command[cmd_index] && command[cmd_index] <= 'z' ||
+            '=' == command[cmd_index] ||
+           '\0' == command[cmd_index] )) cmd_index++;
     cmd_verb_index = cmd_index;
     // 対象行取得
-    if(cmd_verb_index == 0)return; // 完全省略ならカレント行
+    if(cmd_verb_index == 0) return; // 完全省略ならカレント行
     cmd_index = 0;
     // left
     if(command[0] == ','){
-      addr_left = 1;
+      addr_left = (lastl == 0) ? 0 : 1;
     }else{
       addr_left = super_atoi();
       // 数値スキップ
-      do{
-        cmd_index++;
-      }while('0' <= command[cmd_index] && command[cmd_index] <= '9');
+      do{ cmd_index++; } while('0' <= command[cmd_index] && command[cmd_index] <= '9');
     }
     // right
     if(command[cmd_index] == ','){
@@ -279,7 +277,7 @@ char openFile(char openflags){
     printf("[ERR] File Name?");
     return 0;
   }
-  printf("[DBG]filename=[%s]\n",filename);
+  //printf("[DBG]filename=[%s]\n",filename);
 
   /* ファイルオープン */
   if((fd = fs_open(filename, openflags & O_TRUNCATE_0SIZE)) != 255u)
@@ -294,7 +292,6 @@ char openFile(char openflags){
 
 int main(void){
   char verb;
-  unsigned char n_switch;
   unsigned int load_cnt;
   char* eff_addr_left;
   unsigned int write_size;
@@ -316,7 +313,7 @@ int main(void){
   // REPL
   while(1){
     // コマンドライン取得
-    coutc('@');
+    printf("%u@", cl);
     cins(command);
     coutc('\n');
     purseCommand();
@@ -336,9 +333,22 @@ int main(void){
 
     addr_lines = addr_right - addr_left +1;
 
-    // コマンド実行
+    /* サブコマンド先頭文字 */
     verb = command[cmd_verb_index];
-    n_switch = 0;
+    /* 例外処理:空テキスト非対応コマンド */
+    if(lastl == 0){
+      switch(verb){
+      case 'n':
+      case 'p':
+      case 'd':
+      case '\0':
+        printf("[ERR] No text.\n");
+        continue;
+      default:
+        break;
+      }
+    }
+    /* サブコマンド実行 */
     switch(verb){
     case 'n': /* number */
     case 'p': /* print */
@@ -426,6 +436,14 @@ int main(void){
     case 'q': /* quit */
               if(isUnSaved()) continue;
               else return 0;
+    case '\0':/* ENTER */
+              cl = addr_right;
+              if(cmd_verb_index == 0){
+                if(cl == lastl){ printf("[ERR] Last line.\n"); break; }
+                cl++;
+              }
+              put_line(getLine(cl));
+              break;
     default:
               break;
     }
