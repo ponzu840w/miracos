@@ -8,6 +8,10 @@
 
 #define TEXT_BUFFER_SIZE 4096
 #define LINE_BUFFER_SIZE 256
+/* openFile()でファイルを開くときのフラグ */
+#define O_TRUNCATE_0SIZE 1  /* 開くときに既存の内容を捨てる */
+#define O_UPDATE_DEFAULT 2  /* デフォルトファイルを上書きする */
+#define O_ALLOW_NEW_FILE 4  /* 新規ファイル作成を許可する */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -238,14 +242,14 @@ char getArg(){
 }
 
 /* ファイルを開く */
-char openFile(char update_defaut_filename, char make_file){
+char openFile(char openflags){
   char* filename;
 
   /* 指定かデフォルトのファイル名を使う */
   if(getArg()){
     filename = &command[cmd_index];
     /* デフォルトファイル名の更新 */
-    if(default_filename[0] == '\0' || update_defaut_filename){
+    if(default_filename[0] == '\0' || (openflags & O_UPDATE_DEFAULT)){
       strcpy(default_filename, filename);
     }
   }else if(default_filename[0] != '\0'){
@@ -257,10 +261,10 @@ char openFile(char update_defaut_filename, char make_file){
   printf("[DBG]filename=[%s]\n",filename);
 
   /* ファイルオープン */
-  if((fd = fs_open(filename, 0)) != 255u)
+  if((fd = fs_open(filename, openflags & O_TRUNCATE_0SIZE)) != 255u)
     return 1;
 
-  if(make_file && (fd = fs_makef(filename)) != 255u)
+  if((openflags & O_ALLOW_NEW_FILE) && (fd = fs_makef(filename)) != 255u)
     return 1;
 
   err_print();
@@ -313,83 +317,75 @@ int main(void){
     verb = command[cmd_verb_index];
     n_switch = 0;
     switch(verb){
-
     case 'n': /* number */
-      n_switch = 1;
+              n_switch = 1;
     case 'p': /* print */
-      cl = addr_left;
-      do{
-        if(n_switch)
-          printf("%-3u|",cl);
-        put_line(getLine(cl));
-      }while(cl++ < addr_right);
-      break;
-
+              cl = addr_left;
+              do{
+                if(n_switch)
+                  printf("%-3u|",cl);
+                put_line(getLine(cl));
+              }while(cl++ < addr_right);
+              break;
     case 'd': /* delete */
-      delete();
-      cl = addr_left;
-      break;
-
+              delete();
+              cl = addr_left;
+              break;
     case 'i': /* insert */
-      if(addr_right == 0)addr_right = 1;
-      edit(addr_right);
-      break;
-
+              if(addr_right == 0)addr_right = 1;
+              edit(addr_right);
+              break;
     case 'a': /* append */
-      edit(addr_right+1);
-      break;
-
+              edit(addr_right+1);
+              break;
     case 'c': /* change */
-      delete();
-      edit(addr_right);
-      break;
-
+              delete();
+              edit(addr_right);
+              break;
     case '=': /* 指定行番号表示 */
-      /* デフォルトは$ */
-      if(cmd_verb_index == 0){
-        cl = lastl;
-      }else{
-        cl = addr_right;
-      }
-      printf("%u\n", cl);
-      break;
-
+              /* デフォルトは$ */
+              if(cmd_verb_index == 0){
+                cl = lastl;
+              }else{
+                cl = addr_right;
+              }
+              printf("%u\n", cl);
+              break;
     case 'e': /* edit */
-      if(!openFile(1,0))continue;
-      load_cnt = fs_read(fd, text_buffer, TEXT_BUFFER_SIZE);
-      fs_close(fd);
+              if(!openFile(O_UPDATE_DEFAULT))continue;
+              load_cnt = fs_read(fd, text_buffer, TEXT_BUFFER_SIZE);
+              fs_close(fd);
 
-      /* 読み込んだバイト数に応じた例外 */
-      switch(load_cnt){
-      case 65535u:
-        err_print();
-        continue;
-      case TEXT_BUFFER_SIZE:
-        printf("[ERR] Out of Buffer.\n");
-        text_buffer[0] = '\0';
-        lastl = 0;
-        cl = 0;
-        continue;
-      default:
-        break;
-      }
+              /* 読み込んだバイト数に応じた例外 */
+              switch(load_cnt){
+              case 65535u:
+                err_print();
+                continue;
+              case TEXT_BUFFER_SIZE:
+                printf("[ERR] Out of Buffer.\n");
+                text_buffer[0] = '\0';
+                lastl = 0;
+                cl = 0;
+                continue;
+              default:
+                break;
+              }
 
-      printf("%u bytes loaded.\n", load_cnt);
+              printf("%u bytes loaded.\n", load_cnt);
 
-      /* 終端する */
-      text_buffer[load_cnt] = '\0';
-      countLines();
-      cl = lastl;
-      break;
-
+              /* 終端する */
+              text_buffer[load_cnt] = '\0';
+              countLines();
+              cl = lastl;
+              break;
     case 'w': /* write */
-      if(!openFile(0,1))
-        continue;
-      load_cnt = fs_write(fd, text_buffer, getLine(65535u) - text_buffer -1);
-      fs_close(fd);
-      break;
+              if(!openFile(O_ALLOW_NEW_FILE|O_TRUNCATE_0SIZE))
+                continue;
+              load_cnt = fs_write(fd, text_buffer, getLine(65535u) - text_buffer -1);
+              fs_close(fd);
+              break;
     default:
-      break;
+              break;
     }
 
     /* カレント行が間違っても最終行を超えないように。 */
