@@ -19,7 +19,8 @@ INTOPEN_DRV:
   RTS
 
 INTOPEN_FILE:
-  ; 内部的ファイルオープン（バッファに展開する）
+  ; 内部的ファイルオープン（FINFOのHEADをバッファに展開する）
+  ; use:ZR0
   LDA FINFO_WK+FINFO::DRV_NUM
   JSR INTOPEN_DRV                   ; ドライブ番号が違ったら更新
   loadmem16 ZR0,FINFO_WK+FINFO::HEAD
@@ -343,8 +344,8 @@ CUR_CLUS_2_LOGICAL_FAT:
 
 OPEN_FAT:
   ; ---------------------------------------------------------------
-  ;   FATエントリを展開
-  JSR RDSEC                       ; FATロード
+  ;   FATエントリを展開 noZR
+  JSR RDSEC                       ; FATロード     noZR
   ; 参照ベクタをZP_LSRC0_VEC16に作成
   LDA #>SECBF512                  ; ソース上位をSECBFに
   STA ZP_LSRC0_VEC16+1
@@ -466,10 +467,11 @@ INTOPEN_PDIR:
   ; FWKの自身のディレクトリエントリを見る
   JSR INTOPEN_PDIR_SEEKONLY
   ; FINFOに格納
-  JSR DIR_GETENT
-  RTS
+  JMP DIR_GETENT
 
 INTOPEN_PDIR_SEEKONLY:
+  ; FWK+FCTRL::DIR_RSECをもとにディレクトリエントリを開く
+  ;   バッファ、FWK_REAL_SEC、SDSEEKが設定される
   ;   セクタ
   loadreg16 FWK_REAL_SEC
   JSR AX_DST
@@ -483,8 +485,7 @@ INTOPEN_PDIR_SEEKONLY:
   ;   セクタ内シーク
   PLA
   AND #%11110000
-  JSR SEEK_DIRENT
-  RTS
+  JMP SEEK_DIRENT
 
 DIR_NEXTMATCH:
   ; 次のマッチするエントリを拾ってくる（FINFO_WKを構築する）
@@ -555,11 +556,14 @@ P2F_PATH2DIRINFO:
   storeAY16 ZR2
   BCS @LAST             ; 最終要素であれば探索せずいったん帰って指示を仰ぐ
   JSR P2F_CHECKNEXT     ; 非最終要素なら探索
-  BCC @LOOP             ; 見つからないエラーがなければ次の要素へ
-  RTS                   ; 見つからなければC=1を保持して戻る
+  BCS @_RTS             ; 見つからなければC=1を保持して戻る
+  JSR INTOPEN_FILE      ; 見つからないエラーがなければFINFOの指すものを開いてから
+  BRA @LOOP             ;   次の要素へ
 @LAST:
   CLC                   ; TODO:PATH_SLASHNEXTのキャリーエラーを逆転させればこれを省ける
+@_RTS:
   RTS
+X0RTS3=@LAST
 
 P2F_CHECKNEXT:
   ; PATH2FINFOにおいて、次の要素を開く
@@ -568,13 +572,9 @@ P2F_CHECKNEXT:
   ; C=1 ERR
   JSR DIR_NEXTMATCH     ; 現在ディレクトリ内のマッチするファイルを取得 NOTE:ヒットしたが開かれる前のFINFOを見るBP
   CMP #$FF              ; 見つからない場合
-  BNE @SKP_E2
+  BNE X0RTS3
   LDA #ERR::FILE_NOT_FOUND
   JMP ERR::REPORT       ; ERR:指定されたファイルが見つからなかった
-@SKP_E2:
-  JSR INTOPEN_FILE      ; ファイル/ディレクトリを開く NOTE:開かれた内容を覗くBP
-  CLC                   ; コールされた時の成功を知るC=0
-  RTS
 
 PATH_SLASHNEXT_GETNULL:
   ; 下のサブルーチンの、その要素が/で終わるのかnullで終わるのか通知する版
@@ -692,7 +692,7 @@ WRITE_CLUS:
   RTS
 
 ALLOC_CLUS:
-  ; 新規クラスタを割り当てる
+  ; TODO:新規クラスタを割り当てる
 
 DIR_WRENT:
   ; ディレクトリエントリを書き込む

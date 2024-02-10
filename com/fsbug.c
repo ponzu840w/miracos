@@ -65,7 +65,7 @@ extern void cins(const char *str);
 //extern unsigned char* path2finfo(unsigned char* path);
 extern unsigned char makef(unsigned char* path);
 extern void maked(unsigned char* path);
-extern unsigned char open(unsigned char* path);
+extern unsigned char open(unsigned char* path, unsigned char flags);
 extern unsigned int read(unsigned char fd, unsigned char *buf, unsigned int count);
 extern unsigned int write(unsigned char fd, unsigned char *buf, unsigned int count);
 extern unsigned char search_open(unsigned char* path);
@@ -259,18 +259,24 @@ int main(void){
 
     if(strcmp(tok,"help")==0){
       // つかいかた
-      printf("help   - Show this message.\n");
-      printf("stat   - Show status.\n");
-      printf("sec    - Set current sec.\n");
-      printf("read   - Read the sector.\n");
-      printf("dir    - Read the sector as dir.\n");
-      printf("root   - Read root dir.\n");
-      printf("clus   - Calc Clus to Sec\n");
-      printf("fat    - show FAT\n");
-      printf("makef  - make new file.\n");
-      printf("exit   - exit this tool.\n");
-      printf("work   - show work area.\n");
-      printf("table  - show tables.\n");
+      printf("help   - Show this message.\n"
+             "stat   - Show status.\n"
+             "sec    - Set current sec.\n"
+             "read   - Read the sector.\n"
+             "dir    - Read the sector as dir.\n"
+             "root   - Read root dir.\n"
+             "clus   - Calc Clus to Sec\n"
+             "fat    - Show FAT\n"
+             "makef  - Make new file.\n"
+             "maked  - Make new dir.\n"
+             "exit   - Exit this tool.\n"
+             "work   - Show work area.\n"
+             "table  - Show tables.\n"
+             "open   - Open file.\n"
+             "openw  - Open file with TRUNC.\n"
+             "del    - Delete file.\n"
+             "r      - Read 3 char from fd.\n"
+             "w      - Write 4 char to fd.\n");
 
     }else if(strcmp(tok,"sec")==0){
       // 読み込み対象セクタ指定
@@ -381,7 +387,14 @@ int main(void){
     }else if(strcmp(tok,"open")==0){
       // ファイルオープン
       tok=inputpath(line,tok);
-      fd=open(tok);
+      fd=open(tok, 0);
+      printf("new fd=%d\n",fd);
+      showFDtable();
+
+    }else if(strcmp(tok,"openw")==0){
+      // ファイルオープン、破壊
+      tok=inputpath(line,tok);
+      fd=open(tok, 1);
       printf("new fd=%d\n",fd);
       showFDtable();
 

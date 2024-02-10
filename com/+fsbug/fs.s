@@ -71,7 +71,7 @@ FUNC_FS_DELETE:
   storeAY16 ZR2
   LDA (ZR2)                 ; 先頭バイトを取得
   CMP #$FF                  ; FINFOシグネチャ
-  BEQ @COPY_FINFO            ; FINFOが直接与えられればパス処理省略
+  BEQ @COPY_FINFO           ; FINFOが直接与えられればパス処理省略
   JSR FUNC_FS_FPATH_ZR2S    ; フルパス取得
   JSR PATH2FINFO            ; パスからファイルのFINFOを開く
   BCC @DEL_FINFO            ; エラーハンドル
@@ -118,15 +118,23 @@ FUNC_FS_DELETE:
   ;CLC
   ;RTS
 @FILE:
+;  LDA #0  ; 根元からFAT削除
+  ;JSR DELETE_FAT_CHAIN
+
+; FINFOをもとにFATチェインを辿ってダダっと消す
+; Aが0で全削除、Aが1だと最初のクラスタを残す
+DELETE_FAT_CHAIN:
+;  STA ZR1
   ; FATを消し飛ばす
-  JSR INTOPEN_FILE                  ; set CUR_CLUS
+  JSR INTOPEN_FILE                  ; set CUR_CLUS                  useZR0
   loadreg16 (FWK_REAL_SEC)
   JSR AX_DST                        ; setDST RSEC
 @NEXT_FAT:
-  JSR CUR_CLUS_2_LOGICAL_FAT        ; LFAT(CUR_CLUS) -> RSEC
+  JSR CUR_CLUS_2_LOGICAL_FAT        ; LFAT(CUR_CLUS) -> RSEC        noZR
   loadreg16 DWK_FATSTART2
-  JSR L_ADD_AXS                     ; to FAT2
-  JSR OPEN_FAT                      ; open entry -> ZP_LSRC0_VEC16
+  JSR L_ADD_AXS                     ; to FAT2                       noZR
+  JSR OPEN_FAT                      ; open entry -> ZP_LSRC0_VEC16  noZR
+;
   ; CUR_CLUSに控える
   LDY #3
 @CPLOOP:
@@ -135,18 +143,34 @@ FUNC_FS_DELETE:
   DEY
   CPY #$FF
   BNE @CPLOOP
-  ; 値変更 $00000000:未使用クラスタ
+;
+  ; FATのエントリの値を設定する
   LDY #3
+;  LDA ZR1
+;  BEQ @ZERO
+;
+;  ; 値変更 $0FFFFFFF:EOC
+;  mem2mem16 ZP_SDSEEK_VEC16,ZP_LSRC0_VEC16
+;  JSR PUT_EOC
+;  STZ ZR1
+;  BRA @WRITE_CLUS
+;
+  ; 値変更 $00000000:未使用クラスタ
+@ZERO:
   LDA #0
 @STZLOOP:
   STA (ZP_LSRC0_VEC16),Y
   DEY
   CPY #$FF
   BNE @STZLOOP
-  JSR WRITE_CLUS                    ; write FAT2 and FAT1
+;
+@WRITE_CLUS:
+  JSR WRITE_CLUS                    ; write FAT2 and FAT1   noZR
   ; EOCチェック（控えたCUR_CLUSに対して）
-  JSR CHECK_EOC
+  JSR CHECK_EOC                     ;                       noZR
   BCC @NEXT_FAT
+;  RTS
+
   ; 親ディレクトリを開く
   ;JSR FINFO_WK_OPEN_DIRENT
   ;JSR RDSEC                         ; セクタ読み取り
@@ -753,14 +777,16 @@ ERR_REPORT:
 ; BCOS 5                  ファイルオープン
 ; -------------------------------------------------------------------
 ; パスまたはFINFOポインタからファイル記述子をオープンして返す
-; input:AY=(path or FINFO)ptr
+; input:AY=(path or FINFO)ptr, ZR0_bit0=O_TRUNC 1で内容廃棄
 ; output:A=FD, C=ERR
 ; -------------------------------------------------------------------
 FUNC_FS_OPEN:
   storeAY16 ZR2
+  LDA ZR0
+  STA ATTR_WORK             ; MAKEで使っている変数を拝借
   LDA (ZR2)                 ; 先頭バイトを取得
   CMP #$FF                  ; FINFOシグネチャ
-  BEQ FINFO2FD
+  BEQ TRUNC
   CMP #':'
   BEQ OPEN_RAWPATH_SPF
 FUNC_FS_OPEN_RAWPATH:
@@ -774,6 +800,7 @@ FUNC_FS_OPEN_RAWPATH:
 @SPF_PATH:
   JSR GET_SPF_NUMBER        ; SPF番号を取得
   BCC @SPFGOT               ; エラーハンドル
+@_RTS:
   RTS
 @SPFGOT:
   JSR GET_NEXTFD            ; 新規ファイル記述子取得
@@ -783,13 +810,32 @@ FUNC_FS_OPEN_RAWPATH:
   LDA #FDTOK_SPF            ; |   xx=SPF番号
   STA FD_TABLE+1,X          ; |
   TXA
-  BRA X0RTS
+  BRA X0RTS2
   ; 通常ファイルのオープン
 @DRV_PATH:
   JSR PATH2FINFO_ZR2        ; パスからファイルのFINFOを開く
-  BCC FINFO2FD              ; エラーハンドル
-  RTS
+  BCS @_RTS
+
 OPEN_RAWPATH_SPF=@SPF_PATH
+; TRUNCフラグが立っていればサイズを0にし、
+;   そうでなくても共通でFINFO2FDする。
+TRUNC:
+  LDA ATTR_WORK             ; TRUNCフラグ
+  BEQ FINFO2FD
+  ; 切り捨て処理
+  ; TODO:FATチェインカットは省略。扱えるのは1クラスタのみ。
+  ;LDA #1 ; TRUNCフラグがそのまま使える
+  ;JSR DELETE_FAT_CHAIN
+  ; サイズリセット
+  STZ FINFO_WK+FINFO::SIZ
+  STZ FINFO_WK+FINFO::SIZ+1
+  STZ FINFO_WK+FINFO::SIZ+2
+  STZ FINFO_WK+FINFO::SIZ+3
+  ; FINFOをディスクに書き込み
+  ;   DIR_WRENTはバッファ・カーソル・REALSECがエントリ書き込みReadyであることを求める。
+  ;   FS_FPATH_ZR2Sにて上記は満たされている。
+  JSR DIR_WRENT             ; エントリを書く
+  BRA FINFO2FD
 
 ; -------------------------------------------------------------------
 ;                        特殊ファイル番号取得
@@ -1022,4 +1068,19 @@ CLEAR_FINFO:
 
 SFN_BLACKLIST:
   .BYTE $22,"*+,./:;<=>?[",$5C,"]|",$7F ; 17文字
+
+; FATのEOCをRAM上に配置する
+; (ZP_SDSEEK_VEC16),Yが該当エントリの最後のバイトを指すべき
+;PUT_EOC:
+;  ; $0FFF_FFFFを置く
+;  LDA #$0F
+;  STA (ZP_SDSEEK_VEC16),Y
+;  LDA #$FF
+;  DEY
+;  STA (ZP_SDSEEK_VEC16),Y
+;  DEY
+;  STA (ZP_SDSEEK_VEC16),Y
+;  DEY
+;  STA (ZP_SDSEEK_VEC16),Y
+;  RTS
 

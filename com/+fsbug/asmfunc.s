@@ -190,6 +190,8 @@ INIT:
 .ENDPROC
 
 .PROC _open
+  STA ZR0
+  JSR popax
   PHX
   PLY
   JSR FS::FUNC_FS_OPEN
