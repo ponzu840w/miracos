@@ -39,6 +39,7 @@ unsigned int addr_lines;
 unsigned int line_cnt;
 unsigned char cmd_index, cmd_verb_index;
 unsigned char fd;
+unsigned char changed = 0;
 
 // 1行表示
 void put_line(char* str){
@@ -197,6 +198,7 @@ unsigned char insertLine(unsigned int line){
 
   /* 1行増えたので最終行を増加 */
   lastl++;
+  changed = 1;
 
   /* カレント行更新 */
   cl = line;
@@ -217,6 +219,7 @@ void edit(unsigned int line){
 void delete(){
   closeGap(getLine(addr_left), getLine(addr_right+1));
   lastl -= addr_lines;      /* 最終行繰り上がり */
+  changed = 0;
 }
 
 /* 行数を数える */
@@ -246,6 +249,16 @@ char getArg(){
     }
   }while(command[++cmd_index] != '\0');
 
+  return 0;
+}
+
+/* 未保存の変更があったら警告する */
+unsigned char isUnSaved(){
+  if(changed){
+    printf("[Warning] Unsaved Changes!\n");
+    changed = 0;
+    return 1;
+  }
   return 0;
 }
 
@@ -328,12 +341,10 @@ int main(void){
     n_switch = 0;
     switch(verb){
     case 'n': /* number */
-              n_switch = 1;
     case 'p': /* print */
               cl = addr_left;
               do{
-                if(n_switch)
-                  printf("%-3u|",cl);
+                if(verb == 'n') printf("%-3u|",cl);
                 put_line(getLine(cl));
               }while(cl++ < addr_right);
               break;
@@ -361,7 +372,10 @@ int main(void){
               }
               printf("%u\n", cl);
               break;
+    case 'E': /* force edit */
+              changed = 0;
     case 'e': /* edit */
+              if(isUnSaved()) continue;
               if(!openFile(O_UPDATE_DEFAULT)) continue;
               load_cnt = fs_read(fd, text_buffer, TEXT_BUFFER_SIZE);
               fs_close(fd);
@@ -387,6 +401,7 @@ int main(void){
               text_buffer[load_cnt] = '\0';
               countLines();
               cl = lastl;
+              changed = 0;
               break;
     case 'w': /* write */
               /* デフォルトは1,$ */
@@ -399,12 +414,18 @@ int main(void){
               if(addr_right != 0 && addr_left != 0){ /* 0行目があれば空ファイル生成にとどまる */
                 eff_addr_left = getLine(addr_left);
                 write_size = getLine(addr_right +1) - eff_addr_left;
-                printf("[DBG]eff_addr_left=%u, write_size=%u\n", eff_addr_left, write_size);
+                //printf("[DBG]eff_addr_left=%u, write_size=%u\n", eff_addr_left, write_size);
                 load_cnt = fs_write(fd, eff_addr_left, write_size);
+                if(cmd_verb_index == 0) changed = 0; /* デフォルト範囲指定の時のみセーブ判定 */
               }
               printf("%u bytes wrote.\n", load_cnt);
               fs_close(fd);
               break;
+    case 'Q': /* force quit */
+              changed = 0;
+    case 'q': /* quit */
+              if(isUnSaved()) continue;
+              else return 0;
     default:
               break;
     }
