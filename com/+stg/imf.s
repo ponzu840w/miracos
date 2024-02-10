@@ -40,6 +40,7 @@ PRINT_IMF:
   syscall FS_FIND_FST             ; 検索
   BCS @NOTFOUND2                  ; 見つからなかったらあきらめる
   storeAY16 FINFO_SAV             ; FINFOを格納
+  STZ ZR0
   syscall FS_OPEN                 ; ファイルをオープン
   BCS NOTFOUND                    ; オープンできなかったらあきらめる
   STA FD_SAV                      ; ファイル記述子をセーブ

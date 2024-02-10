@@ -10,6 +10,7 @@ CON_RAWIN           = 3
   BHA_CON_RAWIN_WaitAndNoEcho = 2
 CON_OUT_STR         = 4
 FS_OPEN             = 5
+  O_TRUNC                     = 1
 FS_CLOSE            = 6
 CON_IN_STR          = 7
 GCHR_COL            = 8

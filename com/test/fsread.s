@@ -67,6 +67,7 @@ START:
 @SKP_NOTFOUND:
   storeAY16 FINFO_SAV             ; FINFOを格納
   ; ファイルオープン
+  STZ ZR0
   syscall FS_OPEN                 ; ファイルをオープン
   ;BCS NOTFOUND                    ; オープンできなかったらあきらめる
   BCC @SKP_NOTFOUND2

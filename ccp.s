@@ -161,6 +161,7 @@ FIND_INSTALLEDCOM:
   BCS COMMAND_NOTFOUND            ; 見つからなかったらあきらめる
 OCOM_FOUND:
   storeAY16 ZR3                   ; FINFOをZR3に格納
+  STZ ZR0
   syscall FS_OPEN                 ; コマンドファイルをオープン
   BCS COMMAND_NOTFOUND            ; オープンできなかったらあきらめる
   STA ZR1                         ; ファイル記述子をZR1に

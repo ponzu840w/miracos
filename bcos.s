@@ -238,6 +238,7 @@ FUNC_RESET:
   .ENDIF
   ; SYSCALL.SYSを配置する
   loadAY16 PATH_SYSCALL
+  STZ ZR0
   JSR FS::FUNC_FS_OPEN            ; フォントファイルをオープン
   STA ZR1
   PHA
@@ -248,6 +249,7 @@ FUNC_RESET:
   JSR FS::FUNC_FS_CLOSE           ; クローズ
   ; CCP.SYSを配置する
   loadAY16 PATH_CCP
+  STZ ZR0
   JSR FS::FUNC_FS_OPEN            ; CCPをオープン
   STA ZR1
   PHA

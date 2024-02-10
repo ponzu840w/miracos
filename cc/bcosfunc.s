@@ -141,8 +141,10 @@
 ; -------------------------------------------------------------------
 ;                              fs_open
 ; -------------------------------------------------------------------
-; unsigned char fs_open(void* finfo / path)
+; unsigned char fs_open(void* finfo / path, char flags)
 .PROC _fs_open                    ; 引数: AX=FINFOかPATH
+  STA BCOS::ZR0
+  JSR popax
   PHX
   PLY
   syscall FS_OPEN                 ; 引数: AY=FINFOかPATH

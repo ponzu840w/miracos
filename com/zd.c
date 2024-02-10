@@ -16,7 +16,7 @@
 // アセンブラ関数とか
 extern void coutc(const char c);
 extern void cins(const char *str);
-extern unsigned char fs_open(void* finfo_or_path);
+extern unsigned char fs_open(void* finfo_or_path, char flags);
 extern unsigned char fs_makef(char* path);
 extern void fs_close(unsigned char fd);
 extern unsigned int fs_read(unsigned char fd, unsigned char *buf, unsigned int count);
@@ -257,7 +257,7 @@ char openFile(char update_defaut_filename, char make_file){
   printf("[DBG]filename=[%s]\n",filename);
 
   /* ファイルオープン */
-  if((fd = fs_open(filename)) != 255u)
+  if((fd = fs_open(filename, 0)) != 255u)
     return 1;
 
   if(make_file && (fd = fs_makef(filename)) != 255u)

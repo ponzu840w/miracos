@@ -7,6 +7,7 @@ INIT:
   ; コンソール画面の初期化
   ; フォントロードで使うのでファイルシステムモジュールが起動していること
   loadAY16 PATH_FONT_DEFAULT
+  STZ ZR0
   JSR FS::FUNC_FS_OPEN        ; フォントファイルをオープン NOTE:ロードできたかを見るBP
   STA ZR1
   PHA
