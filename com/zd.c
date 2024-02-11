@@ -6,7 +6,7 @@
  -------------------------------------------------------------------
 */
 
-#define TEXT_BUFFER_SIZE 1024*8ul
+#define TEXT_BUFFER_SIZE 1024*8
 #define LINE_BUFFER_SIZE 256
 #define COMMAND_BUF_SIZE 64
 #define FILENAME_BUF_SIZ 16
@@ -361,7 +361,7 @@ void showMem(){
   unsigned int cnt_i = 0;
   while(text_buffer[cnt_i++] != '\0' && cnt_i < TEXT_BUFFER_SIZE);
   printf("BufferUsage: %u/%u[B],=%lu%%\n", cnt_i, TEXT_BUFFER_SIZE,
-      (unsigned long)cnt_i * 100ul / TEXT_BUFFER_SIZE );
+      ((unsigned long)cnt_i) * 100ul / ((unsigned long)TEXT_BUFFER_SIZE));
 }
 
 int main(void){
