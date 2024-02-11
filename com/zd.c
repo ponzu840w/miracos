@@ -399,7 +399,7 @@ int main(void){
   // REPL
   while(1){
     // コマンドライン取得
-    printf("%u@", cl);
+    printf("(%u)@", cl);
     cins(command);
     coutc('\n');
     if(!purseCommand()){
