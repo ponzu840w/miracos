@@ -6,7 +6,7 @@
  -------------------------------------------------------------------
 */
 
-#define TEXT_BUFFER_SIZE 4096
+#define TEXT_BUFFER_SIZE 1024*8ul
 #define LINE_BUFFER_SIZE 256
 #define COMMAND_BUF_SIZE 64
 #define FILENAME_BUF_SIZ 16
@@ -43,7 +43,6 @@ unsigned char fd;
 unsigned char changed = 0;
 unsigned char setup = 1;
 unsigned int load_cnt;
-long int long_cnt;
 
 /* string.h を使った方が小さい */
 /*
@@ -359,10 +358,10 @@ char e_command(char* arg_str){
 }
 
 void showMem(){
-  long_cnt = 0;
-  while(text_buffer[long_cnt++] != '\0' && long_cnt < TEXT_BUFFER_SIZE);
-  printf("BufferUsage: %lu/%u[B],=%lu%%\n",
-      long_cnt, TEXT_BUFFER_SIZE, (long_cnt*100)/TEXT_BUFFER_SIZE);
+  unsigned int cnt_i = 0;
+  while(text_buffer[cnt_i++] != '\0' && cnt_i < TEXT_BUFFER_SIZE);
+  printf("BufferUsage: %u/%u[B],=%lu%%\n", cnt_i, TEXT_BUFFER_SIZE,
+      (unsigned long)cnt_i * 100ul / TEXT_BUFFER_SIZE );
 }
 
 int main(void){
