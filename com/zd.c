@@ -21,6 +21,7 @@
 
 // アセンブラ関数とか
 extern void coutc(const char c);
+extern void couts(const char *str);
 extern void cins(const char *str);
 extern unsigned char fs_open(void* finfo_or_path, char flags);
 extern unsigned char fs_makef(char* path);
@@ -40,6 +41,8 @@ unsigned int line_cnt;
 unsigned char cmd_index, cmd_verb_index;
 unsigned char fd;
 unsigned char changed = 0;
+unsigned char setup = 1;
+unsigned int load_cnt;
 
 // 1行表示
 void put_line(char* str){
@@ -78,56 +81,64 @@ char* getLine(unsigned int line_num){
   return ptr;
 }
 
-// なんか都合のいいatoi
-// .と$に対応
-unsigned int super_atoi(){
-  unsigned int i;
-
+/* なんか都合のいいatoi */
+/* .と$と+-に対応 */
+int super_atoi(){
+  unsigned int i = 0;
+  unsigned int num;
+  unsigned char invert = 0;
   switch(command[cmd_index]){
-  case '.':
-    return cl;
-  case '$':
-    return lastl;
-  default:
-    i = atoi(&command[cmd_index]);
+  case '.': return cl;
+  case '$': return lastl;
+  case '-': invert = 1;
+  case '+': i = cl;
+            cmd_index++;
+  default : if(!('0' <= command[cmd_index] && command[cmd_index] <= '9')){
+              return -1;
+            }
+            num = atoi(&command[cmd_index]);
   }
-
-  return i;
+  return invert ? i-num : i+num;
 }
 
-// コマンドラインのパース
-// out: addr_left, addr_right, cmd_verb_index
-void purseCommand(){
+/* コマンドラインのパース */
+/* out: addr_left, addr_right, cmd_verb_index */
+unsigned char purseCommand(){
     addr_left = cl;
     addr_right = cl;
-    // コマンドのインデックス取得
+    /* コマンドのインデックス取得 */
     cmd_index = 0;
     while(!('A' <= command[cmd_index] && command[cmd_index] <= 'Z' ||
             'a' <= command[cmd_index] && command[cmd_index] <= 'z' ||
             '=' == command[cmd_index] ||
            '\0' == command[cmd_index] )) cmd_index++;
     cmd_verb_index = cmd_index;
-    // 対象行取得
-    if(cmd_verb_index == 0) return; // 完全省略ならカレント行
+    /* 対象行取得 */
+    /* 完全省略ならカレント行 */
+    if(cmd_verb_index == 0) return 1;
+    /* left */
     cmd_index = 0;
-    // left
     if(command[0] == ','){
       addr_left = (lastl == 0) ? 0 : 1;
     }else{
-      addr_left = super_atoi();
-      // 数値スキップ
+      if((addr_left = super_atoi()) == -1) return 0;
+      /* 数値スキップ */
       do{ cmd_index++; } while('0' <= command[cmd_index] && command[cmd_index] <= '9');
     }
-    // right
+    /* right */
     if(command[cmd_index] == ','){
       if(++cmd_index == cmd_verb_index){
-        addr_right = lastl;         // ,があってそこで終わり
+        /* ,があってそこで終わり */
+        addr_right = lastl;
       }else{
-        addr_right = super_atoi();  // ,があって右辺がある
+        /* ,があって右辺がある */
+        if((addr_right = super_atoi()) == -1) return 0;
       }
     }else{
-      addr_right = addr_left;         // ,も右辺もない
+      /* ,も右辺もない */
+      addr_right = addr_left;
     }
+    return 1;
 }
 
 /* バッファにギャップを作る */
@@ -226,34 +237,34 @@ void countLines(){
   lastl = line_cnt;
 }
 
-/* サブコマンドの引数を探す */
-char getArg(){
+/* スペース区切り文字列から次の引数の文字列を返す */
+char* getNextArg(char* arg_str){
+  unsigned char index = 0;
   char arg_exist = 0;
   char arg_search_status = 0; /* 0:サブコマンドの一部 1:連続したスペース */
 
   /* 次のトークンを探す */
-  cmd_index = cmd_verb_index;
   do{
     switch(arg_search_status){
     case 0:
-      if(command[cmd_index] == ' ')
+      if(arg_str[index] == ' ')
         arg_search_status++;
       break;
     case 1:
-      if(command[cmd_index] != ' ')
-        return 1;
+      if(arg_str[index] != ' ')
+        return &arg_str[index];
     default:
       break;
     }
-  }while(command[++cmd_index] != '\0');
+  }while(arg_str[++index] != '\0');
 
-  return 0;
+  return NULL;
 }
 
 /* 未保存の変更があったら警告する */
 unsigned char isUnSaved(){
   if(changed){
-    printf("[Warning] Unsaved Changes!\n");
+    couts("[Warning] Unsaved Changes!\n");
     changed = 0;
     return 1;
   }
@@ -261,12 +272,12 @@ unsigned char isUnSaved(){
 }
 
 /* ファイルを開く */
-char openFile(char openflags){
+char openFile(char* arg_str, char openflags){
   char* filename;
 
   /* 指定かデフォルトのファイル名を使う */
-  if(getArg()){
-    filename = &command[cmd_index];
+  if(arg_str != NULL && arg_str[0] != '\0'){
+    filename = arg_str;
     /* デフォルトファイル名の更新 */
     if(default_filename[0] == '\0' || (openflags & O_UPDATE_DEFAULT)){
       strcpy(default_filename, filename);
@@ -274,7 +285,7 @@ char openFile(char openflags){
   }else if(default_filename[0] != '\0'){
     filename = default_filename;
   }else{
-    printf("[ERR] File Name?");
+    if(!setup) couts("[ERR] File Name?\n");
     return 0;
   }
   //printf("[DBG]filename=[%s]\n",filename);
@@ -290,25 +301,66 @@ char openFile(char openflags){
   return 0;
 }
 
+/* eコマンド */
+char e_command(char* arg_str){
+  if(!openFile(arg_str, O_UPDATE_DEFAULT)) return 0;
+  load_cnt = fs_read(fd, text_buffer, TEXT_BUFFER_SIZE);
+  fs_close(fd);
+
+  /* 読み込んだバイト数に応じた例外 */
+  switch(load_cnt){
+  case 65535u:
+    err_print();
+    return 0;
+  case TEXT_BUFFER_SIZE:
+    couts("[ERR] Out of Buffer.\n");
+    text_buffer[0] = '\0';
+    lastl = 0;
+    cl = 0;
+    return 0;
+  default:
+    break;
+  }
+
+  printf("%u bytes loaded.\n", load_cnt);
+
+  /* 終端する */
+  text_buffer[load_cnt] = '\0';
+  countLines();
+  cl = lastl;
+
+  return 1;
+}
+
 int main(void){
   char verb;
-  unsigned int load_cnt;
   char* eff_addr_left;
   unsigned int write_size;
 
+  unsigned int* zr0=(unsigned int*)0;       /* ZR0を指す */
+  unsigned char* arg=(unsigned char*)*zr0;  /* ZR0の指すところを指す コマンドライン引数 */
+
+  /*
   // テスト用テキストでバッファを初期化
   strcpy(text_buffer,"Line1. This is Text Buffer.\nLine2. New Line\nLine3.\nLine4. Good Bye.");
-  /* デフォルトファイル名初期化 */
-  default_filename[0] = '\0';
-
-  printf("sample_text:\n%s\n",text_buffer);
-  printf("text_buffer:%d\n",&text_buffer);
-
-  //printf("makeGap:%u\n",makeGap(getLine(3),getLine(2)));
-  //printf("gaped_text:\n%s\n",text_buffer);
-
   cl = 1;
   lastl = 4;
+  */
+
+  /* バッファを初期化 */
+  text_buffer[0] = '\0';
+  /* デフォルトファイル名初期化 */
+  default_filename[0] = '\0';
+  /* 行変数を初期化 */
+  cl = 0;
+  lastl = 0;
+
+  /* コマンドライン引数を処理 */
+  //printf("[DBG]arg:%4X, '%s'\n", &arg, arg);
+  e_command(arg);
+  setup = 0;
+
+  printf("Buffer= %u bytes @ $%4X\n", TEXT_BUFFER_SIZE, &text_buffer);
 
   // REPL
   while(1){
@@ -316,18 +368,21 @@ int main(void){
     printf("%u@", cl);
     cins(command);
     coutc('\n');
-    purseCommand();
+    if(!purseCommand()){
+      couts("[ERR] Wrong Command.\n");
+      continue;
+    }
     //printf("[DBG]purse left:%u, right %u, verb_index %u\n",addr_left,addr_right,cmd_verb_index);
 
     // 例外処理:範囲指定がひっくり返ってる
     if(addr_left > addr_right){
-      printf("[ERR] left > right.\n");
+      couts("[ERR] left > right.\n");
       continue;
     }
 
     // 例外処理:最終行を突破
     if(addr_right > lastl){
-      printf("[ERR] Over range.\n");
+      couts("[ERR] Over range.\n");
       continue;
     }
 
@@ -342,7 +397,7 @@ int main(void){
       case 'p':
       case 'd':
       case '\0':
-        printf("[ERR] No text.\n");
+        couts("[ERR] No text.\n");
         continue;
       default:
         break;
@@ -386,31 +441,7 @@ int main(void){
               changed = 0;
     case 'e': /* edit */
               if(isUnSaved()) continue;
-              if(!openFile(O_UPDATE_DEFAULT)) continue;
-              load_cnt = fs_read(fd, text_buffer, TEXT_BUFFER_SIZE);
-              fs_close(fd);
-
-              /* 読み込んだバイト数に応じた例外 */
-              switch(load_cnt){
-              case 65535u:
-                err_print();
-                continue;
-              case TEXT_BUFFER_SIZE:
-                printf("[ERR] Out of Buffer.\n");
-                text_buffer[0] = '\0';
-                lastl = 0;
-                cl = 0;
-                continue;
-              default:
-                break;
-              }
-
-              printf("%u bytes loaded.\n", load_cnt);
-
-              /* 終端する */
-              text_buffer[load_cnt] = '\0';
-              countLines();
-              cl = lastl;
+              if(!e_command(getNextArg(&command[cmd_verb_index]))) continue;
               changed = 0;
               break;
     case 'w': /* write */
@@ -419,7 +450,8 @@ int main(void){
                 addr_left = 1;
                 addr_right = lastl;
               }
-              if(!openFile(O_ALLOW_NEW_FILE | O_TRUNCATE_0SIZE)) continue;
+              if(!openFile(getNextArg(&command[cmd_verb_index]), O_ALLOW_NEW_FILE | O_TRUNCATE_0SIZE))
+                continue;
               load_cnt = 0;
               if(addr_right != 0 && addr_left != 0){ /* 0行目があれば空ファイル生成にとどまる */
                 eff_addr_left = getLine(addr_left);
@@ -439,7 +471,7 @@ int main(void){
     case '\0':/* ENTER */
               cl = addr_right;
               if(cmd_verb_index == 0){
-                if(cl == lastl){ printf("[ERR] Last line.\n"); break; }
+                if(cl == lastl){ couts("[ERR] Last line.\n"); break; }
                 cl++;
               }
               put_line(getLine(cl));
