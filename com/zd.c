@@ -16,8 +16,8 @@
 #define O_ALLOW_NEW_FILE 4  /* 新規ファイル作成を許可する */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+//#include <stdlib.h>
 
 // アセンブラ関数とか
 extern void coutc(const char c);
@@ -43,6 +43,33 @@ unsigned char fd;
 unsigned char changed = 0;
 unsigned char setup = 1;
 unsigned int load_cnt;
+long int long_cnt;
+
+/* string.h を使った方が小さい */
+/*
+unsigned int strlen(const char* const str){
+  unsigned int len = 0;
+  while(str[len++]);
+  return len-1;
+}
+
+void strcpy(char* const to, char* const from){
+  unsigned int index = 0;
+  do{
+    to[index] = from[index];
+  }while(from[index++]);
+}
+*/
+
+/* stdlib.h よりちょっと小さい */
+unsigned int atoi(const char* str) {
+  unsigned int result = 0;
+
+  while('0' <= *str && *str <= '9')
+    result = result * 10 + (*(str++) - '0');
+
+  return result;
+}
 
 // 1行表示
 void put_line(char* str){
@@ -111,6 +138,7 @@ unsigned char purseCommand(){
     while(!('A' <= command[cmd_index] && command[cmd_index] <= 'Z' ||
             'a' <= command[cmd_index] && command[cmd_index] <= 'z' ||
             '=' == command[cmd_index] ||
+            '%' == command[cmd_index] ||
            '\0' == command[cmd_index] )) cmd_index++;
     cmd_verb_index = cmd_index;
     /* 対象行取得 */
@@ -168,9 +196,7 @@ unsigned int closeGap(char* to, char* from){
   if(from <= to)
     return 0;
 
-  do{
-    *(to++) = *from;
-  }while(*from++ != '\0');
+  strcpy(to,from);
   return 1;
 }
 
@@ -332,6 +358,13 @@ char e_command(char* arg_str){
   return 1;
 }
 
+void showMem(){
+  long_cnt = 0;
+  while(text_buffer[long_cnt++] != '\0' && long_cnt < TEXT_BUFFER_SIZE);
+  printf("BufferUsage: %lu/%u[B],=%lu%%\n",
+      long_cnt, TEXT_BUFFER_SIZE, (long_cnt*100)/TEXT_BUFFER_SIZE);
+}
+
 int main(void){
   char verb;
   char* eff_addr_left;
@@ -360,7 +393,8 @@ int main(void){
   e_command(arg);
   setup = 0;
 
-  printf("Buffer= %u bytes @ $%4X\n", TEXT_BUFFER_SIZE, &text_buffer);
+  //printf("Buffer= %u bytes @ $%4X\n", TEXT_BUFFER_SIZE, &text_buffer);
+  showMem();
 
   // REPL
   while(1){
@@ -412,6 +446,7 @@ int main(void){
                 if(verb == 'n') printf("%-3u|",cl);
                 put_line(getLine(cl));
               }while(cl++ < addr_right);
+              cl--;
               break;
     case 'd': /* delete */
               delete();
@@ -442,6 +477,7 @@ int main(void){
     case 'e': /* edit */
               if(isUnSaved()) continue;
               if(!e_command(getNextArg(&command[cmd_verb_index]))) continue;
+              showMem();
               changed = 0;
               break;
     case 'w': /* write */
@@ -475,6 +511,9 @@ int main(void){
                 cl++;
               }
               put_line(getLine(cl));
+              break;
+    case '%': /* Memory Usage */
+              showMem();
               break;
     default:
               break;
