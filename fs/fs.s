@@ -392,7 +392,7 @@ FUNC_FS_CLOSE:
 ; あらゆる種類のパスを解析する
 ; ディスクアクセスはしない
 ; input : AY=パス先頭
-; output: A=分析結果
+; output: A=ZR1=分析結果
 ;           bit5:":"で始まる（特殊ファイル） これが1のときほかのbitは無効
 ;           bit4:/を含む
 ;           bit3:/で終わる
@@ -509,26 +509,28 @@ FUNC_FS_CHDIR:
 FUNC_FS_FPATH:
   storeAY16 ZR2                 ; 与えられたパスをZR2に
 FUNC_FS_FPATH_ZR2S:
-  loadmem16 ZR1,PATH_WK         ; PATH_WKにカレントディレクトリをコピー
-  loadAY16 CUR_DIR
-  JSR M_CP_AYS
-  loadAY16 CUR_DIR
-  JSR M_LEN                     ; Yにカレントディレクトリの長さを与える
-  STY ZR3                       ; ZR3に保存
-  LDA ZR2
-  LDY ZR2+1
-  JSR FUNC_FS_PURSE             ; パスを解析する
-  BBS5 ZR1,@HAVE_DRV            ; 特殊ファイルであればドライブが指定されているのと等価
-  BBR0 ZR1,@NO_DRV              ; ドライブレターがないなら分岐
+  mem2AY16 ZR2                  ; 与えられたパス
+  JSR FUNC_FS_PURSE             ;         を解析する
+  STA ZR4
+  BBS5 ZR4,@HAVE_DRV            ; 特殊ファイルであればドライブが指定されているのと等価
+  BBR0 ZR4,@NO_DRV              ; ドライブレターがないなら分岐
   ; ドライブが指定された（A:/MIRACOS/）
 @HAVE_DRV:
   loadmem16 ZR1,PATH_WK         ; PATH_WKに与えられたパスをそのままコピー
   mem2AY16 ZR2                  ; 与えられたパス
   JSR M_CP_AYS
   BRA @CLEAR_DOT                ; 最終工程だけは共有
-@NO_DRV:                        ; 少なくともドライブレターを流用しなければならない
-  BBS1 ZR1,@ZETTAI              ; 絶対パスなら分岐
-@SOUTAI:                        ; 相対パスである
+  ; 少なくともドライブレターを流用しなければならない
+@NO_DRV:
+  loadmem16 ZR1,PATH_WK         ; * PATH_WK<-CUR_DIR
+  loadAY16 CUR_DIR              ; |
+  JSR M_CP_AYS                  ; |
+  loadAY16 CUR_DIR              ; * ZR3<-len(CUR_DIR)
+  JSR M_LEN                     ; |
+  STY ZR3                       ; |
+  BBS1 ZR4,@ZETTAI              ; 絶対パスなら分岐
+  ; 相対パスである
+@SOUTAI:
   LDA #'/'
   LDY ZR3                       ; カレントディレクトリの長さを取得
   STA PATH_WK,Y                 ; 最後に区切り文字を設定
@@ -538,7 +540,8 @@ FUNC_FS_FPATH_ZR2S:
   STA ZR1
   STX ZR1+1
   BRA @CONCAT
-@ZETTAI:                        ; 絶対パスである
+  ; 絶対パスである（/から始まる）
+@ZETTAI:
   loadmem16 ZR1,PATH_WK+2       ; ワークエリアのA:より後が対象
 @CONCAT:                        ; 接合
   mem2AY16 ZR2                  ; 与えられたパスがソース
@@ -785,10 +788,10 @@ FUNC_FS_OPEN:
   LDA ZR0
   STA ATTR_WORK             ; MAKEで使っている変数を拝借
   LDA (ZR2)                 ; 先頭バイトを取得
+  ;CMP #':'
+  ;BEQ OPEN_RAWPATH_SPF
   CMP #$FF                  ; FINFOシグネチャ
   BEQ TRUNC
-  CMP #':'
-  BEQ OPEN_RAWPATH_SPF
 FUNC_FS_OPEN_RAWPATH:
 @PATH:
   JSR FUNC_FS_FPATH_ZR2S
