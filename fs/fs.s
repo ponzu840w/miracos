@@ -788,8 +788,6 @@ FUNC_FS_OPEN:
   LDA ZR0
   STA ATTR_WORK             ; MAKEで使っている変数を拝借
   LDA (ZR2)                 ; 先頭バイトを取得
-  ;CMP #':'
-  ;BEQ OPEN_RAWPATH_SPF
   CMP #$FF                  ; FINFOシグネチャ
   BEQ TRUNC
 FUNC_FS_OPEN_RAWPATH:
