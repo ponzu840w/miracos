@@ -411,12 +411,18 @@ int main(void){
       unsigned int len=write(fd,"hoge",4);
       printf("write>[%d]\n",len);
 
-    }else if(strcmp(tok,"search")==0){
+    /*}else if(strcmp(tok,"search")==0){
       tok=inputpath(line,tok);
       fd=search_open(tok);
       printf("new fd=%d\n",fd);
       showFDtable();
+    }*/
+
+    }else if(strcmp(tok,"w52")==0){
+      unsigned int len = write(fd,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",52);
+      printf("write>[%d]\n",len);
     }
+
   }
   return 0;
 }

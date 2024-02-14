@@ -435,7 +435,7 @@ NEXTSEC:
 
 INTOPEN_FILE_SIZ:
   ; FINFO構造体に展開されたサイズをFCTRL構造体にコピー
-  ; NOTE: FD_OPENでしか呼ばれないので開いてもいいかも
+  ; NOTE: FD_OPENとFD_WRITEで呼ばれる
   loadreg16 FWK+FCTRL::SIZ        ; デスティネーションをサイズに
   JSR AX_DST
   loadreg16 FINFO_WK+FINFO::SIZ   ; ソースをFINFOのサイズにしてロード
@@ -855,9 +855,10 @@ FAT_READ:
   @ZR3_BFPTR          = ZR3       ; 書き込み先のアドレス
   @ZR4_ITR            = ZR4       ; イテレータ
   @ZR5L_RWFLAG        = ZR5       ; bit0 0=R 1=W
+  @ZR5H_FD            = ZR5+1     ; ファイル記述子
   ; ---------------------------------------------------------------
   ;   引数の格納
-  PHX                             ; fdをプッシュ
+  STX @ZR5H_FD                    ; fdを格納
   pushmem16 ZR0                   ; 書き込み先アドレス退避
   ; ---------------------------------------------------------------
   ;   LENGTHの処理
@@ -889,7 +890,9 @@ FAT_READ:
   ; FINFOをディスクに書き込み
   JSR DIR_WRENT
   ; FINFO->FWK
-  JSR INTOPEN_FILE
+  ;JSR INTOPEN_FILE
+  LDA @ZR5H_FD
+  JSR LOAD_FWK_MAKEREALSEC        ; fdから再度FWKをロード
   JSR INTOPEN_FILE_SIZ
   BRA @SKP_PARTIAL_LENGTH
   ; ---------------------------------------------------------------
@@ -904,7 +907,6 @@ FAT_READ:
   ; length=0
   PLX                             ; ユーザバッファアドレス回収
   PLX
-  PLX                             ; fd回収
   SEC
   RTS
 @SKP_EOF:
@@ -967,28 +969,29 @@ FAT_READ:
   ; SDSEEKの更新
   INC ZP_SDSEEK_VEC16             ; 下位インクリメント
   BNE @SKP_SDSEEK_NEXT_PAGE       ; 下位のインクリメントがゼロに=SDSEEKのページ跨ぎ
-  ; SDSEEKのページを進める
+  ; --- SDSEEKのページ進め処理ココカラ
   LDA ZP_SDSEEK_VEC16+1           ; 上位
   CMP #>SECBF512
   BEQ @INC_SDSEEK_PAGE            ; 固定バッファの前半分だったら上位インクリメント
-  ; SDSEEKのページを巻き戻し、次のセクタをロード
-  PHX
+  ; 次のセクタに移行
+  PHX                             ; XY退避
   PHY
-  BBR0 @ZR5L_RWFLAG,@SKP_WRSEC    ; RW分岐
-  JSR WRSEC
-@SKP_WRSEC:
+  BBR0 @ZR5L_RWFLAG,@SKP_WRSEC    ; * if(Write)
+  JSR WRSEC                       ; |   WRSEC();
+@SKP_WRSEC:                       ; |
   JSR NEXTSEC                     ; 次のセクタに移行
 ;  BCC @SKP_EOC
 ;  JMP RW_EOC
 ;@SKP_EOC:
-  rdsec_f
-  PLY
+  rdsec_f                         ; セクタを読む（SDSEEKは勝手に再設定される）
+  PLY                             ; XY復帰
   PLX
   BRA @SKP_INC_SDSEEK
-@INC_SDSEEK_PAGE:                 ; <-ページ巻き戻しが不要
+@INC_SDSEEK_PAGE:                 ; <-ページを跨ぐがセクタを跨がない
   INC ZP_SDSEEK_VEC16+1           ; 上位インクリメント
-@SKP_INC_SDSEEK:                  ; <-ページ巻き戻し終了（特別やることがないので実際には直接LOOP_BYTへ）
-@SKP_SDSEEK_NEXT_PAGE:            ; <-SDSEEKページ跨ぎなし（特別やることがないので実際には直接LOOP_BYTへ）
+@SKP_INC_SDSEEK:                  ; <-セクタを跨いだ
+@SKP_SDSEEK_NEXT_PAGE:            ; <-SDSEEKページ跨ぎなし
+  ; --- SDSEEKのページ進め処理ココマデ
   ; 残りチェック
   DEX
   BNE @LOOP_BYT                   ; まだ文字があるので次へ
@@ -996,8 +999,8 @@ FAT_READ:
   DEC @ZR4_ITR                    ; 読み取り長さ上位イテレータ
   BNE @LOOP_BYT                   ; イテレータが1以上ならまだやることがある
   ; おわり
-  BBR0 @ZR5L_RWFLAG,@END
-  JSR WRSEC
+  BBR0 @ZR5L_RWFLAG,@END          ; * if(Write)
+  JSR WRSEC                       ; |   WRSEC();
   BRA @END
   ; ---------------------------------------------------------------
   ;   セクタ単位リード
@@ -1020,9 +1023,8 @@ FAT_READ:
   ; fctrl::seekを進める
   long_short_add FWK+FCTRL::SEEK_PTR, FWK+FCTRL::SEEK_PTR, @ZR2_LENGTH ; seek=seek+length
   ; FWKを反映
-  PLA                             ; fd
+  LDA @ZR5H_FD
   JSR PUT_FWK
-@SKP_SEC:
   ; 実際に読み込んだバイト長をAYで帰す
   mem2AY16 @ZR2_LENGTH
   CLC
