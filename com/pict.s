@@ -186,12 +186,15 @@ IM4_FLAME:
   ; 書き込み座標リセット
   STZ CRTC2::PTRX
   STZ CRTC2::PTRY
+  LDA #0
   JSR CHUNK
+  LDA #IMAGE_BUFFER_SECS*4
   JSR CHUNK
   RTS
 
 ; 1チャンクをロードして描画
 CHUNK:
+  PHA
   ; ロード
   LDA FD_SAV
   STA ZR1                         ; 規約、ファイル記述子はZR1！
@@ -201,6 +204,8 @@ CHUNK:
   syscall FS_READ_BYTS            ; ロード
   ; 読み取ったセクタ数をバッファ出力ループのイテレータに
   STZ CRTC2::PTRX
+  PLA
+  STA CRTC2::PTRY
   TYA   ; 上位をAに
   LSR   ; /2
   TAX   ; Xに

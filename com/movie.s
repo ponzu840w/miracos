@@ -97,7 +97,8 @@ START:
   loadAY16 512*IMAGE_BUFFER_SECS  ; 数セクタをバッファに読み込み
   syscall FS_READ_BYTS            ; ロード
   BCS @CLOSE
-  STZ CRTC2::PTRX
+  STZ CRTC2::PTRX                 ; NOTE:READでなぜか壊れた画面ポインタへの
+  STZ CRTC2::PTRY                 ;       アドホックな対処
   JSR DRAW_CHUNK
   ; ロード2チャンク目
   LDA FD_SAV
@@ -105,7 +106,9 @@ START:
   loadmem16 ZR0,TEXT              ; 書き込み先
   loadAY16 512*IMAGE_BUFFER_SECS  ; 数セクタをバッファに読み込み
   syscall FS_READ_BYTS            ; ロード
-  STZ CRTC2::PTRX
+  STZ CRTC2::PTRX                 ; NOTE:READでなぜか壊れた画面ポインタへの
+  LDA #IMAGE_BUFFER_SECS*4        ;       アドホックな対処
+  STA CRTC2::PTRY                 ;
   JSR DRAW_CHUNK
 @SWAP_FLAME:
   ; フレーム交換
