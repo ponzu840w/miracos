@@ -443,5 +443,5 @@ STR_OPENING:
   .BYT "Wait... ",$A,$0
 
 STR_COMEON:
-  .BYT "Send S-Records. Abort with Ctrl-D",$A,$0
+  .BYT "Ready to receive S-Record.",$A,"(Ctrl-D to finish/abort.)",$A,">",$0
 
