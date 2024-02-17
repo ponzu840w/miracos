@@ -226,28 +226,33 @@ M_SFN_DOT2RAW:
   ; TODO:fat.s DIR_WRENTでしか使わないため最適化
 @ZR0L_SRC=ZR0
 @ZR0H_DST=ZR0+1
-  ; スペースで埋める
+  ; ---------------------------------------------------------------
+  ;   スペースで埋める
   LDA #' '
   LDY #10
 @FILL_LOOP:
   STA (ZP_LDST0_VEC16),Y
   DEY
   BNE @FILL_LOOP
-  STA (ZP_LDST0_VEC16),Y
-  ; . or ..
+  STA (ZP_LDST0_VEC16)  ; Y = 0
+  ; ---------------------------------------------------------------
+  ;   . or ..
   LDA (ZP_LSRC0_VEC16)
   CMP #'.'
-  BNE @NOTDOT
-  STA (ZP_LDST0_VEC16)
+  BNE @NO_DOTS
   LDY #1
   LDA (ZP_LSRC0_VEC16),Y
+  BEQ @SINGLE_DOT
   CMP #'.'
-  BNE @NOTWDOT
+  BNE @NO_DOTS
   STA (ZP_LDST0_VEC16),Y
-@NOTWDOT:
+@SINGLE_DOT:
+  LDA #'.'
+  STA (ZP_LDST0_VEC16)
   RTS
-@NOTDOT:
-  ; メインループ
+@NO_DOTS:
+  ; ---------------------------------------------------------------
+  ;   メインループ
   STZ @ZR0L_SRC
   STZ @ZR0H_DST
 @LOOP:
@@ -281,6 +286,8 @@ M_SFN_RAW2DOT_AXD:
   JSR AX_DST
 M_SFN_RAW2DOT:
   ; 生形式のSFNをドット入り形式に変換する
+@ZR0L_SRC=ZR0
+@ZR0H_DST=ZR0+1
   LDY #0
 @NAMELOOP:
   LDA (ZP_LSRC0_VEC16),Y
@@ -291,35 +298,37 @@ M_SFN_RAW2DOT:
   CPY #8
   BNE @NAMELOOP
 @NAMEEND:
-  ; 最終文字がスペースかどうかで拡張子の有無を判別
-  STY ZR0 ; DSTのインデックス
+  ; 拡張子の有無を判別
+  STY @ZR0H_DST           ; DST_IDX <- DST現在地
+  PHY
   LDY #8
-  LDA (ZP_LSRC0_VEC16),Y
-  STY ZR0+1 ;SRCのインデックス
-  LDY ZR0
+  STY @ZR0L_SRC           ; SRC_IDX <- 8
+  LDA (ZP_LSRC0_VEC16),Y  ; SRC先頭を取得
+  PLY
   CMP #' '
   BEQ @NOEX
   ; 拡張子あり
 @EX:
   LDA #'.'
   STA (ZP_LDST0_VEC16),Y
-  INY
-  STY ZR0
+  INC @ZR0H_DST
 @EXTLOOP:
-  LDY ZR0+1
+  LDY @ZR0L_SRC
   LDA (ZP_LSRC0_VEC16),Y
+  CMP #' '
+  BEQ @NOEX
   INY
   CPY #12
   BEQ @NOEX
-  STY ZR0+1
-  LDY ZR0
+  STY @ZR0L_SRC
+  LDY @ZR0H_DST
   STA (ZP_LDST0_VEC16),Y
   INY
-  STY ZR0
+  STY @ZR0H_DST
   BRA @EXTLOOP
   ; 終端
 @NOEX:
-  LDY ZR0
+  LDY @ZR0H_DST
   LDA #0
   STA (ZP_LDST0_VEC16),Y
   ; 結果のポインタを返す

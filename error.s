@@ -62,7 +62,7 @@ EM_FAILED_OPEN:               .BYT "Failed to OPEN.",$0
 EM_FILE_EXISTS:               .BYT "File Exists.",$0
 EM_BROKEN_FD:                 .BYT "Broken FD.",$0
 EM_DIR_NOT_EMPTY:             .BYT "Dir not empty.",$0
-EM_ILLEGAL_ATTR:              .BYT "Illegal Attr."$0
+EM_ILLEGAL_ATTR:              .BYT "Illegal Attr.",$0
 
 STR_ERROR:                    .BYT "[BCOSERR] ",$0
 

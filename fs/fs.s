@@ -546,9 +546,11 @@ FUNC_FS_FPATH_ZR2S:
 @CONCAT:                        ; 接合
   mem2AY16 ZR2                  ; 与えられたパスがソース
   JSR M_CP_AYS                  ; 文字列コピーで接合
-@CLEAR_DOT:                     ; .を削除する
+  ; ---------------------------------------------------------------
+  ;   ".", ".." の削除
+@CLEAR_DOT:
   LDX #$FF
-@CLEAR_DOT_LOOP:                ; .を削除するための探索ループ
+@CLEAR_DOT_LOOP:
   STY ZR0
   INX
   LDA PATH_WK,X
@@ -557,19 +559,29 @@ FUNC_FS_FPATH_ZR2S:
   BNE @CLEAR_DOT_LOOP           ; /でないならパス
   TXA                           ; 前の/としてインデックスを保存
   TAY
-  LDA PATH_WK+1,X               ; 一つ先読み
-  CMP #'.'                      ; /.であるか
-  BNE @CLEAR_DOT_LOOP
-  LDA PATH_WK+2,X               ; さらに先読み
-  CMP #'.'                      ; /..であるか
-  BEQ @DELDOTS
-@DELDOT:                        ; /.を削除
-  LDA PATH_WK+2,X
-  STA PATH_WK,X
-  BEQ @CLEAR_DOT
+  LDA PATH_WK+1,X               ; *
+  CMP #'.'                      ; | if(!"/.") continue;
+  BNE @CLEAR_DOT_LOOP           ; |
+  LDA PATH_WK+2,X               ; *
+  BEQ @DELDOT                   ; | if("/./" or "/.$")
+  CMP #'/'                      ; |   @DELDOT;
+  BEQ @DELDOT                   ; |
+  CMP #'.'                      ; * if(!"/..")
+  BNE @CLEAR_DOT_LOOP           ; |   continue;
+  ; ---------------------------------------------------------------
+  ;   ../を消すループ
+@DELDOTS:
+  LDY ZR0
+@DELDOTS_LOOP:
+  LDA PATH_WK+3,X
+  STA PATH_WK,Y
+  BEQ @CLEAR_DOT                ; 文頭からやり直す
   INX
-  BRA @DELDOT
-@DEL_SLH:                       ; 最終工程スラッシュ消し
+  INY
+  BRA @DELDOTS_LOOP
+  ; ---------------------------------------------------------------
+  ;   最終工程、末尾のスラッシュ消し
+@DEL_SLH:
   loadAY16 PATH_WK
   JSR M_LEN                     ; 最終結果の長さを取得
   LDA PATH_WK-1,Y
@@ -583,30 +595,30 @@ FUNC_FS_FPATH_ZR2S:
   loadAY16 PATH_WK
   CLC                           ; キャリークリアで成功を示す
   RTS
-@DELDOTS:                       ; ../を消すループ（飛び地）
-  LDY ZR0
-@DELDOTS_LOOP:
-  LDA PATH_WK+3,X
-  STA PATH_WK,Y
-  BEQ @CLEAR_DOT                ; 文頭からやり直す
+
+  ; ---------------------------------------------------------------
+  ;   /.を消すループ  （飛び地）
+@DELDOT:
+  LDA PATH_WK+2,X
+  STA PATH_WK,X
+  BEQ @CLEAR_DOT
   INX
-  INY
-  BRA @DELDOTS_LOOP
+  BRA @DELDOT
 
 ; -------------------------------------------------------------------
 ;                            ファイル作成
 ; -------------------------------------------------------------------
 ; ドライブパスからファイルを作成してオープンする
 ; input:AY=path ptr, ZR0=ファイルアトリビュート 00ad_vshr
-; output:A=FD, X=ERR
+; output:A=FD, C=ERR
 ; -------------------------------------------------------------------
 FUNC_FS_MAKE:
   storeAY16 ZR2             ; パス->ZR2
   LDA ZR0
   BIT #%11001000            ; 属性バリデーション
   BEQ @ATTRVALID            ; 先頭2bit、ボリューム名、LFNを拒否
-  SEC
-  RTS
+  LDA #ERR::ILLEGAL_ATTR    ; ERR:属性が不適格
+  BRA @REPORT
 @ATTRVALID:
   STA ATTR_WORK             ; 属性を一時保存する
   JSR FUNC_FS_FPATH_ZR2S    ; フルパスを得る
@@ -614,7 +626,7 @@ FUNC_FS_MAKE:
   JSR P2F_PATH2DIRINFO      ; パスからディレクトリのFINFOを開く
   BCC @SKP_DIRPATHERR       ; エラーハンドル
   RTS
-@SKP_DIRPATHERR:
+@SKP_DIRPATHERR:  ; 到達
   ; ディレクトリは開けた状態
   pushAY16                      ; ディレクトリ作成時、..を置くために
   loadreg16 HEAD_SAV            ;   親HEADをセーブ
@@ -627,39 +639,18 @@ FUNC_FS_MAKE:
   ; ---------------------------------------------------------------
   ;   作成対象名バリデーション
   storeAY16 ZR0
-  LDY #$FF
-@VLOOP:
-  INY
-  LDA (ZR0),Y
-  BEQ @VALID
-  BMI @VLOOP    ; $80以上（拡張文字）は適格
-  CMP #'!'
-  BCC @NOTVALID ; $20以下（制御文字とスペース）は不適格
-  CMP #'{'
-  BCS @HORYU    ; $7B以上はまちまちなのでブラックリスト任せ
-  CMP #'a'
-  BCS @NOTVALID ; $61以上（小文字）は不適格
-@HORYU:
-  LDX #17
-@BL_LOOP:
-  CMP SFN_BLACKLIST-1,X
-  BEQ @NOTVALID ; ブラックリストに引っ掛かったら不適格
-  DEX
-  BNE @BL_LOOP
-  BRA @VLOOP
-@NOTVALID:
-  LDA #ERR::ILLEGAL_PATH        ; ERR:ファイル名が不適格
-  JMP ERR::REPORT
-@VALID:
+  JSR SFN_VALIDATION
+  BCC @SFN_VALID
+  LDA #ERR::ILLEGAL_PATH    ; ERR:ファイル名が不適格
+  BRA @REPORT
+@SFN_VALID:
   mem2AY16 ZR0
-  ; バリデーションここまで
   JSR P2F_CHECKNEXT         ; 最終要素は開けるかな？
-  ;BCC @EXIST                ; 最終要素あり->重複END
-  BCS @NOT_EXIST
-@EXIST:
+  BCS @UNIQUE
   LDA #ERR::FILE_EXISTS     ; ERR:ファイルが既に存在していたらダメ
+@REPORT:
   JMP ERR::REPORT
-@NOT_EXIST:
+@UNIQUE:
   ; ---------------------------------------------------------------
   ;   ファイル作成
   ; FWK_REAL_SECとZP_SDSEEK_VEC16をスタックにプッシュ
@@ -875,6 +866,94 @@ GET_SPF_NUMBER:
   RTS
 
 ; -------------------------------------------------------------------
+;                        SFNのバリデーション
+; -------------------------------------------------------------------
+; input   :ZR0=SFN[0]
+; output  :C=0->OK, C=1->ERROR, ZR0=SFN[0]を維持
+; break   :ZR1L
+; -------------------------------------------------------------------
+SFN_VALIDATION:
+@ZR0_STR = ZR0
+@ZR1L_EXTLEN = ZR1
+  ; ---------------------------------------------------------------
+  ;   先頭文字のルール：ゼロではいけない
+  LDA (@ZR0_STR)
+  BEQ @NOTVALID
+  ; ---------------------------------------------------------------
+  ;   ファイル名のループ
+  LDY #0
+@NAMELOOP:                  ; * do{
+  LDA (@ZR0_STR),Y          ; |   char c = str[Y++];
+  BEQ @VALID                ; *   if(!c) break;
+  INY                       ; |
+  CMP #'.'                  ; *   if(c == '.')
+  BEQ @EXT                  ; |     break;
+  JSR SFN_VALIDATION_CHAR   ; *   if(!valid(c))
+  BCS @NOTVALID             ; |     return false;
+  CPY #9                    ; * }while(Y != 9);
+  BEQ @NOTVALID             ; | /* 9文字は長すぎる */
+  BRA @NAMELOOP             ; |
+  ; ---------------------------------------------------------------
+  ;   拡張子のループ
+@EXT:
+  STZ @ZR1L_EXTLEN
+@EXTLOOP:                   ; * do{
+  LDA (@ZR0_STR),Y          ; |   char c = str[Y++];
+  BNE @NOTEND               ; |   if(!c){
+  DEY                       ; |     if(Y == 1) /* ".\0" */
+  BEQ @NOTVALID             ; |       NOTVALID;
+@VALID:                     ; |     else VALID;
+  CLC                       ; |
+  RTS                       ; |
+@NOTEND:                    ; |   }
+  INY                       ; |
+  INC @ZR1L_EXTLEN          ; *   if(++extlen == 4)
+  LDX @ZR1L_EXTLEN          ; |     NOTVALID;
+  CPX #4                    ; |
+  BEQ @NOTVALID             ; |
+  JSR SFN_VALIDATION_CHAR   ; * }while(valid(c));
+  BCC @EXTLOOP              ; |
+@NOTVALID:
+  SEC
+  RTS
+SECRTS=@NOTVALID
+
+SFN_BLACKLIST:
+  .BYTE $22,"*+,/:;<=>?[",$5C,"]|",$7F ; 16文字 .を含まない
+SFN_BLACKLIST_END:
+
+; -------------------------------------------------------------------
+;                  SFNのバリデーション（文字単位）
+; -------------------------------------------------------------------
+; input   :A=char
+; output  :C=0->OK, C=1->ERROR
+; -------------------------------------------------------------------
+SFN_VALIDATION_CHAR:
+@NOTVALID=SECRTS
+  ; ---------------------------------------------------------------
+  ;   大まかに領域を分ける
+  TAX             ; ネガティブフラグを反映させるだけ
+  BMI @VALID      ; $80以上（拡張文字）は適格
+  CMP #'!'
+  BCC @NOTVALID   ; $20以下（制御文字とスペース）は不適格
+  CMP #'{'
+  BCS @CHECKLIST  ; $7B以上はまちまちなのでブラックリスト任せ
+  CMP #'a'
+  BCS @NOTVALID   ; $61以上（小文字）は不適格
+  ; ---------------------------------------------------------------
+  ;   ブラックリストによるチェック
+@CHECKLIST:
+  LDX #SFN_BLACKLIST_END-SFN_BLACKLIST ; 17
+@BL_LOOP:
+  CMP SFN_BLACKLIST-1,X
+  BEQ @NOTVALID   ; ブラックリストに引っ掛かったら不適格
+  DEX
+  BNE @BL_LOOP
+@VALID:
+  CLC
+  RTS
+
+; -------------------------------------------------------------------
 ;                         リアルセクタ作成
 ; -------------------------------------------------------------------
 ; input   :A=fd
@@ -895,7 +974,7 @@ LOAD_FWK_MAKEREALSEC:
 ; -------------------------------------------------------------------
 FD_OPEN:
   ; FINFOからファイル記述子をオープン
-  ; output A=FD, X=EC
+  ; output A=FD, EC
   LDA FINFO_WK+FINFO::ATTR      ; 属性値を取得
   AND #DIRATTR_DIRECTORY        ; ディレクトリかをチェック ディレクトリなら非ゼロ
   BEQ @SKP_DIRERR
@@ -1066,9 +1145,6 @@ CLEAR_FINFO:
   CPX #.SIZEOF(FINFO)-1
   BNE @FILLLOOP
   RTS
-
-SFN_BLACKLIST:
-  .BYTE $22,"*+,./:;<=>?[",$5C,"]|",$7F ; 17文字
 
 ; FATのEOCをRAM上に配置する
 ; (ZP_SDSEEK_VEC16),Yが該当エントリの最後のバイトを指すべき

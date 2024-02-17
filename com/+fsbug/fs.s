@@ -731,7 +731,7 @@ FUNC_FS_MAKE:
   ;   ディレクトリ：.と..
 @MAKED:
   loadreg16 FINFO_WK+FINFO::HEAD  ; 新しく割り当てた内容の先頭クラスタ先頭セクタを
-  JSR HEAD2FWK                    ;   READSECに展開する
+  JSR HEAD2FWK                    ;   REALSECに展開する
   STZ SECBF512+64                 ; .と..の次が空になるように
   ; .
   LDA #'.'
