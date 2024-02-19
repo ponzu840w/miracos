@@ -62,6 +62,8 @@ extern void dump(char wide, unsigned int from, unsigned int to, unsigned int bas
 extern void setGCONoff();
 extern void restoreGCON();
 extern void cins(const char *str);
+extern void coutc(const char c);
+extern void couts(const char *str);
 //extern unsigned char* path2finfo(unsigned char* path);
 extern unsigned char makef(unsigned char* path);
 extern void maked(unsigned char* path);
@@ -91,10 +93,10 @@ unsigned long fat2startsec;
 // パス入力を強制する
 char* inputpath(unsigned char* l, unsigned char* t){
   if((t=strtok(NULL," "))==NULL){
-    printf("path>");
+    couts("path>");
     cins(l);
     t=l;
-    printf("\n");
+    coutc('\n');
   }
   printf("path:%s\n",t);
   return t;
@@ -168,17 +170,17 @@ void showDir(unsigned long sec){
         b=0;
         break;
       case 0xE5:  // 消された
-        printf("<X>\n");
+        couts("<X>\n");
         break;
       default:    // 有効なエントリ
         if(dir_p[i].Attr==0x0F){
-          printf("<LFN>\n");
+          couts("<LFN>\n");
         }else{
           unsigned long fstclus = (dir_p[i].FstClusHI*0x100000000)+dir_p[i].FstClusLO;
           if(dir_p[i].Attr==0x10){
-            printf("<D>\n");
+            couts("<D>\n");
           }else{
-            printf("<F>\n");
+            couts("<F>\n");
           }
           printf("      Name   :%s\n",SFN_to_dot(dir_p[i].Name));
           printf("      FstClus:%s\n",put32(fstclus));
@@ -191,7 +193,7 @@ void showDir(unsigned long sec){
     }
     page++;
   }while(b);
-  printf("<NULL>\n");
+  couts("<NULL>\n");
 }
 
 void showFAT(unsigned char fatnum, unsigned long clus){
@@ -224,7 +226,7 @@ void showFINFO(){
   // 時間省いた
   printf("Head: %s\n",put32(finfo_wk.Head));
   printf("Size: %s\n",put32(finfo_wk.Siz));
-  printf("Dir:\n");
+  couts("Dir:\n");
   printf("  DrvNum: $%02x\n",finfo_wk.Drv_Num);
   printf("    Clus: %s\n",put32(finfo_wk.Dir_Clus));
   printf("     Sec: $%02x\n",finfo_wk.Dir_Sec);
@@ -234,7 +236,7 @@ void showFINFO(){
 // FDテーブル表示
 void showFDtable(){
   unsigned char i;
-  printf("File Discriptor Table:\n");
+  couts("File Discriptor Table:\n");
   for(i=0;i<7;i++){
     printf("%d:$%04X\n",i,*(&fd_table+i));
   }
@@ -249,17 +251,17 @@ int main(void){
   fatlen=(dwk_p->DATSTART-dwk_p->FATSTART)/2;
   fat2startsec=dwk_p->FATSTART+fatlen;
 
-  printf("File System Debugger.\n");
+  couts("File System Debugger.\n");
 
   while(1){
-    printf("fs>");
+    couts("fs>");
     cins(line);
-    printf("\n");
+    coutc('\n');
     tok=strtok(line," ");
 
     if(strcmp(tok,"help")==0){
       // つかいかた
-      printf("help   - Show this message.\n"
+      couts("help   - Show this message.\n"
              "stat   - Show status.\n"
              "sec    - Set current sec.\n"
              "read   - Read the sector.\n"
@@ -281,7 +283,7 @@ int main(void){
     }else if(strcmp(tok,"sec")==0){
       // 読み込み対象セクタ指定
       if((tok=strtok(NULL," "))==NULL){
-        printf("sec32>$");
+        couts("sec32>$");
         scanf("%lX",&sec_cursor);
       }else{
         sec_cursor=strtol(tok,NULL,16);
@@ -311,9 +313,9 @@ int main(void){
       printf("FCTRL_RES start:$%02X\n",&fctrl_res);
 
     }else if(strcmp(tok,"work")==0){
-      printf("\nFWK:\n");
+      couts("\nFWK:\n");
       showFWK();
-      printf("\nFINFO_WK:\n");
+      couts("\nFINFO_WK:\n");
       showFINFO();
 
     }else if(strcmp(tok,"read")==0){
@@ -339,7 +341,7 @@ int main(void){
     }else if(strcmp(tok,"clus")==0){
       unsigned long clus;
       if((tok=strtok(NULL," "))==NULL){
-        printf("clus32>$");
+        couts("clus32>$");
         scanf("%lX",&clus);
       }else{
         clus=strtol(tok,NULL,16);
@@ -362,7 +364,7 @@ int main(void){
       if(strcmp(tok,"fat1")==0)fatnum=1;
       else fatnum=2;
       if((tok=strtok(NULL," "))==NULL){
-        printf("clus32>$");
+        couts("clus32>$");
         scanf("%lX",&clus);
       }else{
         clus=strtol(tok,NULL,16);
@@ -390,18 +392,24 @@ int main(void){
       fd=open(tok, 0);
       printf("new fd=%d\n",fd);
       showFDtable();
+    }
 
-    }else if(strcmp(tok,"openw")==0){
+      /*
+    }else if(strcmp(tok,"open_t")==0){
       // ファイルオープン、破壊
       tok=inputpath(line,tok);
       fd=open(tok, 1);
       printf("new fd=%d\n",fd);
       showFDtable();
-
+      */
+    /*
+     * TODO:exitが何でか機能しない
     }else if(strcmp(tok,"exit")==0){
       printf("bye\n");
       exit(0);
+      */
 
+      /*
     }else if(strcmp(tok,"r")==0){
       unsigned int len=read(fd,line,3);
       line[3]='\0';
@@ -410,6 +418,7 @@ int main(void){
     }else if(strcmp(tok,"w")==0){
       unsigned int len=write(fd,"hoge",4);
       printf("write>[%d]\n",len);
+      */
 
     /*}else if(strcmp(tok,"search")==0){
       tok=inputpath(line,tok);
@@ -417,11 +426,13 @@ int main(void){
       printf("new fd=%d\n",fd);
       showFDtable();
     }*/
-
+    /*
+     // いっぱい書き込む
     }else if(strcmp(tok,"w52")==0){
       unsigned int len = write(fd,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",52);
       printf("write>[%d]\n",len);
     }
+    */
 
   }
   return 0;
