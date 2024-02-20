@@ -55,6 +55,16 @@ typedef struct{
 // 定数とか
 const unsigned int SECTOR_BUFFER=0x300;
 
+// ディレクトリエントリアトリビュート
+#define MAX_ARGC 8
+#define DIRATTR_READONLY   0x01
+#define DIRATTR_HIDDEN     0x02
+#define DIRATTR_SYSTEM     0x04
+#define DIRATTR_VOLUMEID   0x08
+#define DIRATTR_DIRECTORY  0x10
+#define DIRATTR_ARCHIVE    0x20
+#define DIRATTR_LONGNAME   0x0F
+
 // アセンブラ関数とか
 extern unsigned char read_sec_raw();
 extern unsigned char write_sec_raw();
@@ -71,7 +81,10 @@ extern unsigned char open(unsigned char* path, unsigned char flags);
 extern unsigned int read(unsigned char fd, unsigned char *buf, unsigned int count);
 extern unsigned int write(unsigned char fd, unsigned char *buf, unsigned int count);
 extern unsigned char search_open(unsigned char* path);
-extern void del(unsigned char* path);
+extern char delete(void* path_or_finfo);
+extern finfo_t* fs_find_fst(const char* path);
+extern finfo_t* fs_find_nxt(finfo_t* finfo, char* name);
+extern void err_print();
 
 // アセンブラ変数とか
 extern void* sdseek;   // セクタ読み書きのポインタ
@@ -89,6 +102,9 @@ unsigned char filename_buf[15];
 dinfo_t* dwk_p=(dinfo_t*)0x514;
 unsigned long fatlen;
 unsigned long fat2startsec;
+finfo_t* finfo_p;
+finfo_t finfo_deep_ins;
+unsigned char basename[13];
 
 // パス入力を強制する
 char* inputpath(unsigned char* l, unsigned char* t){
@@ -242,6 +258,65 @@ void showFDtable(){
   }
 }
 
+unsigned char* get_filename_from_path(unsigned char* path) {
+    // strrchr関数で最後の'/'の位置を探す
+    unsigned char *lastSlash = strrchr(path, '/');
+    if (lastSlash) {
+        // 最後の'/'の次の文字がファイル名の始まり
+        return lastSlash + 1;
+    }
+    return path;
+}
+
+// FINFO_WK表示
+void showFINFO2(finfo_t* ptr){
+  printf("Sig: %02x\n",ptr->Sig);
+  printf("Name: %s\n",ptr->Name);
+  printf("Attr: %02x\n",ptr->Attr);
+  // 時間省いた
+  printf("Head: %s\n",put32(ptr->Head));
+  printf("Size: %s\n",put32(ptr->Siz));
+  printf("Dir:\n");
+  printf("  DrvNum: $%02x\n",ptr->Drv_Num);
+  printf("    Clus: %s\n",put32(ptr->Dir_Clus));
+  printf("     Sec: $%02x\n",ptr->Dir_Sec);
+  printf("     Ent: $%02x\n",ptr->Dir_Ent);
+}
+
+void searchEntriesToDelete(char* path){
+  unsigned char* basename_p = get_filename_from_path(path);
+  strcpy(basename, basename_p);
+  finfo_p = fs_find_fst(path);  // p <- FINFO_WK
+  finfo_deep_ins = *finfo_p;    // FINFOを手元にディープコピー
+  printf("KERNEL FINFO:%p\n", finfo_p);
+  printf("APP    FINFO:%p\n", &finfo_deep_ins);
+  if(finfo_p == NULL) return;
+  do{
+    printf("%s", finfo_p->Name);
+    if((finfo_p->Attr & (DIRATTR_READONLY|DIRATTR_VOLUMEID|DIRATTR_SYSTEM)) != 0){
+      couts(" is protected.\n");
+    }else{
+      coutc('\n');
+      if(delete((void*)&finfo_deep_ins)!=0){
+        err_print();
+        couts("error\n");
+      }else{
+        couts("ok\n");
+      }
+    }
+    printf("finfo_deep_ins:%s\n",&finfo_deep_ins.Name);
+    showFINFO2(&finfo_deep_ins);
+    finfo_p = fs_find_nxt(&finfo_deep_ins, basename); // TODO:与えるfinfoにのみ依存する建前に関わらず、deleteによって内部が壊れるのか連続削除できない
+    finfo_deep_ins = *finfo_p;
+    if(finfo_p != NULL){
+      printf("finfo_deep_ins:%s, basename=%s\n",&finfo_deep_ins.Name, basename);
+      showFINFO2(&finfo_deep_ins);
+    }else{
+      printf("end\n");
+    }
+  }while(finfo_p != NULL);
+}
+
 int main(void){
   unsigned long sec_cursor=0;
   unsigned char fd;
@@ -379,7 +454,7 @@ int main(void){
     }else if(strcmp(tok,"del")==0){
       // ファイル削除
       tok=inputpath(line,tok);
-      del(tok);
+      delete(tok);
 
     }else if(strcmp(tok,"maked")==0){
       // ディレクトリ作成
@@ -392,6 +467,12 @@ int main(void){
       fd=open(tok, 0);
       printf("new fd=%d\n",fd);
       showFDtable();
+    }
+
+    else if(strcmp(tok,"del2")==0){
+      // ファイルいっぱい削除
+      tok=inputpath(line,tok);
+      searchEntriesToDelete(tok);
     }
 
       /*

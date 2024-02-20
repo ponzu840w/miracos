@@ -35,7 +35,7 @@ _fctrl_res=FCTRL_RES
 .IMPORTZP sreg
 
 .EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open,_read,_write,_search_open,_maked
-.EXPORT _finfo_wk,_fwk,_fd_table,_fctrl_res,_del
+.EXPORT _finfo_wk,_fwk,_fd_table,_fctrl_res,_delete
 .EXPORTZP _sdcmdprm,_sdseek
 .CONSTRUCTOR INIT
 
@@ -143,6 +143,9 @@ INIT:
   STA SDCMD_CRC
   ; FS
   JSR FS::INIT
+  ; DRV
+  STZ DWK_CUR_DRV
+  JSR FS::LOAD_DWK
   RTS
 
 .CODE
@@ -243,7 +246,7 @@ INIT:
 .ENDPROC
 
 ; void del()
-.PROC _del
+.PROC _delete
   PHX
   PLY
   JSR FS::FUNC_FS_DELETE
