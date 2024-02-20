@@ -35,7 +35,7 @@ _fctrl_res=FCTRL_RES
 .IMPORTZP sreg
 
 .EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open,_read,_write,_search_open,_maked
-.EXPORT _finfo_wk,_fwk,_fd_table,_fctrl_res,_delete
+.EXPORT _finfo_wk,_fwk,_fd_table,_fctrl_res,_delete,_find_fst,_find_nxt
 .EXPORTZP _sdcmdprm,_sdseek
 .CONSTRUCTOR INIT
 
@@ -286,6 +286,43 @@ NOTFOUND:
 STR_NF:
   .BYTE "File Not Found.",$A,$0
 .ENDPROC
+
+; -------------------------------------------------------------------
+;                            fs_find_fst
+; パス文字列から新たなFINFO構造体を得る
+; -------------------------------------------------------------------
+.proc _find_fst: near          ; 引数: AX=パス文字列
+  PHX
+  PLY
+  JSR FS::FUNC_FS_FIND_FST            ; 検索
+  PHY
+  PLX
+  BCC @FOUND
+  LDA #$0
+  TAX
+@FOUND:
+  RTS
+.endproc
+
+; -------------------------------------------------------------------
+;                            fs_find_nxt
+; -------------------------------------------------------------------
+; void* fs_find_nxt(void* finfo, char* name)
+.proc _find_nxt: near          ; 引数: AX=ファイル名, スタック=FINFO
+  STA $0
+  STX $0+1
+  JSR popax
+  PHX
+  PLY
+  JSR FS::FUNC_FS_FIND_NXT            ; 検索
+  PHY
+  PLX
+  BCC @FOUND
+  LDA #$0
+  TAX
+@FOUND:
+  RTS
+.endproc
 
 ; void dump(boolean wide, unsigned int from, unsigned int to, unsigned int base);
 

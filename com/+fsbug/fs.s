@@ -312,6 +312,7 @@ FIND_FST_RAWPATH:           ; FPATHを多重に呼ぶと狂うので"とりあ�
 ; -------------------------------------------------------------------
 FUNC_FS_FIND_NXT:
   storeAY16 ZR1                       ; ZR1=与えられたFINFO
+  mem2mem16 ZR2,ZR0
   ; FINFOシグネチャチェック
   LDA (ZR1)
   INC

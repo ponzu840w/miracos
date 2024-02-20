@@ -82,8 +82,8 @@ extern unsigned int read(unsigned char fd, unsigned char *buf, unsigned int coun
 extern unsigned int write(unsigned char fd, unsigned char *buf, unsigned int count);
 extern unsigned char search_open(unsigned char* path);
 extern char delete(void* path_or_finfo);
-extern finfo_t* fs_find_fst(const char* path);
-extern finfo_t* fs_find_nxt(finfo_t* finfo, char* name);
+extern finfo_t* find_fst(const char* path);
+extern finfo_t* find_nxt(finfo_t* finfo, char* name);
 extern void err_print();
 
 // アセンブラ変数とか
@@ -286,7 +286,7 @@ void showFINFO2(finfo_t* ptr){
 void searchEntriesToDelete(char* path){
   unsigned char* basename_p = get_filename_from_path(path);
   strcpy(basename, basename_p);
-  finfo_p = fs_find_fst(path);  // p <- FINFO_WK
+  finfo_p = find_fst(path);  // p <- FINFO_WK
   finfo_deep_ins = *finfo_p;    // FINFOを手元にディープコピー
   printf("KERNEL FINFO:%p\n", finfo_p);
   printf("APP    FINFO:%p\n", &finfo_deep_ins);
@@ -306,7 +306,7 @@ void searchEntriesToDelete(char* path){
     }
     printf("finfo_deep_ins:%s\n",&finfo_deep_ins.Name);
     showFINFO2(&finfo_deep_ins);
-    finfo_p = fs_find_nxt(&finfo_deep_ins, basename); // TODO:与えるfinfoにのみ依存する建前に関わらず、deleteによって内部が壊れるのか連続削除できない
+    finfo_p = find_nxt(&finfo_deep_ins, basename); // TODO:与えるfinfoにのみ依存する建前に関わらず、deleteによって内部が壊れるのか連続削除できない
     finfo_deep_ins = *finfo_p;
     if(finfo_p != NULL){
       printf("finfo_deep_ins:%s, basename=%s\n",&finfo_deep_ins.Name, basename);
