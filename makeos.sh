@@ -78,7 +78,8 @@ do
       awk '/Warning/ {printf("w")} {next}')
     rm "${td}/asmfunc.o" -f
     find "${dn}/+${bn}/asmfunc.s" 2>/dev/null |
-      xargs --no-run-if-empty ca65 --cpu 65c02 -I "./${dn}" -o "${td}/asmfunc.o"
+      xargs --no-run-if-empty ca65 --cpu 65c02 -I "./${dn}" -o "${td}/asmfunc.o" \
+      -l ./listing/${dn}/l-${bn}-asmf.s
     ca65  -g -I "./com" \
           --cpu 65c02 \
           -l ./listing/${dn}/l-${bn}.s \
