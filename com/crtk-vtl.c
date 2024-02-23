@@ -1,17 +1,26 @@
+/* crtk-vtl.c
+ * ちぇりーたくあん氏の偽VTLのCソースをCC65に適合するよう変更したもの
+ * https://github.com/cherry-takuan/nlp/blob/master/nlp-16a/Software/Application/NiseVTL/main.c
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
 
+/* CC65 change グローバル変数化されたもの { */
+int cursol_line = 1;
+int input_num[2];
+int now_input_num;
+int sign_flag;
+/* } 定数の再定義 { */
 #undef EOF
-#define EOF 0x0
-
+#define EOF 0x1A
+/* } システムコールラッパ関数 { */
+extern void coutc(const char c);
 extern void cins(const char *str);
 extern char cinc();
-extern void coutc(const char c);
-int input_num[2];
-int now_p;
-int cursol_line;
+/* } CC65 change */
 
 #define BUF_SIZE 1024
 #define END_OF_P BUF_SIZE-1
@@ -20,7 +29,7 @@ char input_buf[BUF_SIZE];
 int top_end_p;
 int bottom_start_p;
 
-#define STACK_SIZE 1000
+#define STACK_SIZE 100
 int stack[STACK_SIZE] = {};
 int sp=0;
 #define VAR(n) n-48
@@ -47,30 +56,45 @@ int stack_top();
 void stack_print();
 
 int main(void){
+    /* CC65 change イテレータ { */
+    int now_p = 0;
+    /* } CC65 change */
     top_end_p =  0;
     bottom_start_p = BUF_SIZE;
     cursol_update(0);
-    for(now_p = 0; now_p<BUF_SIZE;now_p++){buf[now_p]='\0';}
-    cursol_line = 1;
+    /* CC65 change イテレータ { */
+    /* for(int now_p = 0; now_p<BUF_SIZE;now_p++){buf[now_p]='\0';} */
+    for(; now_p<BUF_SIZE;now_p++){buf[now_p]='\0';}
+    /* } 自動変数の挙動が怪しいのでグローバル変数に変更 { */
+    /* int cursol_line = 1; */
+    /* } CC65 change */
     for(cursol_line = 1;print_line(cursol_line);cursol_line++){}
-    //printf("line:%d\n",cursol_line);
     while(1){
-        int now_input_num = 0;
-        int sign_flag=0;
-        input_num[0] = 0;
-        input_num[1] = 0;
         printf("editor c-mode>");
-        //fgets(input_buf, sizeof(input_buf), stdin);
+        /* CC65 change 入力関数の置換 { */
+        /* ---
+        fgets(input_buf, sizeof(input_buf), stdin);
+        input_buf[strlen(input_buf) - 1] = '\0';
+        fflush(stdin);
+         * +++ */
         cins(input_buf);
         coutc('\n');
-        //input_buf[strlen(input_buf) - 1] = '\0';
-        fflush(stdin);
+        /* } 自動変数の挙動が怪しいのでグローバル変数に変更 { */
+        /* ---
+        int input_num[2] = {};
+        int now_input_num = 0;
+        int sign_flag=0;
+         * +++ */
+        input_num[0] = 0;
+        input_num[1] = 0;
         now_input_num = 0;
-        sign_flag=0;
-    //printf("line:%d\n",cursol_line);
+        sign_flag = 0;
+        /* } CC65 change */
         switch (input_buf[0])
         {
+        /* CC65 change イテレータをブロック冒頭で宣言 { */
         int count;
+        /* } CC65 change */
         case 'q':exit(0);//終了
         case 'a':text_insert(cursol_line);break;//挿入
         case 'c':text_change(cursol_line);break;//変更
@@ -85,7 +109,10 @@ int main(void){
          * 数値,数値で指定範囲の表示．
          * カーソルや指定範囲には．や$に+-で指定も可能．
         */
+            /* CC65 change 自動変数宣言箇所移動 { */
+            /* for(int count = 0;count < BUF_SIZE;count++){ */
             for(count = 0;count < BUF_SIZE;count++){
+            /* } CC65 change */
                 if(isdigit(input_buf[count])){
                     int num = 0;
                     for(;count < BUF_SIZE && isdigit(input_buf[count]);count++){
@@ -106,10 +133,12 @@ int main(void){
                 }else if(input_buf[count] == ','){
                     now_input_num++;
                 }else if(input_buf[count]=='\0'){
-                  //printf("inum0:%d,inum1:%d\n",input_num[0],input_num[1]);
                     if(input_num[1]>input_num[0]){
-                      int cn;
-                        for(cn=input_num[0];cn<=input_num[1];cn++){
+                        /* CC65 change 自動変数宣言箇所移動 { */
+                        /* for(int cn=input_num[0];cn<=input_num[1];cn++){ */
+                        int cn = input_num[0];
+                        for(;cn<=input_num[1];cn++){
+                        /* } CC65 change */
                             print_line(cn);
                             cursol_line = input_num[1];
                         }
@@ -152,10 +181,15 @@ int stack_top(){
 int VTL_RUN(){
     int line = 0;
     int to_jump = 0;
-    int count;
+    /* CC65 change 自動変数宣言箇所移動 { */
+    /* ---
     sp = 0;
-    for(count = 0;count < BUF_SIZE;count++){
-        //printf("[%c]",char_get(count));
+    for(int count = 0;count < BUF_SIZE;count++){
+     * +++ */
+    int count = 0;
+    sp = 0;
+    for(;count < BUF_SIZE;count++){
+    /* } CC65 change */
         if(char_get(count)=='\0' || char_get(count)==EOF)return 0;//末尾で終了
         if(isdigit(char_get(count))){//数値を読み取り
             int num=0;
@@ -174,7 +208,7 @@ int VTL_RUN(){
             }else if(char_get(count) == '-'){
                 int wk1 = POP();
                 int wk2 = POP();
-                PUSH(wk1-wk2);
+                PUSH(wk2-wk1);
             }else if(char_get(count) == '/'){
                 int wk1 = POP();
                 int wk2 = POP();
@@ -188,13 +222,17 @@ int VTL_RUN(){
                 int wk2 = POP();
                 PUSH(wk2%wk1);
             }else if(char_get(count) == '$'){
-                //PUSH(getchar());
+                /* CC65 change 入力関数置換 { */
+                /* PUSH(getchar()); */
                 PUSH(cinc());
+                /* } CC65 change */
             }else if(char_get(count) == '?'){
                 int tmp;
                 scanf("%d",&tmp);
-                //getchar();
+                /* CC65 change 入力関数置換 { */
+                /* getchar(); */
                 cinc();
+                /* } CC65 change */
                 PUSH(tmp);
             }else if(char_get(count) == '>'){
                 int wk1 = POP();
@@ -275,17 +313,26 @@ int VTL_RUN(){
 
 void text_insert(int line_num){//line_num行に挿入
     int cursol = line_head(line_num);
+    /* CC65 change イテレータをブロック冒頭で宣言 { */
+    int count;
+    /* } CC65 change */
     cursol_update(cursol);
     while(1){
-      int count;
         printf("editor a-mode>");
-        //fgets(input_buf, sizeof(input_buf), stdin);
+        /* CC65 change 入力関数の置換 { */
+        /* ---
+        fgets(input_buf, sizeof(input_buf), stdin);
+        input_buf[strlen(input_buf) - 1] = '\0';
+        fflush(stdin);
+         * +++ */
         cins(input_buf);
         coutc('\n');
-        //input_buf[strlen(input_buf) - 1] = '\0';
-        fflush(stdin);
+        /* } CC65 change */
         if(strlen(input_buf) == 1 && input_buf[0] == '.') break;
+        /* CC65 change 自動変数宣言箇所移動 { */
+        /* for(int count = 0;count<strlen(input_buf);insert(input_buf[count++])){} */
         for(count = 0;count<strlen(input_buf);insert(input_buf[count++])){}
+        /* } CC65 change */
         insert('\n');
     }
 }
@@ -294,9 +341,15 @@ void text_change(int line_num){//line_num行を上書き
     text_insert(line_num);
 }
 void line_del(int line_num){//line_num行を削除
+    /* CC65 change 自動変数宣言箇所移動 { */
+    /*
+    if(line_head(line_num+1) < 0) return;
+    int cursol = line_head(line_num+1);
+    */
     int cursol;
     if(line_head(line_num+1) < 0) return;
     cursol = line_head(line_num+1);
+    /* } CC65 change */
     cursol_update(cursol);
     top_end_p = p_get(line_head(line_num));
 }
@@ -358,30 +411,44 @@ void insert(char data){//一文字挿入する
     top_end_p++;
 }
 void view_raw_data(){//ギャップバッファデバッグ用出力
-    int i;
+    /* CC65 change 自動変数宣言箇所移動 { */
+    int i = 0;
+    /* } CC65 change */
     printf("\n\ntop:%d,bottom:%d\n",top_end_p,bottom_start_p);
     printf("|");
-    for(i=0; i<BUF_SIZE;i++){
+    /* CC65 change 自動変数宣言箇所移動 { */
+    /* for(int i = 0; i<BUF_SIZE;i++){ */
+    for(; i<BUF_SIZE;i++){
+    /* } CC65 change */
         if(i == top_end_p) printf("T");
         else if(i == bottom_start_p) printf("B");
         else printf(" ");
     }
     printf("|\n|");
+    /* CC65 change 自動変数宣言箇所移動 { */
+    /* for(int i=0; i<BUF_SIZE;i++){ */
     for(i=0; i<BUF_SIZE;i++){
+    /* } CC65 change */
         if(isprint(buf[i])) printf("%c",buf[i]);
         else printf(" ");
     }
     printf("|\n");
 }
 int print_line(int line_num){//line_num行を表示
+    /* CC65 change 自動変数宣言箇所移動 { */
+    /*
     int line = 1;
-    int now_p;
-    for(now_p = 0; now_p<BUF_SIZE;now_p++){
+    for(int now_p = 0; now_p<BUF_SIZE;now_p++){
+    */
+    int line = 1;
+    int now_p = 0;
+    for(; now_p<BUF_SIZE;now_p++){
+    /* } CC65 change */
         if(char_get(now_p)== EOF){printf("[EOF]\n");break;}
         if(char_get(now_p)=='\0') break;
         if(char_get(now_p)=='\n'){
             if(line==line_num){
-                printf("[line=%d]\n",line);
+                printf("\n");
                 return 1;
             }
             line++;
@@ -392,10 +459,17 @@ int print_line(int line_num){//line_num行を表示
     return 0;
 }
 int line_head(int line_num){////line_num行の先頭の位置を返す(配列のアドレスではなく何文字目か)
-    int line = 1;
-    int now_p;
+    /* CC65 change 自動変数宣言箇所移動 { */
+    /*
     if(line_num==1)return 0;
-    for(now_p = 0; now_p<BUF_SIZE;now_p++){
+    int line = 1;
+    for(int now_p = 0; now_p<BUF_SIZE;now_p++){
+    */
+    int line = 1;
+    int now_p = 0;
+    if(line_num==1)return 0;
+    for(; now_p<BUF_SIZE;now_p++){
+    /* } CC65 change */
         if(char_get(now_p)== EOF) break;
         if(char_get(now_p)=='\0') break;
         if(char_get(now_p)=='\n'){
@@ -409,8 +483,11 @@ int line_head(int line_num){////line_num行の先頭の位置を返す(配列の
 }
 int line_count(){//何行あるか(投げやり)
     int line = 1;
-    int now_p;
-    for(now_p = 0; now_p<BUF_SIZE;now_p++){
+    /* CC65 change 自動変数宣言箇所移動 { */
+    /* for(int now_p = 0; now_p<BUF_SIZE;now_p++){ */
+    int now_p = 0;
+    for(; now_p<BUF_SIZE;now_p++){
+    /* } CC65 change */
         if(char_get(now_p)== EOF) break;
         if(char_get(now_p)=='\0') break;
         if(char_get(now_p)=='\n'){
