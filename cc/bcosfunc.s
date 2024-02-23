@@ -31,6 +31,7 @@
 .export _coutc
 .export _couts
 .export _cins
+.export _cinc
 .export _fs_find_fst
 .export _fs_find_nxt
 .export _fs_delete
@@ -64,6 +65,14 @@
   JSR BCOS::SYSCALL               ; コール
   ; --- マクロここまで ---
   rts                             ; 復帰
+.endproc
+
+; -------------------------------------------------------------------
+;                              cinc
+; -------------------------------------------------------------------
+.proc _cinc                        ; 引数: A=格納先アドレス
+  syscall CON_IN_CHR
+  RTS
 .endproc
 
 ; -------------------------------------------------------------------
