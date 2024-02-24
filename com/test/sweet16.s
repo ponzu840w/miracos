@@ -66,10 +66,10 @@ PRT_REG:
   storeAY16 ZP_PTR
   LDA #'$'
   syscall CON_OUT_CHR
-  LDA (ZP_PTR)
-  JSR PRT_BYT
   LDY #1
   LDA (ZP_PTR),Y
+  JSR PRT_BYT
+  LDA (ZP_PTR)
   JSR PRT_BYT
   RTS
 

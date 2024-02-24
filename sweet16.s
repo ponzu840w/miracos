@@ -66,7 +66,10 @@ SWEET16:
   CLD
   ; ---------------------------------------------------------------
   ;   JSRで積まれた戻りアドレスをPCにする
-  pullmem16 R15
+  PLA
+  STA R15
+  PLA
+  STA R15+1
 
 ; -------------------------------------------------------------------
 ;                            メインループ
@@ -81,10 +84,6 @@ SW16C:
   BNE @NOINCH
   INC R15+1
 @NOINCH:
-  ; 全ルーチンの上位バイトをプッシュ
-  ; RTSで飛べるように
-  LDA  #>SET
-  PHA
   ; ---------------------------------------------------------------
   ;   命令を取得して処理
   LDA (R15)   ; フェッチ
@@ -96,14 +95,14 @@ SW16C:
   BEQ @NONREG ; 上位ニブルが0なので非レジスタ指定命令
   ; ---------------------------------------------------------------
   ;   レジスタ指定命令 1n~Fn
-  STX R14+1   ; * INDICATE PRIOR RESULT REG
-  LSR         ; | 7 XXXX---- 0
-  LSR         ; |   >>>
-  LSR         ; | 7 ---XXXX- 0 -> Y （オペコード指定）
-  TAY         ; |
-  LDA OPTBL-2,Y ; 命令の下位バイトをプッシュ
-  PHA
-  RTS         ; 各命令のコードに飛ぶ（X=reg-idx, Y=opcode-idx）
+  STX R14+1         ; * INDICATE PRIOR RESULT REG
+  LSR               ; | 7 XXXX---- 0
+  LSR               ; |   >>>
+  LSR               ; | 7 ---XXXX- 0 -> Y （オペコード指定）
+  TAY               ; |
+  LDA OPTBL-2,Y     ; * 命令ルーチンへの相対アドレスを
+  STA BRANCH_ROOT+1 ; | テーブルから取ってセットし
+  JMP BRANCH_ROOT   ; | BRA命令へ飛ぶ
   ; ---------------------------------------------------------------
   ;   非レジスタ指定命令 00~0F
 @NONREG:
@@ -111,15 +110,12 @@ SW16C:
   BNE @NOINCH2
   INC R15+1
 @NOINCH2:
-  LDA BRTBL,X   ; テーブルから下位バイトをプッシュ
-  PHA           ; Xは下位ニブル*2
-  LDA R14+1     ; PRIOR RESULT REG INDEX
-  LSR           ; PREPARE CARRY FOR BC. BNC.
-  RTS           ; 各命令のコードに飛ぶ（X=opcode-idx）
+  LDA BRTBL,X       ; 命令ルーチンへの相対アドレスを取得
+  STA BRANCH_ROOT+1 ; BRAのオペランドにセット
+  LDA R14+1         ; PRIOR RESULT REG INDEX
+  LSR               ; PREPARE CARRY FOR BC. BNC.
+  JMP BRANCH_ROOT   ; BRAへ飛ぶ
 
-; -------------------------------------------------------------------
-; 1n                       レジスタに即値を代入
-; -------------------------------------------------------------------
 SETZ:
   LDA (R15),Y     ; 上位オペランドを取得（オペコードから、Y=2）
   STA R0+1,X      ; 指定レジスタに置く
@@ -135,43 +131,23 @@ SETZ:
 @NOINCH:          ; |
   RTS
 
-;
-; OPCODE TABLE
-;
-OPTBL:
-  .BYTE  <SET-1     ; 1X
-BRTBL:
-  .BYTE  <RTN-1     ; 0
-  .BYTE  <LD-1      ; 2X
-  .BYTE  <BR-1      ; 1
-  .BYTE  <ST-1      ; 3X
-  .BYTE  <BNC-1     ; 2
-  .BYTE  <LD_AT-1   ; 4X
-  .BYTE  <BC-1      ; 3
-  .BYTE  <ST_AT-1   ; 5X
-  .BYTE  <BP-1      ; 4
-  .BYTE  <LDD_AT-1  ; 6X
-  .BYTE  <BM-1      ; 5
-  .BYTE  <STD_AT-1  ; 7X
-  .BYTE  <BZ-1      ; 6
-  .BYTE  <POP-1     ; 8X
-  .BYTE  <BNZ-1     ; 7
-  .BYTE  <STP_AT-1  ; 9X
-  .BYTE  <BM1-1     ; 8
-  .BYTE  <ADD-1     ; AX
-  .BYTE  <BNM1-1    ; 9
-  .BYTE  <SUB-1     ; BX
-  .BYTE  <BK-1      ; A
-  .BYTE  <POPD-1    ; CX
-  .BYTE  <RS-1      ; B
-  .BYTE  <CPR-1     ; DX
-  .BYTE  <BS-1      ; C
-  .BYTE  <INR-1     ; EX
-  .BYTE  <NUL-1     ; D
-  .BYTE  <DCR-1     ; FX
-  .BYTE  <NUL-1     ; E
-  .BYTE  <NUL-1     ; UNUSED
-  .BYTE  <NUL-1     ; F
+; -------------------------------------------------------------------
+;  00                      6502モードに復帰
+; -------------------------------------------------------------------
+RTN:
+  ; ---------------------------------------------------------------
+  ;   6502のレジスタの状態を復帰
+  PLA           ; 戻りアドレスをPOP
+  PLA
+  LDA STATUS    ; BSSに保存したレジスタを復帰
+  PHA
+  LDA ACC
+  LDX XREG
+  LDY YREG
+  PLP
+  ; ---------------------------------------------------------------
+  ;   6502モードに復帰
+  JMP (R15)
 
 ; -------------------------------------------------------------------
 ;  1n                     2バイト即値セット
@@ -309,6 +285,9 @@ DCR:
   DEC R0,X
   RTS
 
+BRANCH_ROOT:
+  BRA ST      ; オペランドは動的に書き換わる
+
 ; -------------------------------------------------------------------
 ;  Bn                            減算
 ;                           R0 <- R0 - Rn
@@ -341,7 +320,7 @@ SUB2:
 ADD:
   LDA R0
   ADC R0,X
-  STA R0     ; R0=RX+R0
+  STA R0      ; R0=RX+R0
   LDA R0+1
   ADC R0+1,X
   LDY #$00    ; R0 FOR RESULT
@@ -466,21 +445,38 @@ RS:
   STA R15
   RTS
 
-; -------------------------------------------------------------------
-; 00                       6502モードに復帰
-; -------------------------------------------------------------------
-RTN:
-  ; ---------------------------------------------------------------
-  ;   6502のレジスタの状態を復帰
-  PLA           ; 戻りアドレスをPOP
-  PLA
-  LDA STATUS    ; BSSに保存したレジスタを復帰
-  PHA
-  LDA ACC
-  LDX XREG
-  LDY YREG
-  PLP
-  ; ---------------------------------------------------------------
-  ;   6502モードに復帰
-  JMP (R15)
+OPTBL:
+  .BYTE <(SET     -BRANCH_ROOT-2)   ; 1n
+BRTBL:
+  .BYTE <(RTN     -BRANCH_ROOT-2)   ; 0
+  .BYTE <(LD      -BRANCH_ROOT-2)   ; 2n
+  .BYTE <(BR      -BRANCH_ROOT-2)   ; 1
+  .BYTE <(ST      -BRANCH_ROOT-2)   ; 3n
+  .BYTE <(BNC     -BRANCH_ROOT-2)   ; 2
+  .BYTE <(LD_AT   -BRANCH_ROOT-2)   ; 4n
+  .BYTE <(BC      -BRANCH_ROOT-2)   ; 3
+  .BYTE <(ST_AT   -BRANCH_ROOT-2)   ; 5n
+  .BYTE <(BP      -BRANCH_ROOT-2)   ; 4
+  .BYTE <(LDD_AT  -BRANCH_ROOT-2)   ; 6n
+  .BYTE <(BM      -BRANCH_ROOT-2)   ; 5
+  .BYTE <(STD_AT  -BRANCH_ROOT-2)   ; 7n
+  .BYTE <(BZ      -BRANCH_ROOT-2)   ; 6
+  .BYTE <(POP     -BRANCH_ROOT-2)   ; 8n
+  .BYTE <(BNZ     -BRANCH_ROOT-2)   ; 7
+  .BYTE <(STP_AT  -BRANCH_ROOT-2)   ; 9n
+  .BYTE <(BM1     -BRANCH_ROOT-2)   ; 8
+  .BYTE <(ADD     -BRANCH_ROOT-2)   ; An
+  .BYTE <(BNM1    -BRANCH_ROOT-2)   ; 9
+  .BYTE <(SUB     -BRANCH_ROOT-2)   ; Bn
+  .BYTE <(BK      -BRANCH_ROOT-2)   ; A
+  .BYTE <(POPD    -BRANCH_ROOT-2)   ; Cn
+  .BYTE <(RS      -BRANCH_ROOT-2)   ; B
+  .BYTE <(CPR     -BRANCH_ROOT-2)   ; Dn
+  .BYTE <(BS      -BRANCH_ROOT-2)   ; C
+  .BYTE <(INR     -BRANCH_ROOT-2)   ; En
+  .BYTE <(NUL     -BRANCH_ROOT-2)   ; D
+  .BYTE <(DCR     -BRANCH_ROOT-2)   ; Fn
+  .BYTE <(NUL     -BRANCH_ROOT-2)   ; E
+  .BYTE <(NUL     -BRANCH_ROOT-2)   ; UNUSED
+  .BYTE <(NUL     -BRANCH_ROOT-2)   ; F
 
