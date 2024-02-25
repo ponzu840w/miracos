@@ -33,23 +33,33 @@
 START:
   loadAY16 STR_HELLO
   syscall CON_OUT_STR
-  loadAY16 $1234
-  storeAY16 R0
+  ;loadAY16 $1234
+  ;storeAY16 R0
 
-  JSR SWEET16
+  LDA #$12          ; ネイティブにおいて
+  STA R0+1          ;   R0に$1234を代入
+  LDA #$56
+  STA R0
 
+  JSR SWEET16       ; SWEET16を起動
+
+  ; SWEET16ニモニックを認識するための疑似命令
   .SETCPU "sweet16"
-  SET R1,$5678
-  ST R2
-  ADD R1
-  ST R3
-  LD R2
-  SUB R1
-  ST R4
-  RTN
+  ; 以降はSWEET16の機械語
+  ; R3 <- $1234 + $5678
+  SET R1,$5678      ; R1 <- $5678
+  ST R2             ; R2 <- R0($1234)
+  ADD R1            ; R0 <- R0 + R1
+  ST R3             ; R3 <- R0
+  ; R4 <- $1234 - $5678
+  LD R2             ; R0 <- R2
+  SUB R1            ; R0 <- R0 - R1
+  ST R4             ; R4 <- R0
+  RTN               ; ネイティブモードに復帰
   .SETCPU "65C02"
 
-  loadAY16 STR_TEST_ADD
+  ; ここからネイティブ
+  loadAY16 STR_TEST_ADD ; R3とR4を表示
   syscall CON_OUT_STR
   loadAY16 R3
   JSR PRT_REG

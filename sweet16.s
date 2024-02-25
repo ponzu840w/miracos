@@ -95,14 +95,14 @@ SW16C:
   BEQ @NONREG ; 上位ニブルが0なので非レジスタ指定命令
   ; ---------------------------------------------------------------
   ;   レジスタ指定命令 1n~Fn
-  STX R14+1         ; * INDICATE PRIOR RESULT REG
-  LSR               ; | 7 XXXX---- 0
-  LSR               ; |   >>>
-  LSR               ; | 7 ---XXXX- 0 -> Y （オペコード指定）
-  TAY               ; |
-  LDA OPTBL-2,Y     ; * 命令ルーチンへの相対アドレスを
-  STA BRANCH_ROOT+1 ; | テーブルから取ってセットし
-  JMP BRANCH_ROOT   ; | BRA命令へ飛ぶ
+  STX R14+1                 ; * INDICATE PRIOR RESULT REG
+  LSR                       ; | 7 XXXX---- 0
+  LSR                       ; |   >>>
+  LSR                       ; | 7 ---XXXX- 0 -> Y （オペコード指定）
+  TAY                       ; |
+  LDA REG_OPECODE_TABLE-2,Y ; * 命令ルーチンへの相対アドレスを
+  STA BRANCH_ROOT+1         ; | テーブルから取ってセットし
+  JMP BRANCH_ROOT           ; | BRA命令へ飛ぶ
   ; ---------------------------------------------------------------
   ;   非レジスタ指定命令 00~0F
 @NONREG:
@@ -110,11 +110,11 @@ SW16C:
   BNE @NOINCH2
   INC R15+1
 @NOINCH2:
-  LDA BRTBL,X       ; 命令ルーチンへの相対アドレスを取得
-  STA BRANCH_ROOT+1 ; BRAのオペランドにセット
-  LDA R14+1         ; PRIOR RESULT REG INDEX
-  LSR               ; PREPARE CARRY FOR BC. BNC.
-  JMP BRANCH_ROOT   ; BRAへ飛ぶ
+  LDA NRG_OPECODE_TABLE,X   ; 命令ルーチンへの相対アドレスを取得
+  STA BRANCH_ROOT+1         ; BRAのオペランドにセット
+  LDA R14+1                 ; PRIOR RESULT REG INDEX
+  LSR                       ; PREPARE CARRY FOR BC. BNC.
+  JMP BRANCH_ROOT           ; BRAへ飛ぶ
 
 SETZ:
   LDA (R15),Y     ; 上位オペランドを取得（オペコードから、Y=2）
@@ -445,9 +445,9 @@ RS:
   STA R15
   RTS
 
-OPTBL:
+REG_OPECODE_TABLE:
   .BYTE <(SET     -BRANCH_ROOT-2)   ; 1n
-BRTBL:
+NRG_OPECODE_TABLE:
   .BYTE <(RTN     -BRANCH_ROOT-2)   ; 0
   .BYTE <(LD      -BRANCH_ROOT-2)   ; 2n
   .BYTE <(BR      -BRANCH_ROOT-2)   ; 1
