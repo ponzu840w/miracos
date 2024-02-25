@@ -44,7 +44,7 @@ START:
   JSR SWEET16       ; SWEET16を起動
 
   ; SWEET16ニモニックを認識するための疑似命令
-  .SETCPU "sweet16"
+  .SETCPU "SWEET16"
   ; 以降はSWEET16の機械語
   ; R3 <- $1234 + $5678
   SET R1,$5678      ; R1 <- $5678
@@ -68,6 +68,33 @@ START:
   loadAY16 STR_TEST_SUB
   syscall CON_OUT_STR
   loadAY16 R4
+  JSR PRT_REG
+  JSR PRT_LF
+
+  JSR SWEET16
+  .SETCPU "SWEET16"
+  SET R0,$5678  ; 割られる数
+  SET R1,$123   ; 割る数
+  SET R2,$FFFF  ; 引けた回数カウント
+LOOP:
+  INR R2
+  SUB R1
+  BC  LOOP
+  ADD R1
+  ; R0 = %
+  ; R2 = /
+  RTN
+  .SETCPU "65C02"
+
+  loadAY16 STR_TEST_DIV
+  syscall CON_OUT_STR
+  loadAY16 R2
+  JSR PRT_REG
+  JSR PRT_LF
+
+  loadAY16 STR_TEST_PER
+  syscall CON_OUT_STR
+  loadAY16 R0
   JSR PRT_REG
   JSR PRT_LF
   RTS
@@ -127,4 +154,10 @@ STR_TEST_ADD:
 
 STR_TEST_SUB:
   .BYTE "$1234 - $5678 = ",0
+
+STR_TEST_DIV:
+  .BYTE "$5678 /  $123 = ",0
+
+STR_TEST_PER:
+  .BYTE "$5678 %  $123 = ",0
 
