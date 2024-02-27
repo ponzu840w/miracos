@@ -86,6 +86,7 @@ SW16C:
 @NOINCH:
   ; ---------------------------------------------------------------
   ;   命令を取得して処理
+  LDY #$00
   LDA (R15)   ; フェッチ
   AND #$0F    ; *
   ASL         ; | 7 OPCODE | REGSPC 0 @R15
@@ -195,7 +196,7 @@ ST_AT:
 ST_AT2:
   STA (R0,X)
 ST_AT3:
-  STZ R14+1 ; INDICATE R0 IS RESULT NEG
+  STY R14+1 ; INDICATE R0 IS RESULT NEG
 
 ; -------------------------------------------------------------------
 ;  En                       インクリメント
@@ -240,7 +241,7 @@ POP2:
   STA R0
   STY R0+1
 POP3:
-  STZ R15+1   ; INDICATE R0 AS LAST RES. REG
+  STZ R14+1   ; INDICATE R0 AS LAST RES. REG
   RTS
 
 ; -------------------------------------------------------------------
@@ -258,7 +259,7 @@ LDD_AT:
 ;                          @(Rn++++) <- R0
 ; -------------------------------------------------------------------
 STD_AT:
-  JSR LD_AT
+  JSR ST_AT
   LDA R0+1
   STA (R0,X)
   BRA INR
@@ -348,15 +349,16 @@ BNC:
   BCS BNC2    ; NO CARRY TEST
 
 BR1:          ; DISPLACEMENT BYTE
-  LDA (R15),Y
+  LDA (R15)
   BPL BR2
-  DEY
+  DEY         ; Y = ((IP) & %10000000 == 0) ? $00 , $FF
 BR2:          ; ADD TO PC
   ADC R15
   STA R15
   TYA
   ADC R15+1
   STA R15+1
+  mem2AY16 R15
 BNC2:
   RTS
 BC:
