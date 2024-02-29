@@ -17,6 +17,8 @@
 #define DIRATTR_ARCHIVE    0x20
 #define DIRATTR_LONGNAME   0x0F
 
+char verbose_flag = 0;
+
 typedef struct{
   // FIB、ファイル詳細情報を取得し、検索などに利用
   unsigned char Sig;                // $FFシグネチャ、フルパス指定と区別
@@ -82,33 +84,59 @@ void searchEntriesToDelete(char* path){
   strcpy(basename, basename_p);
   finfo_p = fs_find_fst(path);
   finfo_deep_ins = *finfo_p;
+  if(verbose_flag)printf("KERNEL FINFO:%p\n", finfo_p);
+  if(verbose_flag)printf("APP    FINFO:%p\n", &finfo_deep_ins);
   if(finfo_p == NULL)return;
   do{
     printf("%s", finfo_p->Name);
     if((finfo_p->Attr & (DIRATTR_READONLY|DIRATTR_VOLUMEID|DIRATTR_SYSTEM)) != 0){
       couts(" is protected.\n");
     }else{
-      coutc('\n');
+      coutc(' ');
       if(fs_delete((void*)finfo_p)!=0){
         err_print();
-        couts("error");
+        couts("error.\n");
       }else{
-        //couts("ok");
+        couts("ok.\n");
       }
     }
-    //printf("finfo_deep_ins:%s\n",&finfo_deep_ins.Name);
-    //showFINFO(&finfo_deep_ins);
+    if(verbose_flag)printf("finfo_deep_ins:%s\n",&finfo_deep_ins.Name);
+    if(verbose_flag)showFINFO(&finfo_deep_ins);
     finfo_p = fs_find_nxt(&finfo_deep_ins, basename); // TODO:与えるfinfoにのみ依存する建前に関わらず、deleteによって内部が壊れるのか連続削除できない
     finfo_deep_ins = *finfo_p;
-    //printf("finfo_deep_ins:%s, basename=%s\n",&finfo_deep_ins.Name, basename);
-    //showFINFO(&finfo_deep_ins);
+    if(finfo_p != NULL){
+      if(verbose_flag)printf("finfo_deep_ins:%s, basename=%s\n",&finfo_deep_ins.Name, basename);
+      if(verbose_flag)showFINFO(&finfo_deep_ins);
+    }
   }while(finfo_p != NULL);
 }
 
 int main(){
   unsigned int* zr0=(unsigned int*)0;       // ZR0を指す
   unsigned char* arg=(unsigned char*)*zr0;  // ZR0の指すところを指す コマンドライン引数
-  searchEntriesToDelete(arg);
+  unsigned char* tok = strtok(arg, " ");
+  char* argv[16];
+  unsigned char argc = 0;
+  unsigned int i = 0;
+
+  if(tok == NULL) return 0;
+  do{
+    if(tok[0] == '-' && tok[1] == 'v'){
+      verbose_flag = 1;
+    }else{
+      argv[argc++] = tok;
+    }
+  }while((tok = strtok(NULL, " ")) != NULL);
+
+  argv[argc] = NULL;
+
+  do{
+    printf("[%s]\n", argv[i]);
+    searchEntriesToDelete(argv[i++]);
+  }while(argv[i] != NULL);
+
+  printf("end.\n");
+
   return 0;
 }
 
