@@ -231,6 +231,7 @@ LF       = 10       ; line feed char
 CR = LF
 BS       = 8        ; "Delete last keypress" key
 OP_OR    = '|'      ; Bit-wise OR operator
+DQUOTE   = $22
 
 .BSS
 linbuf:  .RES 512    ;= $0200    ; input line buffer
@@ -476,7 +477,7 @@ prstr1:
 prstr2:
     tax             ; save closing delimiter
     ;jsr  pause      ; check for pause or abort
-    txa             ; retrieve closing delimiter
+    ;txa             ; retrieve closing delimiter
     beq  outnl      ; always '\n' after '\0' delimiter
     jsr  skpbyte    ; skip over the delimiter
     cmp  #';'       ; if trailing char is ';' then
@@ -508,7 +509,7 @@ exec:
     jsr  convp      ; arg[{0}] -> left-side variable
     jsr  getbyte    ; skip over assignment operator
     jsr  skpbyte    ; is right-side a literal string?
-    cmp  #'"'       ;   yes: print the string with
+    cmp  #DQUOTE    ;   yes: print the string with
     beq  prstr0     ;     trailing ';' check & return
     ldx  #arg+2     ; point eval to arg[{1}]
     jsr  eval       ; evaluate right-side in arg[{1}]
@@ -945,7 +946,6 @@ inln:
     sta  at         ; {@} -> input line buffer
     lda  #>linbuf   ;
     sta  at+1       ;
-    ;ldy  #-1        ;
     ldy  #255
 inln6:
     iny             ;
@@ -1058,7 +1058,9 @@ findrts:
 ;    jsr  waitkey    ; wait for keypress, fall through
 inch:
   PHY
+  PHX
   syscall CON_IN_CHR
+  PLX
   PLY
   RTS
 ; - - - - - - - - - - - - - - - - - - - - - - - - - - ;
@@ -1076,7 +1078,9 @@ inch:
 outch:
   PHA
   PHY
+  PHX
   syscall CON_OUT_CHR
+  PLX
   PLY
   PLA
   RTS
