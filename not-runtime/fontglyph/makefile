@@ -3,7 +3,7 @@
 # 変数定義
 PNG_FILE = misaki_mincho.png
 BMP_FILE = misaki_mincho.bmp
-BIN_FILE = ../bin/MCOS/DAT/MSKMSJIS.FNT
+BIN_FILE = ../../bin/MCOS/DAT/MSKMSJIS.FNT
 SERIALIZER_SRC = glyph_serializer.c
 SERIALIZER_EXE = glyph_serializer
 
