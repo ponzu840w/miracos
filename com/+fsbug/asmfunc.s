@@ -310,8 +310,7 @@ STR_NF:
 ; -------------------------------------------------------------------
 ; void* fs_find_nxt(void* finfo, char* name)
 .proc _find_nxt: near          ; 引数: AX=ファイル名, スタック=FINFO
-  STA $0
-  STX $0+1
+  storeAX16 ZR2
   JSR popax
   PHX
   PLY
