@@ -312,6 +312,7 @@ FIND_FST_RAWPATH:           ; FPATHを多重に呼ぶと狂うので"とりあ�
 ; -------------------------------------------------------------------
 FUNC_FS_FIND_NXT:
   storeAY16 ZR1                       ; ZR1=与えられたFINFO
+  mem2mem16 ZR2,ZR0
   ; FINFOシグネチャチェック
   LDA (ZR1)
   INC
@@ -731,7 +732,7 @@ FUNC_FS_MAKE:
   ;   ディレクトリ：.と..
 @MAKED:
   loadreg16 FINFO_WK+FINFO::HEAD  ; 新しく割り当てた内容の先頭クラスタ先頭セクタを
-  JSR HEAD2FWK                    ;   READSECに展開する
+  JSR HEAD2FWK                    ;   REALSECに展開する
   STZ SECBF512+64                 ; .と..の次が空になるように
   ; .
   LDA #'.'
@@ -1161,3 +1162,35 @@ CLEAR_FINFO:
 ;  STA (ZP_SDSEEK_VEC16),Y
 ;  RTS
 
+; -------------------------------------------------------------------
+;                         ファイルシーク
+; -------------------------------------------------------------------
+; ファイルのシーク位置を変更する
+; input:A=fd, Y=mode(0:SEEK_SET,1:SEEK_CUR,2:SEEK_END), ZR12=offset(32bit)
+; output:C=ERR, ZR12=offset(32bit)
+; -------------------------------------------------------------------
+FUNC_FS_SEEK:
+  ; ---------------------------------------------------------------
+  ;   サブルーチンローカル変数の定義
+  @ZR12_OFFSET        = ZR1       ; オフセット
+  ; ---------------------------------------------------------------
+  ;   FDの精査 閉じてないか？ 特殊ファイルか？
+  TAX
+  LDA FD_TABLE+1,X                ; fdテーブルの上位バイトを取得
+  BEQ @CLOSED_FD
+  CMP #FDTOK_SPF
+  BEQ @SPF
+@FAT:
+  JMP FAT_SEEK
+@CLOSED_FD:
+  LDA #ERR::BROKEN_FD
+  JMP ERR::REPORT
+  ; ---------------------------------------------------------------
+  ;   特殊ファイルの操作
+@SPF:
+  CLC
+  STZ @ZR12_OFFSET
+  STZ @ZR12_OFFSET+1
+  STZ @ZR12_OFFSET+2
+  STZ @ZR12_OFFSET+3
+  RTS

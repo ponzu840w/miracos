@@ -113,3 +113,13 @@
 @skp:
 .endmac
 
+.macro mem2mem32 dst,src
+  LDA src
+  STA dst
+  LDA src+1
+  STA dst+1
+  LDA src+2
+  STA dst+2
+  LDA src+3
+  STA dst+3
+.endmac

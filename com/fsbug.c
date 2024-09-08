@@ -85,6 +85,7 @@ extern char delete(void* path_or_finfo);
 extern finfo_t* find_fst(const char* path);
 extern finfo_t* find_nxt(finfo_t* finfo, char* name);
 extern void err_print();
+extern unsigned long seek(unsigned char fd, unsigned char mode, unsigned long offset);
 
 // アセンブラ変数とか
 extern void* sdseek;   // セクタ読み書きのポインタ
@@ -445,7 +446,7 @@ int main(void){
         clus=strtol(tok,NULL,16);
       }
       showFAT(fatnum,clus);
-
+    /*
     }else if(strcmp(tok,"makef")==0){
       // ファイル作成
       tok=inputpath(line,tok);
@@ -461,21 +462,21 @@ int main(void){
       tok=inputpath(line,tok);
       maked(tok);
 
+      */
     }else if(strcmp(tok,"open")==0){
       // ファイルオープン
       tok=inputpath(line,tok);
       fd=open(tok, 0);
       printf("new fd=%d\n",fd);
       showFDtable();
-    }
 
+      /*
     else if(strcmp(tok,"del2")==0){
       // ファイルいっぱい削除
       tok=inputpath(line,tok);
       searchEntriesToDelete(tok);
     }
 
-      /*
     }else if(strcmp(tok,"open_t")==0){
       // ファイルオープン、破壊
       tok=inputpath(line,tok);
@@ -490,12 +491,12 @@ int main(void){
       exit(0);
       */
 
-      /*
     }else if(strcmp(tok,"r")==0){
       unsigned int len=read(fd,line,3);
       line[3]='\0';
       printf("read>[%s]\n",line);
 
+      /*
     }else if(strcmp(tok,"w")==0){
       unsigned int len=write(fd,"hoge",4);
       printf("write>[%d]\n",len);
@@ -514,7 +515,16 @@ int main(void){
       printf("write>[%d]\n",len);
     }
     */
-
+    }else if(strcmp(tok,"seek")==0){
+      unsigned long offset;
+      if((tok=strtok(NULL," "))==NULL){
+        couts("offset32>$");
+        scanf("%lX",&offset);
+      }else{
+        offset=strtol(tok,NULL,16);
+      }
+      printf("seek ret: %lu\n", seek(fd, 0, offset));
+    }
   }
   return 0;
 }

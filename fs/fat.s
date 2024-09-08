@@ -866,7 +866,7 @@ FAT_READ:
   ;   WRITE:  ファイルの残りより多く書くつもりの場合、ファイルサイズを拡張する
   TXA
   JSR LOAD_FWK_MAKEREALSEC        ; AのfdからFCTRL構造体をロード、リアルセクタ作成
-  LDA FWK+FCTRL::SIZ
+  LDA FWK+FCTRL::SIZ              ; NOTE: これ必要なのか？
   long_long_sub   @ZR34_TMP32, FWK+FCTRL::SIZ, FWK+FCTRL::SEEK_PTR   ; tmp=siz-seek
   long_short_cmp  @ZR34_TMP32, @ZR2_LENGTH                           ; tmp<=>length @ZR34_TMP32の破棄
   BEQ @SKP_PARTIAL_LENGTH
@@ -1044,3 +1044,96 @@ FCTRL2SEEK:
   STA ZP_SDSEEK_VEC16
   RTS
 
+FAT_SEEK:
+; 32bit値同士の比較
+.macro long_long_cmp left,right
+  SEC
+  LDA left
+  SBC right
+  LDA left+1
+  SBC right+1
+  LDA left+2
+  SBC right+2
+  LDA left+3
+  SBC right+3
+.endmac
+  ; ---------------------------------------------------------------
+  ;   サブルーチンローカル変数の定義
+  @ZR0L_SHIFTER       = ZR0       ; シフトレジスタ
+  @ZR0H_CLUSCNT_LOW   = ZR0+1     ; クラスタカウント下位
+  @ZR12_OFFSET        = ZR1       ; オフセット
+  @ZR34_CLUSCNT24     = ZR3       ; 24bitクラスタカウント計算用
+  @ZR4H_SECNUM        = ZR4+1     ; クラスタ内セクタ番号計算用
+  @ZR5L_FD            = ZR5       ; ファイル記述子
+  @ZR5H_MASK          = ZR5+1     ; マスク用
+  ; ---------------------------------------------------------------
+  ;   引数の格納
+  STX @ZR5L_FD                    ; fdを格納
+  ; ---------------------------------------------------------------
+  ;   オフセットの決定 Y=mode
+  ;   0:SEEK_SET ZR12_OFFSETをそのままオフセットとする
+  ;   1:SEEK_CUR 実装しない
+  ;   2:SEEK_END 実装しない
+  CPY #0                          ; SEEK_SETのみ実装
+  BNE @ERR
+  ; ---------------------------------------------------------------
+  ;   SEEK_SET
+  TXA
+  JSR LOAD_FWK_MAKEREALSEC                    ; AのfdからFCTRL構造体をロード、リアルセクタ作成
+  long_long_cmp FWK+FCTRL::SIZ, @ZR12_OFFSET  ; siz<=>ofs
+  BCC @ERR                                    ; オフセットがファイルサイズを超えていたらエラー
+  mem2mem32 FWK+FCTRL::SEEK_PTR, @ZR12_OFFSET ; seek=ofs
+  ; ---------------------------------------------------------------
+  ;   SEEK_PTR -> クラスタカウント、クラスタ内セクタ番号
+  ;   512byte/secは固定だが、クラスタサイズはDWK+DINFO::BPB_SECPERCLUSに依る 1,2,4,8,16,32,64,128
+  ; [SEEK_PTRの図]
+  ;                       128     2  sec/clus
+  ;                       /      /
+  ; +-------------------+ |      |+-----------+
+  ; |0000-0000 0000-0000| 0000-000|0 0000-0000|
+  ; +-must be clus num--+         +-bytes@sec-+
+  LDA #%01111111
+  STA @ZR5H_MASK
+  LDA DWK+DINFO::BPB_SECPERCLUS
+  STA @ZR0L_SHIFTER
+  LDA @ZR12_OFFSET+1      ; * cluscnt_low=ofsの怪しいバイト
+  STA @ZR0H_CLUSCNT_LOW   ; |
+  STA @ZR4H_SECNUM        ; * secnum=ofsの怪しいバイト
+  LDA @ZR12_OFFSET+2      ; * cluscnt=ofsの上位2バイト
+  STA @ZR34_CLUSCNT24     ; |
+  LDA @ZR12_OFFSET+3      ; |
+  STA @ZR34_CLUSCNT24+1   ; |
+  STZ @ZR34_CLUSCNT24+2   ; |
+  BRA @SPCLOOP_CHECK
+@ERR:
+  LDA #ERR::ILLEGAL_ARG
+  JMP ERR::REPORT
+@SPCLOOP:
+  LSR @ZR5H_MASK          ; マスク拡大
+  ASL @ZR0H_CLUSCNT_LOW
+  ROL @ZR34_CLUSCNT24
+  ROL @ZR34_CLUSCNT24+1
+  ROL @ZR34_CLUSCNT24+2
+@SPCLOOP_CHECK:
+  ASL @ZR0L_SHIFTER       ; * sec/clus判定
+  BCC @SPCLOOP            ; |
+  ; ---------------------------------------------------------------
+  ;   クラスタ内セクタ番号を保存
+  LDA @ZR4H_SECNUM
+  LSR
+  AND @ZR5H_MASK
+  STA FWK+FCTRL::CUR_SEC
+  ; ---------------------------------------------------------------
+  ;   クラスタ番号を求める
+  ;   もしクラスタカウントが0なら先頭クラスタ番号でよい
+  LDA @ZR34_CLUSCNT24
+  ORA @ZR34_CLUSCNT24+1
+  ORA @ZR34_CLUSCNT24+2
+  BNE @ERR
+  ; 先頭クラスタ
+  mem2mem32 FWK+FCTRL::CUR_CLUS, FWK+FCTRL::HEAD
+  ; FWKを反映
+  LDA @ZR5L_FD
+  JSR PUT_FWK
+  CLC
+  RTS

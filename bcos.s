@@ -173,6 +173,7 @@ SYSCALL_TABLE:
   .WORD FS::FUNC_FS_WRITE         ; 27 ファイル書き込み
   .WORD FS::FUNC_FS_MAKE          ; 28 ファイル/ディレクトリ作成
   .WORD FS::FUNC_FS_DELETE        ; 29 ファイル/ディレクトリ削除
+  .WORD FS::FUNC_FS_SEEK          ; 30 ファイルシーク
 
 ; -------------------------------------------------------------------
 ;                       システムコールの実ルーチン

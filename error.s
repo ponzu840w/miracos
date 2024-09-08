@@ -51,6 +51,7 @@ ERROR_MES_TABLE:
   .WORD EM_BROKEN_FD
   .WORD EM_DIR_NOT_EMPTY
   .WORD EM_ILLEGAL_ATTR
+  .WORD EM_ILLEGAL_ARG
 
 ERROR_MES:
 EM_DRV_NOT_FOUND:             .BYT "Drive Not Found.",$0
@@ -63,6 +64,7 @@ EM_FILE_EXISTS:               .BYT "File Exists.",$0
 EM_BROKEN_FD:                 .BYT "Broken FD.",$0
 EM_DIR_NOT_EMPTY:             .BYT "Dir not empty.",$0
 EM_ILLEGAL_ATTR:              .BYT "Illegal Attr.",$0
+EM_ILLEGAL_ARG:               .BYT "Illegal Arg.",$0
 
 STR_ERROR:                    .BYT "[BCOSERR] ",$0
 

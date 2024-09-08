@@ -39,4 +39,8 @@ CON_IN_CHR_RPD      = 26
 FS_WRITE            = 27
 FS_MAKE             = 28
 FS_DELETE           = 29
+FS_SEEK             = 30
+  SEEK_SET                    = 0
+  SEEK_CUR                    = 1
+  SEEK_END                    = 2
 

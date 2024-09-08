@@ -36,6 +36,7 @@ _fctrl_res=FCTRL_RES
 
 .EXPORT _read_sec_raw,_dump,_setGCONoff,_restoreGCON,_write_sec_raw,_makef,_open,_read,_write,_search_open,_maked
 .EXPORT _finfo_wk,_fwk,_fd_table,_fctrl_res,_delete,_find_fst,_find_nxt
+.EXPORT _seek
 .EXPORTZP _sdcmdprm,_sdseek
 .CONSTRUCTOR INIT
 
@@ -321,6 +322,28 @@ STR_NF:
   LDA #$0
   TAX
 @FOUND:
+  RTS
+.endproc
+
+; -------------------------------------------------------------------
+;                            fs_seek
+; -------------------------------------------------------------------
+; unsigned long fs_seek(unsigned char fd, unsigned char mode, unsigned long offset)
+.proc _seek: near           ; 引数: AX+sreg=offset, スタック=mode,fd
+  PHY
+  storeAX16 ZR1             ; ZR12=offset
+  mem2mem16 ZR2, sreg
+  JSR popa                  ; Y=mode
+  TAY
+  JSR popa                  ; A=fd
+  JSR FS::FUNC_FS_SEEK      ; 検索
+  BCC @END
+  syscall ERR_GET
+  syscall ERR_MES
+@END:
+  mem2mem16 sreg, ZR2       ; AX+sreg=offset
+  mem2AX16 ZR1
+  PLY
   RTS
 .endproc
 
