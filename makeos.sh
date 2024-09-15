@@ -92,11 +92,13 @@ do
           ${td}/*.o $clib
   # アセンブル
   else
+    ruby ./str_sjis_encoder.rb -i $comsrc -o "${td}/tmp.s"
     ca65  -g -I "./com" \
+          --bin-include-dir "./com" \
           --cpu 65c02 \
           -l ./listing/${dn}/l-${bn}.s \
           -o "${td}/tmp.o" \
-          $comsrc
+          "${td}/tmp.s"
     ld65  -vm -C ./conftpa.cfg \
           -m ./listing/${dn}/${bn}.map \
           -Ln ./listing/${dn}/s-${bn}.s \

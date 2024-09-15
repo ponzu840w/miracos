@@ -34,7 +34,8 @@ if [ "${1##*.}" = "c" ]; then
        #${td}/tmp.o ${td}/crt0.o ${td}/bcosfunc.o ${td}/asmfunc.o $clib
 else
   # アセンブル
-  ca65 -I "./" --cpu 65c02 -o "${td}/tmp.o" $1
+  ruby ../str_sjis_encoder.rb -i $1 -o "${td}/tmp.s"
+  ca65 -I "./" --bin-include-dir "./" --cpu 65c02 -o "${td}/tmp.o" "${td}/tmp.s"
   ld65 -C ../conftpa.cfg -o "${td}/tmp.com" "${td}/tmp.o"
 fi
 
