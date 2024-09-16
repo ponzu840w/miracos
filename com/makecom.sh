@@ -43,5 +43,8 @@ fi
 objcopy -I binary -O srec --adjust-vma=0x0700 "${td}/tmp.com" "${td}/tmp.srec"  # バイアスについては要検討
 
 # クリップボード
-cat "${td}/tmp.srec" | clip.exe
-
+if which clip.exe >/dev/null 2>&1; then
+  cat "${td}/tmp.srec" | clip.exe
+else
+  cat "${td}/tmp.srec" | xclip -selection clipboard
+fi
