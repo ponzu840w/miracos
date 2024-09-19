@@ -13,6 +13,7 @@
   .INCLUDE "../syscall.inc"  ; システムコール番号
 .ENDPROC
 .INCLUDE "../syscall.mac"
+.INCLUDE "./common.mac"
 
 ; -------------------------------------------------------------------
 ;                             ZP変数領域
@@ -31,6 +32,16 @@
 .BSS
   FD_SAV:         .RES 1  ; ファイル記述子
   FINFO_SAV:      .RES 2  ; FINFO
+
+; -------------------------------------------------------------------
+;                            マクロ関数
+; -------------------------------------------------------------------
+.SEGMENT "LIB"
+  cm_byt2asc
+  cm_prt_few_chars
+  cm_prt_byt
+  cm_prt_byt_s
+  cm_prt_lf
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -80,7 +91,7 @@ NOTFOUND:
   RTS
 
 BCOS_ERROR:
-  JSR PRT_LF
+  JSR CM_PRT_LF
   syscall ERR_GET
   syscall ERR_MES
   JMP LOOP
@@ -134,25 +145,25 @@ DUMP1:
   ; ---------------------------------------------------------------
   ;   アドレス表示部
   ;"<1234>--------------------------"
-  JSR PRT_LF            ; 視認性向上のための空行は行の下にした方がよさそうだが、
+  JSR CM_PRT_LF         ; 視認性向上のための空行は行の下にした方がよさそうだが、
 @PRT_ADDR:
-  JSR PRT_LF            ;   最大の情報を表示しつつ作業用コマンドラインを出すにはこうする。
+  JSR CM_PRT_LF         ;   最大の情報を表示しつつ作業用コマンドラインを出すにはこうする。
   LDA #'<'              ; アドレス左修飾
   syscall CON_OUT_CHR
   LDA CMD_ARG_1+1       ; アドレス上位
-  JSR PRT_BYT
+  JSR CM_PRT_BYT
   LDA CMD_ARG_1         ; アドレス下位
-  JSR PRT_BYT
+  JSR CM_PRT_BYT
   LDA #'>'              ; アドレス右修飾
   syscall CON_OUT_CHR
   BBS0 SETTING,@DATA_NOLF    ; ワイドモード:ハイフンスキップ
   LDA #'-'
   LDX #32-(4+2)         ; 画面幅からこれまで表示したものを減算
-  JSR PRT_FEW_CHARS     ; 画面右までハイフン
+  JSR CM_PRT_FEW_CHARS  ; 画面右までハイフン
   ; ---------------------------------------------------------------
   ;   データ表示部
 @DATA:
-  JSR PRT_LF
+  JSR CM_PRT_LF
 @DATA_NOLF:
   ;loadmem16 DUMP_SUB_FUNCPTR,DUMP_SUB_DATA
   pushmem16 CMD_ARG_1
@@ -164,9 +175,9 @@ DUMP1:
   DEX
   BEQ @SKP_PADDING
   PHX
-  JSR PRT_S
-  JSR PRT_S
-  JSR PRT_S
+  JSR CM_PRT_S
+  JSR CM_PRT_S
+  JSR CM_PRT_S
   PLX
   BRA @PADDING_LOOP
 @SKP_PADDING:
@@ -212,8 +223,11 @@ DUMP_SUB_RETURN:
   CPX #0            ; 終了z、途中Z
   RTS
 
+STR_NOTFOUND:
+  .BYT "Input File Not Found.",$A,$0
+
 DUMP_SUB_DATA:
-  JSR PRT_BYT_S
+  JSR CM_PRT_BYT_S
   BRA DUMP_SUB_RETURN
 DUMP_SUB_ASCII:
 @ASCIILOOP:
@@ -227,68 +241,6 @@ DUMP_SUB_ASCII:
 @SKP_7F:
   syscall CON_OUT_CHR
   BRA DUMP_SUB_RETURN
-PRT_BYT:
-  JSR BYT2ASC
-  PHY
-  JSR PRT_C_CALL
-  PLA
-PRT_C_CALL:
-  syscall CON_OUT_CHR
-  RTS
-
-PRT_LF:
-  ; 改行
-  LDA #$A
-  JMP PRT_C_CALL
-
-PRT_BYT_S:
-  JSR PRT_BYT
-PRT_S:
-  ; スペース
-  LDA #' '
-  BRA PRT_C_CALL
-
-PRT_FEW_CHARS:
-  ; Xレジスタで文字数を指定
-  PHA
-  PHX
-  syscall CON_OUT_CHR
-  PLX
-  PLA
-  DEX
-  BNE PRT_FEW_CHARS
-  RTS
-
-BYT2ASC:
-  ; Aで与えられたバイト値をASCII値AYにする
-  ; Aから先に表示すると良い
-  PHA           ; 下位のために保存
-  AND #$0F
-  JSR NIB2ASC
-  TAY
-  PLA
-  LSR           ; 右シフトx4で上位を下位に持ってくる
-  LSR
-  LSR
-  LSR
-  JSR NIB2ASC
-  RTS
-
-NIB2ASC:
-  ; #$0?をアスキー一文字にする
-  ORA #$30
-  CMP #$3A
-  BCC @SKP_ADC  ; Aが$3Aより小さいか等しければ分岐
-  ADC #$06
-@SKP_ADC:
-  RTS
-
-STR_NOTFOUND:
-  .BYT "Input File Not Found.",$A,$0
-;STR_FILE:
-;  .BYT "File:",$0
-;STR_EOF:
-;  .BYT "[EOF]",$0
 
 ; -------------------------------------------------------------------
 ;                             データ領域
