@@ -92,7 +92,8 @@ START:
   LDA FD_SAV
   LDY #BCOS::SEEK_SET
   syscall FS_SEEK
-  init_crtc                       ; crtcの初期化
+  ;init_crtc                       ; crtcの初期化
+  JSR INIT_CTRC
 @MOVIE_LOOP:
   ; 書き込み座標リセット
   STZ CRTC2::PTRX
@@ -215,3 +216,26 @@ FILL_LOOP_H:
 STR_NOTFOUND:
   .BYT "Movie Images Not Found.",$A,$0
 
+INIT_CTRC:
+  ; CRTCを初期化
+  LDA #%10000000                  ; ChrBox off
+  STA CRTC2::CHRW
+  ; コンフィグレジスタの設定
+  LDA #(CRTC2::WF|1)              ; f1書き込み
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|0)              ; 16色モード
+  STA CRTC2::CONF
+  LDA #$FF
+  JSR FILL                        ; 塗りつぶし
+  LDA #(CRTC2::WF|2)              ; f2書き込み
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|0)              ; 16色モード
+  STA CRTC2::CONF
+  LDA #$FF
+  JSR FILL                        ; 塗りつぶし
+  LDA #(CRTC2::WF|1)              ; f2書き込み
+  ; 表示フレーム
+  LDA #%01010101                  ; f1表示
+  STA ZP_VISIBLE_FLAME
+  STA CRTC2::DISP
+  RTS
