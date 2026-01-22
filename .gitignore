@@ -1,3 +1,10 @@
 *~
 *.swp
+bin/
+listing/
+initmessage.s
+glyph_serializer
+jis-remap
+misaki_mincho.bin
+misaki_mincho.bmp
 
