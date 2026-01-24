@@ -119,6 +119,10 @@ TICK_PAD:
   BBR4 ZP_PADSTAT_PREV,@SKP_START ; 押下のみ
   JMP INIT
 @SKP_START:
+  BBS5 ZP_PADSTAT,@SKP_SELECT ; select button
+  BBR5 ZP_PADSTAT_PREV,@SKP_SELECT ; 押下のみ
+  INC ZP_VB_BREAK_FLAG        ; メインループをブレイク
+@SKP_SELECT:
 .endmac
 
 ; プログラムのエントリポイント
@@ -289,9 +293,11 @@ MAIN:
 END:
   ; ---------------------------------------------------------------
   ;   キー入力待機
-  LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho
-  syscall CON_RAWIN
-  RTS
+  ;LDA #BCOS::BHA_CON_RAWIN_WaitAndNoEcho
+  ;syscall CON_RAWIN
+  ;mem2AY16 ZP_VB_STUB
+  ;syscall IRQ_SETHNDR_VB
+  syscall RESET
 
 ; -------------------------------------------------------------------
 ;                          垂直同期割り込み
