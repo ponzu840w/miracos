@@ -33,7 +33,8 @@ COL_CORSOR_FG = $00
   ZP_SHIFTER:       .RES 1        ; ゲームパッド読み取り処理用
   ZP_VB_STUB:       .RES 2        ; 割り込み終了処理
   ZP_DISP_FRAME:    .RES 1        ; 表示中のフレームバッファ
-  HOGE:             .RES 1        ; デバッグ用
+  ZP_PEN_COLOR:     .RES 1        ; ペンの色
+  ZP_VB_BREAK_FLAG: .RES 1        ; デバッグ用
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -45,7 +46,7 @@ COL_CORSOR_FG = $00
 ; -------------------------------------------------------------------
 .macro tick_cursor
   ; プレイヤ移動
-  erase_cursor
+  JSR ERASE_CURSOR
   ; X
   LDA ZP_CURSOR_X
   CLC
@@ -70,29 +71,7 @@ COL_CORSOR_FG = $00
   BCS @SKP_NEW_Y
   STA ZP_CURSOR_Y
 @SKP_NEW_Y:
-  draw_cursor
-.endmac
-
-.macro erase_cursor
-  LDA #(CRTC2::WF|2)          ; f2書き込み
-  STA CRTC2::CONF
-  LDA ZP_CURSOR_X
-  STA CRTC2::PTRX
-  LDA ZP_CURSOR_Y
-  STA CRTC2::PTRY
-  LDA #COL_CORSOR_BG
-  STA CRTC2::WDAT
-.endmac
-
-.macro draw_cursor
-  LDA #(CRTC2::WF|2)          ; f2書き込み
-  STA CRTC2::CONF
-  LDA ZP_CURSOR_X
-  STA CRTC2::PTRX
-  LDA ZP_CURSOR_Y
-  STA CRTC2::PTRY
-  LDA #COL_CORSOR_FG
-  STA CRTC2::WDAT
+  JSR DRAW_CURSOR
 .endmac
 
 ; -------------------------------------------------------------------
@@ -132,10 +111,76 @@ TICK_PAD:
   BBR6 ZP_PADSTAT_PREV,@SKP_Y ;  押下のみ
   JSR TOGGLE_FRAME
 @SKP_Y:
+  BBS7 ZP_PADSTAT+1,@SKP_A    ; A button
+  BBR7 ZP_PADSTAT_PREV+1,@SKP_A ; 押下のみ
+  JSR TOGGLE_PEN_COLOR
+@SKP_A:
+  BBS4 ZP_PADSTAT,@SKP_START ; start button
+  BBR4 ZP_PADSTAT_PREV,@SKP_START ; 押下のみ
+  JMP INIT
+@SKP_START:
 .endmac
 
+; プログラムのエントリポイント
+; CRTCへのコマンドはメモリアドレス依存のバグがあったりするので
+;   冒頭部にルーチンを纏めておく
 START:
   JMP INIT
+
+ERASE_CURSOR:
+  LDA #(CRTC2::WF|2)          ; f2書き込み
+  STA CRTC2::CONF
+  LDA ZP_CURSOR_X
+  STA CRTC2::PTRX
+  LDA ZP_CURSOR_Y
+  STA CRTC2::PTRY
+  LDA #COL_CORSOR_BG
+  STA CRTC2::WDAT
+  RTS
+
+DRAW_CURSOR:
+  LDA #(CRTC2::WF|2)          ; f2書き込み
+  STA CRTC2::CONF
+  LDA ZP_CURSOR_X
+  STA CRTC2::PTRX
+  LDA ZP_CURSOR_Y
+  STA CRTC2::PTRY
+  LDA #COL_CORSOR_FG
+  STA CRTC2::WDAT
+  RTS
+
+PUT_DOT:
+  ; カーソル位置に点を打つ
+  LDA #(CRTC2::WF|1)          ; f1書き込み
+  STA CRTC2::CONF
+  LDA ZP_CURSOR_X
+  STA CRTC2::PTRX
+  LDA ZP_CURSOR_Y
+  STA CRTC2::PTRY
+  LDA ZP_PEN_COLOR
+  STA CRTC2::WDAT
+  RTS
+
+INIT_CRTC:
+  ; CRTCを初期化
+  LDA #%10000000                  ; ChrBox off
+  STA CRTC2::CHRW
+
+  ; コンフィグレジスタの設定 f1
+  LDA #(CRTC2::WF|1)              ; f1書き込み
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|0)              ; 16色モード
+  STA CRTC2::CONF
+  LDA #$FF                        ; 塗りつぶし
+  JSR FILL
+
+  ; コンフィグレジスタの設定 f2
+  LDA #(CRTC2::WF|2)              ; f2書き込み
+  STA CRTC2::CONF
+  LDA #(CRTC2::TT|0)              ; 16色モード
+  STA CRTC2::CONF
+  LDA #$FF                        ; 塗りつぶし
+  JSR FILL
 
 TOGGLE_FRAME:
   LDA ZP_DISP_FRAME
@@ -167,41 +212,34 @@ FILL_LOOP_H:
   BNE FILL_LOOP_V
   RTS
 
-PUT_DOT:
-  ; カーソル位置に点を打つ
-  LDA #(CRTC2::WF|1)          ; f1書き込み
+PUT_COL_INDICATOR:
+  LDA #(CRTC2::WF|2)        ; f2書き込み
   STA CRTC2::CONF
-  LDA ZP_CURSOR_X
-  STA CRTC2::PTRX
-  LDA ZP_CURSOR_Y
-  STA CRTC2::PTRY
-  LDA #$88
-  STA CRTC2::WDAT
-  RTS
-
-INIT_CRTC:
-  ; CRTCを初期化
-  LDA #%10000000                  ; ChrBox off
+  LDA #3                    ; よこ4
   STA CRTC2::CHRW
+  LDA #7                    ; たて8
+  STA CRTC2::CHRH
+  LDY #4
+  LDX #(256-10-8)/2        ; 4=padding,8=塗りつぶし領域
 
-  ; コンフィグレジスタの設定 f1
-  LDA #(CRTC2::WF|1)              ; f1書き込み
-  STA CRTC2::CONF
-  LDA #(CRTC2::TT|0)              ; 16色モード
-  STA CRTC2::CONF
-  LDA #$FF                        ; 塗りつぶし
-  JSR FILL
-
-  ; コンフィグレジスタの設定 f2
-  LDA #(CRTC2::WF|2)              ; f2書き込み
-  STA CRTC2::CONF
-  LDA #(CRTC2::TT|0)              ; 16色モード
-  STA CRTC2::CONF
-  LDA #$FF                        ; 塗りつぶし
-  JSR FILL
-
-  ; 表示フレームセット
-  JSR TOGGLE_FRAME
+; 正方形領域を塗りつぶす
+; X,Yがそのまま座標
+PUT_SQ8:
+  STX CRTC2::PTRX
+  STY CRTC2::PTRY
+  LDA ZP_PEN_COLOR
+  STA CRTC2::WDAT
+  LDA CRTC2::REPT
+  LDA CRTC2::REPT
+  LDA CRTC2::REPT
+  LDY #7
+DRAW_SQ_LOOP:
+  LDA CRTC2::REPT
+  LDA CRTC2::REPT
+  LDA CRTC2::REPT
+  LDA CRTC2::REPT
+  DEY
+  BNE DRAW_SQ_LOOP
   RTS
 
 INIT:
@@ -220,12 +258,18 @@ INIT:
   STA VIA::PAD_DDR
   ; ---------------------------------------------------------------
   ;   変数初期化
-  LDA #50
+  LDA #128/2
   STA ZP_CURSOR_X
+  LDA #192/2
   STA ZP_CURSOR_Y
   LDA #CURSOR_SPEED
   STA ZP_CURSOR_DX
   STA ZP_CURSOR_DY
+  LDA #$88
+  STA ZP_PEN_COLOR
+  ; ---------------------------------------------------------------
+  ;   UI初期化
+  JSR PUT_COL_INDICATOR
   ; ---------------------------------------------------------------
   ;   割り込みハンドラの登録
   loadAY16 VBLANK
@@ -233,12 +277,12 @@ INIT:
   storeAY16 ZP_VB_STUB
   CLI
   ; 完全垂直同期割り込み駆動
-  STZ HOGE
+  STZ ZP_VB_BREAK_FLAG
   ; ---------------------------------------------------------------
   ;   無限ループ
 MAIN:
   ; 実際には下記の割り込みが走る
-  LDA HOGE  ; HOGEがVB中に変更されたらブレイクする
+  LDA ZP_VB_BREAK_FLAG  ; ZP_VB_BREAK_FLAGがVB中に変更されたらブレイクする
   BEQ MAIN
   ; ---------------------------------------------------------------
   ;   プログラム終了
@@ -260,6 +304,19 @@ VBLANK:
   ; ---------------------------------------------------------------
   ;   ティック終端
   JMP (ZP_VB_STUB)            ; 片付けはBCOSにやらせる
+
+TOGGLE_PEN_COLOR:
+  LDA ZP_PEN_COLOR
+  CMP #$FF
+  BNE @SKP_MAX
+  ; $FFに達したら$00に戻す
+  STZ ZP_PEN_COLOR
+  JMP PUT_COL_INDICATOR
+@SKP_MAX:
+  CLC
+  ADC #$11
+  STA ZP_PEN_COLOR
+  JMP PUT_COL_INDICATOR
 
 ; PAD読み取りルーチン
 PAD_READ:
