@@ -1,0 +1,14 @@
+extends: default
+page:
+  # 用紙サイズとマージン（上下左右 12.7mm = 0.5インチ）
+  layout: portrait
+  margin: [0.5in, 0.5in, 0.5in, 0.5in]
+  size: A4
+base:
+  # 本文フォント
+  font-family: Noto Serif CJK JP
+  font-size: 8
+table:
+  border-color: 000000
+  border-width: 0.5
+  head-background-color: EEEEEE

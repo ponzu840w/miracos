@@ -1,0 +1,13 @@
+= MIRACOS
+@ponzu840w <ponzu840w@yahoo.co.jp>
+v0.1, 2026-02-01
+:doctype: book
+:toc: left
+:source-highlighter: rouge
+:icons: font
+
+:reg-table: cols="15,85", options="header", width="80%"
+:flag-table: cols="8*^", width="50%"
+
+include::architecture.adoc[]
+include::syscalls.adoc[]

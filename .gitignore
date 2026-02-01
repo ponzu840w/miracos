@@ -8,3 +8,9 @@ jis-remap
 misaki_mincho.bin
 misaki_mincho.bmp
 
+.DS_Store
+Gemfile.lock
+package-lock.json
+diag-mermaid-md5-*.png
+html_out/
+pdf_out/

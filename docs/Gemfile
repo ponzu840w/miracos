@@ -1,0 +1,24 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+gem "asciidoctor"
+gem "logger"
+
+# HTML
+gem "asciidoctor-multipage"
+
+# PDF
+gem "asciidoctor-pdf"
+gem "asciidoctor-pdf-cjk"
+
+# 図の埋め込み
+# Mermaid, Graphviz, WaveDromなど テキストから生成
+gem "asciidoctor-diagram"
+gem "matrix"
+gem "base64"
+gem "ostruct"
+
+# シンタックスハイライト
+gem "rouge"
+
