@@ -18,6 +18,7 @@ html:
 		-r asciidoctor-diagram \
 		-b multipage_html5 \
 		-a toc=left \
+		-a docinfo=shared \
 		-D $(HTML_OUT) \
 		$(SRC)
 	@echo "Done."
