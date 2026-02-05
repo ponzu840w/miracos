@@ -16,3 +16,29 @@ div.toc {
   font-size: 0.6em;
 }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // フッターとヘッダーのpタグ
+  const paragraphs = document.querySelectorAll('.nav-footer p, .nav-header p');
+
+  paragraphs.forEach(function(p) {
+    // pタグの中身（子ノード）を1つずつチェック
+    p.childNodes.forEach(function(node) {
+      // "3" はテキストノード
+      if (node.nodeType === 3) {
+        let text = node.textContent;
+
+        // その文字の中に英語が含まれていたら日本語に置換
+        if (text.includes('Previous') || text.includes('Next') || text.includes('Up')) {
+          text = text.replace('Previous', '前')
+                     .replace('Next', '次')
+                     .replace('Up', '親');
+
+          node.textContent = text;
+        }
+      }
+    });
+  });
+});
+</script>

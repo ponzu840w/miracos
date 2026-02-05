@@ -6,6 +6,23 @@ v0.1, 2026-02-01
 :source-highlighter: rouge
 :icons: font
 
+:lang: ja
+:toc-title: 目次
+:preface-title: まえがき
+:appendix-caption: 付録
+:caution-caption: 注意
+:example-caption: 例
+:figure-caption: 図
+:important-caption: 重要
+:last-update-label: 最終更新
+:listing-caption: リスト
+:note-caption: 注記
+:table-caption: 表
+:tip-caption: ヒント
+:unit: 単位
+:version-label: バージョン
+:warning-caption: 警告
+
 :reg-table: cols="15,85", options="header", width="80%"
 :flag-table: cols="8*^", width="50%"
 
