@@ -193,7 +193,7 @@ void showDir(unsigned long sec){
         if(dir_p[i].Attr==0x0F){
           couts("<LFN>\n");
         }else{
-          unsigned long fstclus = (dir_p[i].FstClusHI*0x100000000)+dir_p[i].FstClusLO;
+          unsigned long fstclus = (dir_p[i].FstClusHI*0x10000000)+dir_p[i].FstClusLO;
           if(dir_p[i].Attr==0x10){
             couts("<D>\n");
           }else{

@@ -2,7 +2,7 @@
 
 # ----------------- テスト用コマンドアセンブル --------------------
 
-clib="/usr/share/cc65/lib/supervision.lib"
+clib="$(dirname $(which cc65))/../lib/supervision.lib"
 
 # 引数チェック
 if [ $# = 0 ]; then
@@ -42,9 +42,14 @@ fi
 # S-REC作成
 objcopy -I binary -O srec --adjust-vma=0x0700 "${td}/tmp.com" "${td}/tmp.srec"  # バイアスについては要検討
 
-# クリップボード
-if which clip.exe >/dev/null 2>&1; then
-  cat "${td}/tmp.srec" | clip.exe
+# クリップボードプログラム
+if command -v pbcopy >/dev/null 2>&1; then
+  CLIP_CMD="pbcopy"
+elif which clip.exe >/dev/null 2>&1; then
+  CLIP_CMD="clip.exe"
 else
-  cat "${td}/tmp.srec" | xclip -selection clipboard
+  CLIP_CMD="xclip -selection clipboard"
 fi
+
+cat "${td}/tmp.srec" | $CLIP_CMD
+
