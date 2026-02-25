@@ -59,6 +59,9 @@ cp ./assets/MIRAFONT.FNT ./bin/MCOS/DAT/
 # サンプルドキュメントファイルのコピー
 cp -r ./assets/DOC ./bin/
 
+# BOOT.INIのコピー
+cp ./assets/BOOT.INI ./bin/
+
 # C言語共通関数の準備
 cc65 -t none -O --cpu 65c02 -o "${td}/stdio.s" ./cc/fxt65_stdio.c
 ca65 --cpu 65c02 -o "${td}/stdio.o" "${td}/stdio.s"
