@@ -8,6 +8,18 @@ BCOS_START="0x5300"
 NOUSE_START="0x8000"
 SEPARATOR="---------------------------------------------------------------------------"
 clib="$(dirname $(which cc65))/../lib/supervision.lib"
+# Debian/Ubuntu の cc65 パッケージは /usr/share/cc65/lib/ に置くのでフォールバック
+if [ ! -f "$clib" ]; then
+  for p in /usr/share/cc65/lib/supervision.lib \
+           /usr/local/share/cc65/lib/supervision.lib \
+           /opt/homebrew/share/cc65/lib/supervision.lib; do
+    if [ -f "$p" ]; then clib="$p"; break; fi
+  done
+fi
+if [ ! -f "$clib" ]; then
+  echo "ERROR: supervision.lib が見つかりません (cc65 がインストールされているか確認)" >&2
+  exit 1
+fi
 
 # クリップボードプログラム
 if command -v pbcopy >/dev/null 2>&1; then
