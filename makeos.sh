@@ -8,6 +8,18 @@ BCOS_START="0x5300"
 NOUSE_START="0x8000"
 SEPARATOR="---------------------------------------------------------------------------"
 clib="$(dirname $(which cc65))/../lib/supervision.lib"
+# Debian/Ubuntu の cc65 パッケージは /usr/share/cc65/lib/ に置くのでフォールバック
+if [ ! -f "$clib" ]; then
+  for p in /usr/share/cc65/lib/supervision.lib \
+           /usr/local/share/cc65/lib/supervision.lib \
+           /opt/homebrew/share/cc65/lib/supervision.lib; do
+    if [ -f "$p" ]; then clib="$p"; break; fi
+  done
+fi
+if [ ! -f "$clib" ]; then
+  echo "ERROR: supervision.lib が見つかりません (cc65 がインストールされているか確認)" >&2
+  exit 1
+fi
 
 # クリップボードプログラム
 if command -v pbcopy >/dev/null 2>&1; then
@@ -81,14 +93,16 @@ do
   bn=$(basename $nam)                   # ファイル名を抽出
   ex=${bn##*.}                          # 拡張子を抽出
   bn=${bn%.*}                           # 拡張子を覗いたファイル名を抽出
-  out="./bin/MCOS/"${dn^^}/${bn^^}.COM  # 出力ファイルは大文字に
+  dn_up=$(echo "$dn" | tr '[:lower:]' '[:upper:]')
+  bn_up=$(echo "$bn" | tr '[:lower:]' '[:upper:]')
+  out="./bin/MCOS/${dn_up}/${bn_up}.COM"  # 出力ファイルは大文字に
   #echo $nam $dn $bn $ex $out
   if [[ "$predir" != "$dn" ]]; then     # ディレクトリが変わったら表示
-    echo ${dn^^}
+    echo $dn_up
     predir=$dn
   fi
   mkdir -p ./listing/${dn}
-  mkdir -p ./bin/MCOS/${dn^^}
+  mkdir -p ./bin/MCOS/${dn_up}
   # アセンブル/コンパイル 本番
   # コンパイル
   warnings=""
@@ -127,7 +141,7 @@ do
   # 概要表示
   cat ./listing/${dn}/${bn}.map |
     gawk 'BEGIN{RS=""}/Seg/' | gawk '{print $1 " 0x"$2 " 0x"$3 " 0x"$4}' |
-    gawk -v name=${bn^^}.COM -v tpa=$TPA_START -v ccp=$CCP_START '
+    gawk -v name=${bn_up}.COM -v tpa=$TPA_START -v ccp=$CCP_START '
     /^ZEROPAGE/{ zp=strtonum($4) }
     /^CODE|^BSS|^DATA/{
       size=size+strtonum($4)
