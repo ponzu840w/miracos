@@ -4,18 +4,18 @@
 PNG_FILE = misaki_mincho.png
 BMP_FILE = misaki_mincho.bmp
 JIS_FILE = misaki_mincho.bin
-OUT_FILE = ../../bin/MCOS/DAT/MSKMSJIS.FNT
+OUT_FILE = ../../bin/MCOS/DAT/MSKMEUCJ.FNT
 SERIALIZER_SRC = glyph_serializer.c
 SERIALIZER_EXE = glyph_serializer
-JIS_REMAP_SRC = jis-remap.c
-JIS_REMAP_EXE = jis-remap
+EUC_REMAP_SRC = euc-remap.c
+EUC_REMAP_EXE = euc-remap
 
 # ルール
 all: $(OUT_FILE)
 
 # .png から .bmp に変換
 $(BMP_FILE): $(PNG_FILE)
-	convert $(PNG_FILE) -flip bmp3:$(BMP_FILE)
+	magick $(PNG_FILE) -flip bmp3:$(BMP_FILE)
 
 # glyph_serializer.c のコンパイル
 $(SERIALIZER_EXE): $(SERIALIZER_SRC)
@@ -25,9 +25,9 @@ $(SERIALIZER_EXE): $(SERIALIZER_SRC)
 $(JIS_FILE): $(BMP_FILE) $(SERIALIZER_EXE)
 	./$(SERIALIZER_EXE) $(BMP_FILE) $(JIS_FILE)
 
-# jis-remap.c のコンパイル
-$(JIS_REMAP_EXE): $(JIS_REMAP_SRC)
-	gcc $(JIS_REMAP_SRC) -o $(JIS_REMAP_EXE)
+# euc-remap.c のコンパイル
+$(EUC_REMAP_EXE): $(EUC_REMAP_SRC)
+	gcc $(EUC_REMAP_SRC) -o $(EUC_REMAP_EXE)
 
 # 必要なディレクトリを作成
 $(OUT_FILE): | $(dir $(OUT_FILE))
@@ -36,8 +36,8 @@ $(dir $(OUT_FILE)):
 	mkdir -p $(dir $(OUT_FILE))
 
 # .bin から .fnt に変換
-$(OUT_FILE): $(JIS_FILE) $(JIS_REMAP_EXE)
-	./$(JIS_REMAP_EXE) $(JIS_FILE) $(OUT_FILE)
+$(OUT_FILE): $(JIS_FILE) $(EUC_REMAP_EXE)
+	./$(EUC_REMAP_EXE) $(JIS_FILE) $(OUT_FILE)
 
 # クリーンアップ
 clean:

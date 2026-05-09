@@ -5,6 +5,7 @@ listing/
 initmessage.s
 glyph_serializer
 jis-remap
+euc-remap
 misaki_mincho.bin
 misaki_mincho.bmp
 .DS_Store
