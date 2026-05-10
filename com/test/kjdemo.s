@@ -1,7 +1,7 @@
 ; -------------------------------------------------------------------
-;                            KANJIコマンド
+;                            KJDEMOコマンド
 ; -------------------------------------------------------------------
-; EUC-JP漢字ユーティリティ
+; EUC-JP漢字表示デモ
 ; -------------------------------------------------------------------
 .INCLUDE "../generic.mac"     ; 汎用マクロ
 .PROC BCOS
@@ -22,6 +22,9 @@
 ;                           実行用ライブラリ
 ; -------------------------------------------------------------------
   .INCLUDE "./+kanji/str88k.s"
+.PROC IMF
+.INCLUDE "./+stg/imf.s"
+.ENDPROC
 
 ; -------------------------------------------------------------------
 ;                             実行領域
@@ -29,29 +32,34 @@
 .CODE
 START:
   ; ---------------------------------------------------------------
-  ;   コマンドライン引数の処理
-  JSR STR2NUM               ; コマンドライン引数を数値として解釈
-  BCS ARG_ERROR
-  storeAY16 EUC_CODE
-  ; ---------------------------------------------------------------
   ;   CRTCと画面の初期化
   JSR INIT_CRTC
   init_str88k
+  BRA AAA
+; ファイルがないとき
+NOTFOUND:
+  loadAY16 STR_NOTFOUND
+  syscall CON_OUT_STR
+  RTS
+  AAA:
   ; ---------------------------------------------------------------
   ;   メイン処理
   ; 色の設定
   str88k_setcolor $88,$00
-  ; 印字
-  LDA #1
-  STA CRTC2::PTRX
-  LDA #1
-  STA CRTC2::PTRY
-  ;loadreg16 EUC_CODE ; Aに第一バイトを入れたいので逆
-  LDA EUC_CODE+1
-  LDX EUC_CODE
-  JSR STR88K_PUTC
   ; 文字列印字
-  str88k_puts 16,16,STR_TEST
+  str88k_puts (2+8*3),(2+8*0),STR_TEST1
+  str88k_setcolor $00,$FF
+  str88k_puts 2,(30+8*2),STR_TEST2
+  str88k_puts 2,(30+8*3),STR_TEST3
+  str88k_puts 2,(30+8*4),STR_TEST4
+  str88k_puts 2,(30+8*6),STR_TEST5
+  str88k_puts 2,(30+8*7),STR_TEST6
+  str88k_puts 2,(30+8*8),STR_TEST7
+  str88k_puts 2,(30+8*9),STR_TEST8
+  str88k_puts 2,(30+8*11),STR_TEST9
+  str88k_puts 2,(30+8*12),STR_TEST10
+  str88k_puts 2,(30+8*13),STR_TEST11
+  str88k_puts 2,(30+8*17),STR_TEST12
   ; ---------------------------------------------------------------
   ;   終了処理
   ; ---------------------------------------------------------------
@@ -66,12 +74,6 @@ START:
 ; 引数がおかしいとき
 ARG_ERROR:
   loadAY16 STR_ARG_ERROR
-  syscall CON_OUT_STR
-  RTS
-
-; ファイルがないとき
-NOTFOUND:
-  loadAY16 STR_NOTFOUND
   syscall CON_OUT_STR
   RTS
 
@@ -90,9 +92,33 @@ STR_FONTPATH:
 STR_ARG_ERROR:
   .BYT "Argument Error.",$A,$0
 
-STR_TEST:
-  .BYT "EUC-JPによる漢字表示のテスト",$0
-  .BYT "隣の客はよく柿食う客だ。",$0
+STR_TEST1:
+  .BYT "<《[EUC-JPによる漢字表示]》>",$0
+STR_TEST2:
+  .BYT "JIS X 0208（JIS基本漢字）に基づく文字セット",$0
+STR_TEST3:
+  .BYT "非漢字524字+第1水準漢字2965字に対応",$0
+STR_TEST4:
+  .BYT "第2水準漢字3390字に対応するにはファイルシステム改良が必要",$0
+STR_TEST5:
+  .BYT "例：",$0
+STR_TEST6:
+  .BYT "【記号】≠々♂♀℃￡☆★○●(*´∀｀)",$0
+STR_TEST7:
+  .BYT "【かな】ぃろばにぼゐ ヱヴァンゲリオン",$0
+STR_TEST8:
+  .BYT "【漢字】亜唖娃...湾碗腕 花鳥風月 酒池肉林",$0
+STR_TEST9:
+  .BYT "EUC-JPコードの変換例:",$0
+STR_TEST10:
+  .BYT "0x41      → A（ASCII範囲）",$0
+STR_TEST11:
+  .BYT "0xCB,0xA0 → 萌（2バイト領域）",$0
+STR_TEST12:
+  .BYT "ノベルゲーム作りたい和寧",$0
+
+PATH_PICT:
+  .BYTE "/DOC/PRT1-SD.IMF",$0
 
 ; まっとうな全画面塗りつぶし
 FILL:
@@ -189,6 +215,22 @@ CHR2NIB:
 
 INIT_CRTC:
   ; ---------------------------------------------------------------
+  ;   CRTC
+  ; FB1
+  LDY #(CRTC2::WF|1)
+  STY CRTC2::CONF           ; FB1を書き込み先に
+  LDX #(CRTC2::TT|0)        ; 念のため16色モードを設定
+  STX CRTC2::CONF
+  ; DISP
+  LDA #%01010101            ; FB1
+  STA CRTC2::DISP           ; 表示フレームを全てFB1に
+  ; chrbox無効化
+  ROL                       ; bit7=1でchrbox無効
+  STA CRTC2::CHRW
+  ; 画像表示
+  loadAY16 PATH_PICT
+  JSR IMF::PRINT_IMF
+  ; ---------------------------------------------------------------
   ;   CRTCと画面の初期化
   ; FB2
   LDA #%10000000            ; chrboxoff
@@ -199,7 +241,7 @@ INIT_CRTC:
   LDA #(CRTC2::TT|0)        ; 念のため16色モードを設定
   STA CRTC2::CONF
   LDA #0
-  JSR FILL                  ; FB1塗りつぶし
+;  JSR FILL                  ; FB1塗りつぶし
   ; DISP
   LDA #%01010101            ; FB1
   STA CRTC2::DISP           ; 表示フレームを全てFB1に

@@ -16,23 +16,25 @@ ZP_STR88_STRPTR:  .RES 2
 ZP_GLYPH_BUF:     .RES 8
 ZP_GLYPH_FD:      .RES 1
 ZP_GLYPH_FINFO:   .RES 2
+ZP_FD_SAV:        .RES 1
+ZP_FINFO_SAV:     .RES 2
 
 .macro init_str88k
   ; ---------------------------------------------------------------
   ;   カーネルアドレス奪取
   LDY #BCOS::BHY_GET_ADDR_font2048    ; FONT
   syscall GET_ADDR
-  STY DRAW_TXT_LOOP+1
+  STY STR88K_PUTC_ASCII+1
   ; ---------------------------------------------------------------
   ;   字形ファイルオープン
   loadAY16 STR_FONTPATH
-  syscall FS_FIND_FST             ; 検索
-  BCS NOTFOUND                    ; 見つからなかったらあきらめる
-  storeAY16 FINFO_SAV             ; FINFOを格納
+  syscall FS_FIND_FST                 ; 検索
+  BCS NOTFOUND                        ; 見つからなかったらあきらめる
+  storeAY16 ZP_FINFO_SAV              ; FINFOを格納
   STZ ZR0
-  syscall FS_OPEN                 ; ファイルをオープン
-  BCS NOTFOUND                    ; オープンできなかったらあきらめる
-  STA FD_SAV                      ; ファイル記述子をセーブ
+  syscall FS_OPEN                     ; ファイルをオープン
+  BCS NOTFOUND                        ; オープンできなかったらあきらめる
+  STA ZP_FD_SAV                       ; ファイル記述子をセーブ
 .endmac
 
 .macro str88k_puts wx,wy,ptr
@@ -47,11 +49,11 @@ ZP_GLYPH_FINFO:   .RES 2
 .macro str88k_close
   .local @SKP_ERR
   ; ファイルクローズ
-  LDA FD_SAV
+  LDA ZP_FD_SAV
   syscall FS_CLOSE
   BCC @SKP_ERR
   JMP STR88K_BCOS_ERROR
-  @SKP_ERR
+@SKP_ERR:
 .endmac
 
 .macro str88k_setcolor col,bkcol
@@ -71,83 +73,54 @@ STR88K_BCOS_ERROR:
   syscall ERR_MES
   RTS
 
-; Shift-JISコードをフォントファイルオフセットに変換
-; input: AX=Shift-JISコード（単バイトの場合はAのみ）
-SJIS_DECODE:
-  @SJIS=ZR0
+; EUC-JPコードをフォントファイルオフセットに変換
+; input:  AX=EUC-JPコード（単バイトの場合はAのみ）
+; output: ZR1,2=ファイルオフセット
+EUCJ_DECODE:
   @OFST=ZR1 ;,ZR2
   @TMP=ZR3
-  STZ @OFST
+  STZ @OFST+2
   STZ @OFST+3
   STZ @TMP
-  STA @SJIS+1
-  STX @SJIS
-  ;storeAX16 @SJIS
-  ; ---------------------------------------------------------------
-  ;   上位バイトを線形化
-@HIGH:
-  LDA @SJIS+1
-  CMP #$89        ; 漢字か？
-  BCS @KANJI1
-@ALPHABET:        ; 漢字以前なら$85~$88を$85に圧縮
   TAY
-  DEC
-  AND #%11111110
-  TAX
-  TYA
-  CPX #$86        ; $87 or $88のときのみ EQUAL
-  BNE @HIGH_END
-  LDA #($85-$81)
-  BRA @HIGH_END2
-@KANJI1:
-  ;SEC ;BCSでジャンプしてきたからC=1
-  SBC #3
-  ; ---------------------------------------------------------------
-  ;   線形化された上位バイトをシフト加算
-  ;   x8(bytes) x192(char blocks) -> x2^9 x2^10
-@HIGH_END:
-  ; -$81減算
-  SEC
-  SBC #$81
-@HIGH_END2:
-  ; x2^9
-  ASL
-  TAX             ; X=2^9 B1
-  STA @OFST+1
-  LDA #0
-  ROL
-  STA @OFST+2
-  TAY             ; Y=2^9 B2
-  ; + x2^10
   TXA
-  ASL
-  ROL @OFST+2
-  ; CLC
-  ADC @OFST+1
-  STA @OFST+1
-  TYA
-  ADC @OFST+2
-  STA @OFST+2
-@LOW:
-  ; ---------------------------------------------------------------
-  ;   下位バイトを加算 -$40 x8
-  LDA @SJIS
+  ; 下位バイト
   SEC
-  SBC #$40
+  SBC #$A0
+  ASL
   ASL
   ROL @TMP
   ASL
   ROL @TMP
-  ASL
-  ROL @TMP
-  ; CLC
-  ADC @OFST
   STA @OFST
-  LDA @TMP
+  ; 上位バイト
+  TYA
+  SEC
+  SBC #$A1
+  ; --- 8(9区)以上なら4引く
+  CMP #8
+  BCC @SKP_M4
+  ;SEC ;BCC直後なのでC=1
+  SBC #4
+@SKP_M4:
+  ; --- 10(14区)以上なら2引く
+  CMP #10
+  BCC @SKP_M2
+  ;SEC ;BCC直後なのでC=1
+  SBC #2
+@SKP_M2:
+  STA @OFST+1
+  ASL
+  ;CLC ; MSBはゼロなのでC=0
   ADC @OFST+1
   STA @OFST+1
-@END:
+  LDA @TMP
+  ;CLC ; ハミ出すはずはないのでC=0
+  ADC @OFST+1
+  STA @OFST+1
   RTS
+;x3+(0~2)
+;x2+self+(0~2)
 
 STR88K_PUTS:
   LDY #0
@@ -170,16 +143,16 @@ STR88K_PUTS:
 @RET:
   RTS
 
-; Shift-JISコードを印字する
-; input: AX=Shift-JISコード（単バイトの場合はAのみ）
+; EUC-JPコードを印字する
+; input: AX=EUC-JPコード（単バイトの場合はAのみ）
 STR88K_PUTC:
   TAY         ; Yを使うわけではない
-  BPL @ASCII
+  BPL STR88K_PUTC_ASCII
   ; ---------------------------------------------------------------
   ;   外部フォント参照ベクタ作成
 @KANJI:
-  ; Shift-JISを字形ファイルオフセットへとデコード
-  JSR SJIS_DECODE
+  ; EUC-JPを字形ファイルオフセットへとデコード
+  JSR EUCJ_DECODE
   ; 字形をバッファに読み出し
   ; シーク
   LDA ZP_GLYPH_FD
@@ -194,10 +167,10 @@ STR88K_PUTC:
   ; ポインタを字形バッファに設定
   loadAY16 ZP_GLYPH_BUF
   storeAY16 ZP_FONT_VEC16
-  BRA @OUTPUT
+  BRA STR88K_PUTC_OUTPUT
   ; ---------------------------------------------------------------
   ;   内部フォント参照ベクタ作成
-@ASCII:
+STR88K_PUTC_ASCII:
   LDX #0                    ; #0はスタブ、initで書き換わる
   STX ZP_FONT_VEC16+1
   STZ ZP_FONT_SR            ; フォントあぶれ初期化
@@ -211,7 +184,7 @@ STR88K_PUTC:
   STA ZP_FONT_VEC16+1
   ; ---------------------------------------------------------------
   ;   CRTCにデータを出力
-@OUTPUT:
+STR88K_PUTC_OUTPUT:
   LDY #0                    ; フォント参照インデックス
 @VLOOP:
   LDA (ZP_FONT_VEC16),Y     ; フォントデータ取得

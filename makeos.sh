@@ -125,7 +125,7 @@ do
           ${td}/*.o $clib
   # アセンブル
   else
-    ruby ./str_sjis_encoder.rb -i $comsrc -o "${td}/tmp.s"
+    ruby ./str_eucjp_encoder.rb -i $comsrc -o "${td}/tmp.s"
     ca65  -g -I "./com" \
           --bin-include-dir "./com" \
           --cpu 65c02 \
