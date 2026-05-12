@@ -107,6 +107,8 @@ LOOP:
   STZ ZR5H_CMD_IDX
   ; コマンド処理
   LDA COMMAND_BUF
+  CMP #'e'          ; [e] カーネルエラー発生時にdonkiに落ちるよう設定
+  BEQ TO_ERRBRK
   CMP #'m'          ; [m] メモリ内容表示・編集
   BEQ TO_MEMORY
   CMP #'r'          ; [r] レジスタ状態編集・表示
@@ -157,8 +159,8 @@ TO_SET_REGS:
   JMP SET_REGS
 TO_MEMORY:
   JMP MEMORY
-
-;STR_NEWLINE: .BYT $A,"+",$0
+TO_ERRBRK:
+  JMP ERRBRK
 
 ; -------------------------------------------------------------------
 ;                    Dコマンド ワイドメモリダンプ
@@ -170,6 +172,9 @@ WDUMP:
   LDA #%00000011 ; only UART
   STA ZP_CON_DEV_CFG
   BRA DUMP1
+
+JMP_LOOP4:
+  JMP LOOP
 
 ; -------------------------------------------------------------------
 ;                       dコマンド メモリダンプ
@@ -184,7 +189,7 @@ DUMP1:
   ; ---------------------------------------------------------------
   ;   引数の数に応じた処理
   JSR GET_ARG_HEX         ; arg1取得          * ZR1=arg1.num();
-  BCS LOOP                ; argなし           |   ERR: exit
+  BCS JMP_LOOP4                ; argなし           |   ERR: exit
   mem2mem16 ZR4_FROM,ZR2  ;                   |   OK: ->
   JSR GET_ARG_HEX         ; arg2取得          * ZR2=arg2.num();
   BCC @SET_ZR3            ; すんなり          |   OK: 完成
@@ -519,6 +524,12 @@ EDIT_FLAGS:
   STA FLAG_SAVE,Y
 JMP_PRT_STAT:
   JMP PRT_STAT
+
+ERRBRK:
+  STZ ERR::REPORT
+  LDA #$EA
+  STA ERR::REPORT+1
+  BRA JMP_LOOP2
 
 ; -------------------------------------------------------------------
 ;                     mコマンド メモリの編集
