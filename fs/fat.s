@@ -380,31 +380,38 @@ NEXTSEC:
   ; ---------------------------------------------------------------
   ;   FATエントリを展開
   JSR OPEN_FAT
-
-  ; 現在クラスタにFATからコピー
+  ; ---------------------------------------------------------------
+  ;   展開したFATエントリを現在クラスタにコピー
+  ;     最上位バイト==$0FでEOCチェックが入る
   ;  NOTE:開いたけどそこまでタイミングクリティカルじゃない？
   LDY #3
+  ; #3
   LDA (ZP_LSRC0_VEC16),Y
   STA FWK+FCTRL::CUR_CLUS,Y
   DEY
   CMP #$0F
   BEQ @MIGHT_EOC                  ; EOCかもしれない
 @NOT_EOC:
-  ; FWK現在クラスタ更新
+  ; #2
   LDA (ZP_LSRC0_VEC16),Y
   STA FWK+FCTRL::CUR_CLUS,Y
   DEY
+  ; #1
   LDA (ZP_LSRC0_VEC16),Y
   STA FWK+FCTRL::CUR_CLUS,Y
   DEY
+  ; #0
   LDA (ZP_LSRC0_VEC16),Y
   STA FWK+FCTRL::CUR_CLUS,Y
-  JSR CLUS_REOPEN                 ; 更新された現在クラスタをもとにFWK再展開
+  ; ---------------------------------------------------------------
+  ;   更新された現在クラスタをもとにFWK再展開
+  JSR CLUS_REOPEN
   pullmem16 ZP_SDSEEK_VEC16       ; 書き込み先ポインタ復帰
   CLC
   RTS
 @SKP_NEXTCLUS:
-  ; リアルセクタ番号を更新
+  ; ---------------------------------------------------------------
+  ;   リアルセクタ番号をインクリメント
   ;loadreg16 (FWK_REAL_SEC) ; DST設定済み
   ;JSR AX_DST
   LDA #1
@@ -1124,16 +1131,79 @@ FAT_SEEK:
   AND @ZR5H_MASK
   STA FWK+FCTRL::CUR_SEC
   ; ---------------------------------------------------------------
+  ;   現在クラスタを先頭クラスタにリセット
+  ;     複数クラスタファイルにおいて最後の方でちょっとだけSEEK
+  ;     した時が非効率になるが目を瞑る。
+  mem2mem32 FWK+FCTRL::CUR_CLUS, FWK+FCTRL::HEAD
+  ; ---------------------------------------------------------------
   ;   クラスタ番号を求める
   ;   もしクラスタカウントが0なら先頭クラスタ番号でよい
   LDA @ZR34_CLUSCNT24
   ORA @ZR34_CLUSCNT24+1
   ORA @ZR34_CLUSCNT24+2
-  BNE @ERR
-  ; 先頭クラスタ
-  mem2mem32 FWK+FCTRL::CUR_CLUS, FWK+FCTRL::HEAD
+  BNE @MULTI_CLUS
   ; FWKを反映
+@END:
   LDA @ZR5L_FD
   JSR PUT_FWK
   CLC
   RTS
+  ; ---------------------------------------------------------------
+  ;   クラスタ番号が1以上の場合
+  ;     FATを辿ってクラスタ番号を求める
+  ;     TODO: 第三クラスタ移行に対応するためのループ実装
+  ;           現状は第二クラスタを前提にしている
+@MULTI_CLUS:
+  ; 第二クラスタの先頭セクタを開く
+  JSR CUR_CLUS_2_LOGICAL_FAT    ; 現在クラスタ番号{N}->FAT論理セクタ
+  ; ---------------------------------------------------------------
+  ;   FAT論理セクタ->FAT実セクタ
+  loadreg16 (DWK+DINFO::FATSTART) ; FATSTART加算
+  JSR L_ADD_AXS
+  ; ---------------------------------------------------------------
+  ;   FATエントリを展開
+  JSR OPEN_FAT
+  ; ---------------------------------------------------------------
+  ;   展開したFATエントリを現在クラスタにコピー
+  ;     最上位バイト==$0FでEOCチェックが入る
+  LDY #3
+  ; #3
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  CMP #$0F
+  BEQ @MIGHT_EOC                  ; EOCかもしれない
+@NOT_EOC:
+  ; #2
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  ; #1
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  DEY
+  ; #0
+  LDA (ZP_LSRC0_VEC16),Y
+  STA FWK+FCTRL::CUR_CLUS,Y
+  ; ---------------------------------------------------------------
+  BRA @END
+
+@MIGHT_EOC:
+  ; 上位バイトを見たところEOCの可能性あり
+  LDA (ZP_LSRC0_VEC16),Y    ; $0F[??]_????
+  DEY
+  AND (ZP_LSRC0_VEC16),Y    ; $0F??_[??]??
+  DEY
+  INC                       ; $FF++==0
+  BNE @NOT_EOC1             ; 中位2バイトをみたらEOCじゃなかった
+  LDA (ZP_LSRC0_VEC16),Y    ; $0F??_??[??]
+  ORA #%111
+  INC                       ; $FF++==0
+  BNE @NOT_EOC1             ; 最下位バイトを見たらEOCじゃなかった（そんなことある？）
+  ; EOC確定
+  SEC
+  RTS
+@NOT_EOC1:
+  LDY #2
+  BRA @NOT_EOC
+

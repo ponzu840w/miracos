@@ -65,14 +65,6 @@ ZP_FINFO_SAV:     .RES 2
 
 .SEGMENT "LIB"
 
-; カーネルエラーのとき
-STR88K_BCOS_ERROR:
-  LDA #$A
-  syscall CON_OUT_CHR
-  syscall ERR_GET
-  syscall ERR_MES
-  RTS
-
 ; EUC-JPコードをフォントファイルオフセットに変換
 ; input:  AX=EUC-JPコード（単バイトの場合はAのみ）
 ; output: ZR1,2=ファイルオフセット
@@ -143,6 +135,14 @@ STR88K_PUTS:
 @RET:
   RTS
 
+; カーネルエラーのとき
+STR88K_BCOS_ERROR:
+  LDA #$A
+  syscall CON_OUT_CHR
+  syscall ERR_GET
+  syscall ERR_MES
+  RTS
+
 ; EUC-JPコードを印字する
 ; input: AX=EUC-JPコード（単バイトの場合はAのみ）
 STR88K_PUTC:
@@ -158,12 +158,14 @@ STR88K_PUTC:
   LDA ZP_GLYPH_FD
   LDY #BCOS::SEEK_SET
   syscall FS_SEEK
+  BCS STR88K_BCOS_ERROR
   ; 実際の読み出し
   LDA ZP_GLYPH_FD
   STA ZR1                       ; FD
   loadmem16 ZR0, ZP_GLYPH_BUF   ; 字形バッファを保存先に
   loadAY16 8                    ; 8バイト（一時分）
   syscall FS_READ_BYTS          ; 読み出し
+  BCS STR88K_BCOS_ERROR
   ; ポインタを字形バッファに設定
   loadAY16 ZP_GLYPH_BUF
   storeAY16 ZP_FONT_VEC16

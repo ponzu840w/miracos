@@ -91,6 +91,7 @@ STR_ARG_ERROR:
   .BYT "Argument Error.",$A,$0
 
 STR_TEST:
+  .BYT "魑魅魍魎 乾坤一擲 襦袢を脱げ",$0
   .BYT "EUC-JPによる漢字表示のテスト",$0
   .BYT "隣の客はよく柿食う客だ。",$0
 
