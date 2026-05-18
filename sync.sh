@@ -1,3 +1,5 @@
+#!/bin/bash
+
 set -eu
 
 drive_letter=$1

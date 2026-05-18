@@ -1137,6 +1137,8 @@ FAT_SEEK:
   mem2mem32 FWK+FCTRL::CUR_CLUS, FWK+FCTRL::HEAD
   ; ---------------------------------------------------------------
   ;   クラスタ番号を求める
+@MULTI_CLUS_LOOP:
+  ; ---------------------------------------------------------------
   ;   もしクラスタカウントが0なら先頭クラスタ番号でよい
   LDA @ZR34_CLUSCNT24
   ORA @ZR34_CLUSCNT24+1
@@ -1151,8 +1153,6 @@ FAT_SEEK:
   ; ---------------------------------------------------------------
   ;   クラスタ番号が1以上の場合
   ;     FATを辿ってクラスタ番号を求める
-  ;     TODO: 第三クラスタ移行に対応するためのループ実装
-  ;           現状は第二クラスタを前提にしている
 @MULTI_CLUS:
   ; 第二クラスタの先頭セクタを開く
   JSR CUR_CLUS_2_LOGICAL_FAT    ; 現在クラスタ番号{N}->FAT論理セクタ
@@ -1186,7 +1186,18 @@ FAT_SEEK:
   LDA (ZP_LSRC0_VEC16),Y
   STA FWK+FCTRL::CUR_CLUS,Y
   ; ---------------------------------------------------------------
-  BRA @END
+  ;   クラスタカウント減算
+  LDA @ZR34_CLUSCNT24
+  SEC
+  SBC #1
+  STA @ZR34_CLUSCNT24
+  LDA @ZR34_CLUSCNT24+1
+  SBC #0
+  STA @ZR34_CLUSCNT24+1
+  LDA @ZR34_CLUSCNT24+2
+  SBC #0
+  STA @ZR34_CLUSCNT24+2
+  BRA @MULTI_CLUS_LOOP
 
 @MIGHT_EOC:
   ; 上位バイトを見たところEOCの可能性あり
